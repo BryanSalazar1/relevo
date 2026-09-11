@@ -1,0 +1,78 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/home" text="" />
+    </ion-buttons>
+    <ion-title>Unirme con código</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  <ion-text color="medium">
+    <p>Pide el código o el QR a quien administra la bitácora de la persona cuidada.</p>
+  </ion-text>
+
+  <ion-input
+    label="Código de invitación"
+    labelPlacement="stacked"
+    fill="outline"
+    placeholder="ABCD-EFGH"
+    name="codigo"
+    [(ngModel)]="codigo"
+    (ionBlur)="formatear()"
+    (keyup.enter)="buscar()"
+    autocapitalize="characters"
+    [maxlength]="9"
+    class="ion-margin-bottom"
+  />
+
+  <ion-button expand="block" (click)="buscar()" [disabled]="buscando()">
+    @if (buscando()) {
+      <ion-spinner name="crescent" />
+    } @else {
+      Buscar invitación
+    }
+  </ion-button>
+  <ion-button expand="block" fill="outline" (click)="escanear()">
+    <ion-icon slot="start" name="scan-outline" />
+    Escanear código QR
+  </ion-button>
+
+  @if (resultado(); as r) {
+    <ion-card class="ion-margin-top">
+      @if (r.estado === 'valida' && r.invitacion; as inv) {
+        <ion-card-header>
+          <ion-card-subtitle>Invitación válida</ion-card-subtitle>
+          <ion-card-title>{{ inv.personaNombre }}</ion-card-title>
+        </ion-card-header>
+        <ion-card-content>
+          <p>
+            Te unirás como
+            <ion-badge color="primary">{{ rolEtiqueta() ?? 'según tu cuenta' }}</ion-badge>
+            @if (tipoEtiqueta(); as tipo) {
+              <ion-text color="medium"> (cuenta de {{ tipo.toLowerCase() }})</ion-text>
+            }
+          </p>
+          <p><ion-text color="medium">Vence el {{ inv.expiraEn.toDate() | date: "d 'de' MMMM" }}</ion-text></p>
+          <ion-button expand="block" class="ion-margin-top" (click)="unirme()" [disabled]="uniendo()">
+            @if (uniendo()) {
+              <ion-spinner name="crescent" />
+            } @else {
+              Unirme
+            }
+          </ion-button>
+        </ion-card-content>
+      } @else {
+        <ion-card-header>
+          <ion-card-title>
+            <ion-icon name="alert-circle-outline" color="danger" />
+            No se puede usar
+          </ion-card-title>
+        </ion-card-header>
+        <ion-card-content>
+          <p>{{ motivos[r.estado] }}</p>
+        </ion-card-content>
+      }
+    </ion-card>
+  }
+</ion-content>

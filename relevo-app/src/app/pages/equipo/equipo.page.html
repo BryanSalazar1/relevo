@@ -1,0 +1,103 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/home" text="" />
+    </ion-buttons>
+    <ion-title>Equipo de cuidado</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  @if (persona(); as p) {
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>{{ p.nombre }}</ion-card-title>
+        <ion-card-subtitle>
+          @if (edad() !== null) {
+            {{ edad() }} años ·
+          }
+          {{ p.tipoSangre || 'Tipo de sangre sin registrar' }}
+        </ion-card-subtitle>
+      </ion-card-header>
+      <ion-card-content>
+        <p><strong>Condiciones:</strong> {{ p.condiciones?.join(', ') || 'Ninguna registrada' }}</p>
+        <p><strong>Alergias:</strong> {{ p.alergias?.join(', ') || 'Ninguna registrada' }}</p>
+        @if (p.medicoTratante) {
+          <p><strong>Médico:</strong> {{ p.medicoTratante }}</p>
+        }
+        @for (c of p.contactosEmergencia; track c.telefono) {
+          <p>
+            <strong>Emergencia:</strong> {{ c.nombre }}@if (c.relacion) { ({{ c.relacion }})} ·
+            <a [href]="'tel:' + c.telefono">{{ c.telefono }}</a>
+          </p>
+        }
+      </ion-card-content>
+    </ion-card>
+  }
+
+  <ion-list inset>
+    <ion-list-header>
+      <ion-label>Miembros</ion-label>
+    </ion-list-header>
+    @if (miembros(); as lista) {
+      @for (m of lista; track m.uid) {
+        <ion-item [button]="esPrincipal() && m.uid !== uid" [detail]="false" (click)="opcionesMiembro(m)">
+          <ion-label>
+            <h2>
+              {{ m.nombre }}
+              @if (m.uid === uid) {
+                <ion-note>(tú)</ion-note>
+              }
+            </h2>
+            <p><ion-badge [color]="ROL_COLOR[m.rol]">{{ ROL_ETIQUETA[m.rol] }}</ion-badge></p>
+          </ion-label>
+          @if (esPrincipal() && m.uid !== uid) {
+            <ion-button slot="end" fill="clear" color="medium" aria-label="Opciones">
+              <ion-icon slot="icon-only" name="ellipsis-horizontal" />
+            </ion-button>
+          }
+        </ion-item>
+      }
+    } @else {
+      <ion-item lines="none"><ion-spinner name="crescent" /></ion-item>
+    }
+  </ion-list>
+
+  @if (esPrincipal()) {
+    <ion-list inset>
+      <ion-list-header>
+        <ion-label>Invitar a alguien</ion-label>
+      </ion-list-header>
+      <ion-item lines="none">
+        <ion-label class="ion-text-wrap">
+          <p>
+            Genera un código o QR y compártelo. Cada persona entra según su cuenta: familiar,
+            enfermero/a o médico.
+          </p>
+        </ion-label>
+      </ion-item>
+      <div class="ion-padding-horizontal ion-padding-bottom">
+        <ion-button expand="block" (click)="invitar()">
+          <ion-icon slot="start" name="person-add-outline" />
+          Crear invitación
+        </ion-button>
+      </div>
+      @for (inv of invitaciones() ?? []; track inv.codigo) {
+        <ion-item button [detail]="false" (click)="mostrarInvitacion(inv)">
+          <ion-icon slot="start" name="qr-code-outline" color="primary" />
+          <ion-label>
+            <h2 class="codigo">{{ formatearCodigo(inv.codigo) }}</h2>
+            <p>Vence {{ inv.expiraEn.toDate() | date: 'd MMM' }} · {{ inv.usos }}/{{ inv.usosMax }} usos</p>
+          </ion-label>
+          <ion-button slot="end" fill="clear" color="medium" (click)="revocar(inv); $event.stopPropagation()" aria-label="Cancelar invitación">
+            <ion-icon slot="icon-only" name="ban-outline" />
+          </ion-button>
+        </ion-item>
+      }
+    </ion-list>
+  } @else if (rol()) {
+    <div class="ion-padding ion-text-center">
+      <ion-text color="medium"><p>Solo el familiar responsable puede invitar a más personas.</p></ion-text>
+    </div>
+  }
+</ion-content>

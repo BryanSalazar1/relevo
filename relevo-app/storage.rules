@@ -1,0 +1,29 @@
+rules_version = '2';
+
+// Fotos de la bitácora y documentos médicos viven bajo personas_cuidadas/{id}/...
+// Solo los miembros de esa persona (según Firestore) pueden leer/subir.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function esMiembro(personaId) {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/personas_cuidadas/$(personaId)/miembros/$(request.auth.uid));
+    }
+
+    function archivoPermitido() {
+      return request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*|audio/.*|application/pdf');
+    }
+
+    match /personas_cuidadas/{personaId}/{allPaths=**} {
+      allow read: if esMiembro(personaId);
+      allow write: if esMiembro(personaId) && archivoPermitido();
+    }
+
+    // Foto de perfil del usuario
+    match /usuarios/{userId}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId && archivoPermitido();
+    }
+  }
+}

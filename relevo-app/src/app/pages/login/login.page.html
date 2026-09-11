@@ -1,0 +1,82 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-title>Relevo</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  <div class="contenedor">
+    <div class="encabezado ion-text-center">
+      <ion-icon name="heart-outline" class="logo" color="primary" />
+      <h1>{{ modo() === 'login' ? 'Iniciar sesión' : 'Crear cuenta' }}</h1>
+      <ion-text color="medium"><p>Bitácora compartida de cuidado</p></ion-text>
+    </div>
+
+    <form (ngSubmit)="enviar()">
+      @if (modo() === 'registro') {
+        <ion-input
+          label="Nombre"
+          labelPlacement="floating"
+          fill="outline"
+          name="nombre"
+          autocomplete="name"
+          required
+          [(ngModel)]="nombre"
+          class="ion-margin-bottom"
+        />
+
+        <div class="tipo-cuenta">
+          <ion-note>Me registro como</ion-note>
+          <ion-segment [value]="tipo()" (ionChange)="cambiarTipo($any($event).detail.value)">
+            @for (t of tipos; track t.valor) {
+              <ion-segment-button [value]="t.valor">
+                <ion-icon [name]="t.icono" />
+                <ion-label>{{ t.etiqueta }}</ion-label>
+              </ion-segment-button>
+            }
+          </ion-segment>
+          <ion-note class="desc" color="medium">{{ descripcionTipo() }}</ion-note>
+        </div>
+      }
+
+      <ion-input
+        type="email"
+        label="Correo"
+        labelPlacement="floating"
+        fill="outline"
+        name="email"
+        autocomplete="email"
+        required
+        [(ngModel)]="email"
+        class="ion-margin-bottom"
+      />
+
+      <ion-input
+        type="password"
+        label="Contraseña"
+        labelPlacement="floating"
+        fill="outline"
+        name="password"
+        [autocomplete]="modo() === 'login' ? 'current-password' : 'new-password'"
+        required
+        minlength="6"
+        [(ngModel)]="password"
+        class="ion-margin-bottom"
+      >
+        <ion-input-password-toggle slot="end" />
+      </ion-input>
+
+      <ion-button expand="block" type="submit" [disabled]="cargando()">
+        @if (cargando()) {
+          <ion-spinner name="crescent" />
+        } @else {
+          {{ modo() === 'login' ? 'Entrar' : 'Registrarme' }}
+        }
+      </ion-button>
+    </form>
+
+    <ion-button expand="block" fill="clear" size="small" (click)="alternarModo()">
+      {{ modo() === 'login' ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Inicia sesión' }}
+    </ion-button>
+  </div>
+</ion-content>

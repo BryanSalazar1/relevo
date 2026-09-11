@@ -1,0 +1,131 @@
+ion-content.chat {
+  --background: var(--ion-color-light, #f4f5f8);
+}
+
+.bienvenida {
+  text-align: center;
+  padding-top: 32px;
+
+  ion-icon {
+    font-size: 56px;
+  }
+
+  h2 {
+    margin: 8px 0 4px;
+    font-weight: 700;
+  }
+
+  p {
+    margin: 0 auto 16px;
+    max-width: 420px;
+  }
+}
+
+.sugerencias {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+
+  ion-chip {
+    max-width: 100%;
+    height: auto;
+    padding-top: 6px;
+    padding-bottom: 6px;
+
+    ion-label {
+      white-space: normal;
+      text-align: left;
+    }
+  }
+}
+
+.mensajes {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 12px 16px;
+}
+
+.burbuja {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  max-width: 88%;
+
+  &.usuario {
+    align-self: flex-end;
+
+    .texto {
+      background: var(--ion-color-primary);
+      color: var(--ion-color-primary-contrast);
+      border-bottom-right-radius: 4px;
+    }
+
+    .hora {
+      color: rgba(255, 255, 255, 0.75);
+    }
+  }
+
+  &.asistente {
+    align-self: flex-start;
+
+    .texto {
+      background: var(--ion-background-color, #fff);
+      color: var(--ion-text-color);
+      border-bottom-left-radius: 4px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+    }
+  }
+
+  &.error .texto {
+    border: 1px solid var(--ion-color-danger);
+  }
+
+  .avatar {
+    flex: 0 0 auto;
+    font-size: 20px;
+    color: var(--ion-color-primary);
+    margin-bottom: 6px;
+  }
+
+  .texto {
+    padding: 10px 12px;
+    border-radius: 16px;
+
+    p {
+      margin: 0;
+      white-space: pre-wrap;
+      line-height: 1.4;
+    }
+
+    &.pensando {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--ion-color-medium);
+    }
+  }
+
+  .hora {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.7rem;
+    color: var(--ion-color-medium);
+    text-align: right;
+  }
+}
+
+.entrada {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 4px 4px 4px 12px;
+
+  ion-textarea {
+    flex: 1;
+    --padding-top: 8px;
+    --padding-bottom: 8px;
+    max-height: 120px;
+  }
+}

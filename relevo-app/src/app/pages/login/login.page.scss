@@ -1,0 +1,48 @@
+.contenedor {
+  max-width: 420px;
+  margin: 0 auto;
+  padding-top: 2rem;
+}
+
+.encabezado {
+  margin-bottom: 1.5rem;
+
+  .logo {
+    font-size: 56px;
+  }
+
+  h1 {
+    margin: 0.25rem 0 0;
+    font-weight: 700;
+  }
+
+  p {
+    margin: 0.25rem 0 0;
+  }
+}
+
+.tipo-cuenta {
+  margin-bottom: 16px;
+
+  > ion-note {
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  .desc {
+    display: block;
+    margin-top: 8px;
+    font-size: 0.85rem;
+    min-height: 2.5em;
+  }
+
+  ion-segment-button {
+    --padding-start: 4px;
+    --padding-end: 4px;
+    min-width: 0;
+
+    ion-label {
+      font-size: 0.8rem;
+    }
+  }
+}

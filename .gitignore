@@ -1,0 +1,7 @@
+# Binarios generados
+*.apk
+# Archivos temporales de Office
+~$*
+# Sistema
+Thumbs.db
+.DS_Store

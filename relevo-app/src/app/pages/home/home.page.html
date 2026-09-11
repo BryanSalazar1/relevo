@@ -1,0 +1,76 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-title>Mis personas</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="salir()" aria-label="Cerrar sesión">
+        <ion-icon slot="icon-only" name="log-out-outline" />
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <ion-list inset>
+    <ion-item lines="full">
+      <ion-icon name="person-circle-outline" slot="start" color="primary" />
+      <ion-label>
+        <h2>{{ usuario()?.displayName || usuario()?.email }}</h2>
+        <p>{{ usuario()?.email }}</p>
+      </ion-label>
+      @if (tipoEtiqueta(); as tipo) {
+        <ion-badge slot="end" color="primary">{{ tipo }}</ion-badge>
+      }
+    </ion-item>
+    <ion-item button routerLink="/unirse" detail>
+      <ion-icon name="qr-code-outline" slot="start" color="primary" />
+      <ion-label>
+        <h2>Unirme con código o QR</h2>
+        <p>Si alguien te invitó a una bitácora</p>
+      </ion-label>
+    </ion-item>
+  </ion-list>
+
+  @if (personas(); as lista) {
+    @if (lista.length === 0) {
+      <div class="vacio ion-padding ion-text-center">
+        <ion-icon name="heart-outline" color="medium" />
+        <ion-text color="medium">
+          @if (esFamiliar()) {
+            <p>Aún no cuidas a nadie.<br />Toca <strong>+</strong> para dar de alta a tu familiar, o únete con un código.</p>
+          } @else {
+            <p>Aún no formas parte de ninguna bitácora.<br />Pide a la familia el código o el QR de invitación y entra con <strong>Unirme con código</strong>.</p>
+          }
+        </ion-text>
+      </div>
+    } @else {
+      <ion-list inset>
+        @for (p of lista; track p.id) {
+          <ion-item button detail [routerLink]="['/personas', p.id]">
+            <ion-icon name="heart-outline" slot="start" color="danger" />
+            <ion-label>
+              <h2>{{ p.nombre }}</h2>
+              <p>
+                @if (edad(p.fechaNacimiento); as anios) {
+                  {{ anios }} años ·
+                }
+                {{ p.miembrosUids.length }} en el equipo
+              </p>
+            </ion-label>
+          </ion-item>
+        }
+      </ion-list>
+    }
+  } @else {
+    <div class="ion-text-center ion-padding">
+      <ion-spinner name="crescent" />
+    </div>
+  }
+
+  @if (esFamiliar()) {
+    <ion-fab slot="fixed" vertical="bottom" horizontal="end">
+      <ion-fab-button (click)="nuevaPersona()" aria-label="Nueva persona">
+        <ion-icon name="add" />
+      </ion-fab-button>
+    </ion-fab>
+  }
+</ion-content>

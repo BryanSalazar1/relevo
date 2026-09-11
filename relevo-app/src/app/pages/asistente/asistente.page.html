@@ -1,0 +1,80 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/home" text="" />
+    </ion-buttons>
+    <ion-title>Asistente</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="limpiar()" [disabled]="vacio()" aria-label="Borrar conversación">
+        <ion-icon slot="icon-only" name="trash-outline" />
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="chat">
+  @if (vacio()) {
+    <div class="bienvenida ion-padding">
+      <ion-icon name="sparkles-outline" color="primary" />
+      <h2>Pregúntame sobre {{ nombreCorto() }}</h2>
+      <ion-text color="medium">
+        <p>
+          Respondo leyendo la bitácora, los medicamentos, los signos vitales y las citas de los
+          últimos 30 días. No doy diagnósticos.
+        </p>
+      </ion-text>
+      <div class="sugerencias">
+        @for (s of sugerencias; track s) {
+          <ion-chip [outline]="true" color="primary" (click)="enviar(s)">
+            <ion-label>{{ s }}</ion-label>
+          </ion-chip>
+        }
+      </div>
+    </div>
+  }
+
+  <div class="mensajes">
+    @for (m of mensajes(); track m.fecha.getTime()) {
+      <div class="burbuja" [class.usuario]="m.rol === 'usuario'" [class.asistente]="m.rol === 'asistente'" [class.error]="m.error">
+        @if (m.rol === 'asistente') {
+          <ion-icon [name]="m.error ? 'alert-circle-outline' : 'sparkles-outline'" class="avatar" />
+        }
+        <div class="texto">
+          <p>{{ m.texto }}</p>
+          <span class="hora">{{ m.fecha | date: 'HH:mm' }}</span>
+        </div>
+      </div>
+    }
+    @if (pensando()) {
+      <div class="burbuja asistente">
+        <ion-icon name="sparkles-outline" class="avatar" />
+        <div class="texto pensando">
+          <ion-spinner name="dots" />
+          <span>Leyendo la bitácora…</span>
+        </div>
+      </div>
+    }
+  </div>
+</ion-content>
+
+<ion-footer>
+  <ion-toolbar>
+    <div class="entrada">
+      <ion-textarea
+        #caja
+        placeholder="Escribe tu pregunta…"
+        [autoGrow]="true"
+        rows="1"
+        [maxlength]="500"
+        name="pregunta"
+        [(ngModel)]="pregunta"
+        (keydown)="enviarConEnter($event)"
+        [disabled]="pensando()"
+        autocapitalize="sentences"
+      />
+      <ion-button fill="clear" (click)="enviar()" [disabled]="!pregunta.trim() || pensando()" aria-label="Enviar">
+        <ion-icon slot="icon-only" name="send-outline" />
+      </ion-button>
+    </div>
+  </ion-toolbar>
+</ion-footer>
