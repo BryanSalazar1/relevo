@@ -90,16 +90,17 @@ try {
   ok('nuevo registro guardado y visible en tiempo real');
 
   await page.click('ion-tab-button[tab="equipo"]');
-  await page.waitForSelector('text=Crear invitación', { timeout: 15_000 });
   await page.waitForSelector('text=Dr. Luis Pérez', { timeout: 15_000 });
-  ok('pestaña Equipo con miembros y opción de invitar (soy cuidadora principal)');
+  ok('pestaña Equipo con miembros (soy responsable)');
 
-  await page.click('ion-button:has-text("Crear invitación")');
-  await page.waitForSelector('app-compartir-modal .codigo', { timeout: 20_000 });
-  codigo = (await page.textContent('app-compartir-modal .codigo')).trim();
+  // El QR permanente de la persona aparece solo (se genera la primera vez)
+  await page.waitForSelector('ion-card.acceso .codigo.grande', { timeout: 30_000 });
+  codigo = (await page.textContent('ion-card.acceso .codigo.grande')).trim();
   if (!/^[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(codigo)) throw new Error(`Código inesperado: ${codigo}`);
+  await page.waitForSelector('ion-card.acceso img.qr', { timeout: 15_000 });
+  ok(`QR de acceso visible en Equipo con código ${codigo}`);
+  await page.click('ion-card.acceso .qr-wrap');
   await page.waitForSelector('app-compartir-modal img.qr', { timeout: 15_000 });
-  ok(`invitación creada con código ${codigo} y QR generado`);
   await page.click('app-compartir-modal button[aria-label="Cerrar"]');
 
   await page.click('ion-tab-button[tab="reporte"]');
@@ -168,10 +169,7 @@ try {
   await page.click('ion-action-sheet button:has-text("Quitar del equipo")');
   await page.click('ion-alert button:has-text("Quitar")');
   await page.waitForSelector(`text=${NUEVO.nombre}`, { state: 'detached', timeout: 20_000 });
-  await page.click(`ion-item:has-text("${codigo}") button[aria-label="Cancelar invitación"]`);
-  await page.click('ion-alert button:has-text("Cancelar invitación")');
-  await page.waitForSelector(`text=${codigo}`, { state: 'detached', timeout: 20_000 });
-  ok('miembro de prueba quitado e invitación cancelada');
+  ok('miembro de prueba quitado (el código de acceso permanente se conserva)');
 } finally {
   await browser.close();
   if (erroresConsola.length) {

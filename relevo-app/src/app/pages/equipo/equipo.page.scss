@@ -2,8 +2,48 @@
   font-family: ui-monospace, 'Cascadia Mono', 'Consolas', monospace;
   letter-spacing: 0.12em;
   font-weight: 700;
+
+  &.grande {
+    font-size: 1.8rem;
+    letter-spacing: 0.15em;
+    text-align: center;
+    margin: 8px 0 4px;
+  }
 }
 
 ion-badge {
   vertical-align: middle;
+}
+
+ion-card.acceso {
+  .qr-wrap {
+    display: block;
+    width: min(60vw, 240px);
+    margin: 4px auto 0;
+    padding: 8px;
+    border: 0;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    cursor: pointer;
+  }
+
+  .qr {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1;
+    height: auto;
+  }
+
+  .ayuda {
+    font-size: 0.85rem;
+    margin: 0 0 8px;
+  }
+
+  .acciones {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+  }
 }

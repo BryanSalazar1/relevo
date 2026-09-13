@@ -33,6 +33,53 @@
         }
       </ion-card-content>
     </ion-card>
+
+    @if (esPrincipal()) {
+      <ion-card class="acceso">
+        <ion-card-header>
+          <ion-card-subtitle>Código de acceso de {{ p.nombre }}</ion-card-subtitle>
+          <ion-card-title>Comparte el QR para unir al equipo</ion-card-title>
+        </ion-card-header>
+        <ion-card-content>
+          @if (invitacionActual(); as inv) {
+            <button type="button" class="qr-wrap" (click)="mostrarInvitacion(inv)" aria-label="Ver QR en grande">
+              @if (qr(); as src) {
+                <img class="qr" [src]="src" alt="Código QR de acceso" />
+              } @else {
+                <ion-skeleton-text [animated]="true" class="qr" />
+              }
+            </button>
+            <div class="codigo grande">{{ formatearCodigo(inv.codigo) }}</div>
+            <p class="ion-text-center ayuda">
+              <ion-text color="medium">
+                Quien lo escanee o escriba el código entra con el rol de su cuenta: familiar,
+                enfermero/a o médico. Vence el {{ inv.expiraEn.toDate() | date: 'd MMM y' }} ·
+                {{ inv.usos }}/{{ inv.usosMax }} usos.
+              </ion-text>
+            </p>
+            <div class="acciones">
+              <ion-button (click)="compartir(inv)">
+                <ion-icon slot="start" name="share-social-outline" />
+                Compartir
+              </ion-button>
+              <ion-button fill="outline" (click)="copiarCodigo(inv)">
+                <ion-icon slot="start" name="copy-outline" />
+                Copiar código
+              </ion-button>
+              <ion-button fill="clear" color="medium" (click)="renovar(inv)">
+                <ion-icon slot="start" name="refresh-outline" />
+                Renovar
+              </ion-button>
+            </div>
+          } @else {
+            <div class="ion-text-center ion-padding">
+              <ion-spinner name="crescent" />
+              <p><ion-text color="medium">Generando el código de acceso…</ion-text></p>
+            </div>
+          }
+        </ion-card-content>
+      </ion-card>
+    }
   }
 
   <ion-list inset>
@@ -63,26 +110,12 @@
     }
   </ion-list>
 
-  @if (esPrincipal()) {
+  @if (esPrincipal() && otrasInvitaciones().length > 0) {
     <ion-list inset>
       <ion-list-header>
-        <ion-label>Invitar a alguien</ion-label>
+        <ion-label>Otros códigos activos</ion-label>
       </ion-list-header>
-      <ion-item lines="none">
-        <ion-label class="ion-text-wrap">
-          <p>
-            Genera un código o QR y compártelo. Cada persona entra según su cuenta: familiar,
-            enfermero/a o médico.
-          </p>
-        </ion-label>
-      </ion-item>
-      <div class="ion-padding-horizontal ion-padding-bottom">
-        <ion-button expand="block" (click)="invitar()">
-          <ion-icon slot="start" name="person-add-outline" />
-          Crear invitación
-        </ion-button>
-      </div>
-      @for (inv of invitaciones() ?? []; track inv.codigo) {
+      @for (inv of otrasInvitaciones(); track inv.codigo) {
         <ion-item button [detail]="false" (click)="mostrarInvitacion(inv)">
           <ion-icon slot="start" name="qr-code-outline" color="primary" />
           <ion-label>
@@ -95,9 +128,9 @@
         </ion-item>
       }
     </ion-list>
-  } @else if (rol()) {
+  } @else if (!esPrincipal() && rol()) {
     <div class="ion-padding ion-text-center">
-      <ion-text color="medium"><p>Solo el familiar responsable puede invitar a más personas.</p></ion-text>
+      <ion-text color="medium"><p>Solo el familiar responsable puede compartir el código de acceso.</p></ion-text>
     </div>
   }
 </ion-content>

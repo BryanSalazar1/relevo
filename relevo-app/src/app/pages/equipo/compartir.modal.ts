@@ -130,20 +130,12 @@ export class CompartirModal implements OnInit {
   }
 
   get mensaje(): string {
-    return (
-      `Te invito a la bitácora de cuidado de ${this.invitacion.personaNombre} en Relevo.\n` +
-      `Código: ${this.codigo}\n${this.enlace}`
-    );
+    return this.invitacionesSvc.textoInvitacion(this.invitacion);
   }
 
   async ngOnInit() {
     try {
-      // `qrcode` es CommonJS: con import() dinámico el bundler lo expone bajo `default`
-      const mod = await import('qrcode');
-      const QRCode = mod.default ?? mod;
-      this.qr.set(
-        await QRCode.toDataURL(this.enlace, { width: 512, margin: 1, errorCorrectionLevel: 'M' }),
-      );
+      this.qr.set(await this.invitacionesSvc.qrDataUrl(this.invitacion.codigo));
     } catch (error) {
       console.error('No se pudo generar el QR', error);
     }
@@ -164,15 +156,10 @@ export class CompartirModal implements OnInit {
 
   async compartir() {
     try {
-      const { Share } = await import('@capacitor/share');
-      await Share.share({
-        title: 'Invitación a Relevo',
-        text: this.mensaje,
-        dialogTitle: 'Compartir invitación',
-      });
+      const resultado = await this.invitacionesSvc.compartir(this.invitacion);
+      if (resultado === 'copiado') await this.aviso('Invitación copiada al portapapeles');
     } catch {
-      // Sin hoja de compartir (escritorio) o cancelado: dejamos el texto en el portapapeles
-      await this.copiar(this.mensaje, 'Invitación copiada al portapapeles');
+      await this.aviso('No se pudo compartir en este dispositivo.');
     }
   }
 

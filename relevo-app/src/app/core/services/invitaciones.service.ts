@@ -49,6 +49,10 @@ export function extraerCodigo(texto: string): string | null {
 
 export type EstadoInvitacion = 'valida' | 'inexistente' | 'inactiva' | 'vencida' | 'agotada';
 
+/** Vigencia del código permanente que se muestra en la pestaña Equipo */
+export const DIAS_CODIGO_PERMANENTE = 365;
+export const USOS_CODIGO_PERMANENTE = 100;
+
 @Injectable({ providedIn: 'root' })
 export class InvitacionesService {
   private readonly db = inject(Firestore);
@@ -56,6 +60,35 @@ export class InvitacionesService {
 
   enlace(codigo: string): string {
     return `${appUrl}/unirse/${normalizarCodigo(codigo)}`;
+  }
+
+  /** Texto listo para WhatsApp/correo con el código y el enlace. */
+  textoInvitacion(inv: Invitacion): string {
+    return (
+      `Te invito a la bitácora de cuidado de ${inv.personaNombre} en Relevo.\n` +
+      `Código: ${formatearCodigo(inv.codigo)}\n${this.enlace(inv.codigo)}`
+    );
+  }
+
+  /** Abre la hoja de compartir (Android / navegadores compatibles); si no hay, copia al portapapeles. */
+  async compartir(inv: Invitacion): Promise<'compartido' | 'copiado'> {
+    const texto = this.textoInvitacion(inv);
+    try {
+      const { Share } = await import('@capacitor/share');
+      await Share.share({ title: 'Invitación a Relevo', text: texto, dialogTitle: 'Compartir invitación' });
+      return 'compartido';
+    } catch {
+      await navigator.clipboard.writeText(texto);
+      return 'copiado';
+    }
+  }
+
+  /** Imagen (data URL) del QR con el enlace de la invitación. */
+  async qrDataUrl(codigo: string): Promise<string> {
+    // `qrcode` es CommonJS: con import() dinámico el bundler lo expone bajo `default`
+    const mod = await import('qrcode');
+    const QRCode = mod.default ?? mod;
+    return QRCode.toDataURL(this.enlace(codigo), { width: 512, margin: 1, errorCorrectionLevel: 'M' });
   }
 
   private generarCodigo(): string {

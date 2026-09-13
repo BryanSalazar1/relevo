@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import {
   ActionSheetController,
@@ -21,6 +21,7 @@ import {
   IonList,
   IonListHeader,
   IonNote,
+  IonSkeletonText,
   IonSpinner,
   IonText,
   IonTitle,
@@ -32,7 +33,9 @@ import { combineLatest, of, switchMap } from 'rxjs';
 import { Invitacion, Miembro, ROL_COLOR, ROL_ETIQUETA } from '../../core/models';
 import { AuthService } from '../../core/services/auth.service';
 import {
+  DIAS_CODIGO_PERMANENTE,
   InvitacionesService,
+  USOS_CODIGO_PERMANENTE,
   formatearCodigo,
 } from '../../core/services/invitaciones.service';
 import { MiembrosService } from '../../core/services/miembros.service';
@@ -63,6 +66,7 @@ import { CompartirModal } from './compartir.modal';
     IonButton,
     IonIcon,
     IonNote,
+    IonSkeletonText,
     IonSpinner,
     IonText,
   ],
@@ -77,6 +81,7 @@ export class EquipoPage {
   private readonly alertCtrl = inject(AlertController);
   private readonly actionSheetCtrl = inject(ActionSheetController);
   private readonly toast = inject(ToastController);
+  private creandoCodigo = false;
 
   private readonly ctx = personaActual();
   readonly persona = this.ctx.persona;
@@ -92,7 +97,7 @@ export class EquipoPage {
   readonly esPrincipal = computed(() => this.rol() === 'cuidador_principal');
   readonly edad = computed(() => edad(this.persona()?.fechaNacimiento));
 
-  /** Solo se consultan si soy responsable (las rules no permiten listar a otros). */
+  /** Invitaciones activas (solo el responsable puede listarlas; las rules lo garantizan). */
   readonly invitaciones = toSignal(
     combineLatest([this.ctx.personaId$, toObservable(this.esPrincipal)]).pipe(
       switchMap(([id, principal]) =>
@@ -101,19 +106,99 @@ export class EquipoPage {
     ),
   );
 
-  /** Crea una invitación y muestra el código + QR. */
-  async invitar() {
+  /** El código que se muestra como QR permanente: la invitación activa más reciente. */
+  readonly invitacionActual = computed(() => this.invitaciones()?.[0] ?? null);
+  /** Otras invitaciones activas (p. ej. temporales creadas antes), por si se quieren cancelar. */
+  readonly otrasInvitaciones = computed(() => this.invitaciones()?.slice(1) ?? []);
+  readonly qr = signal<string | null>(null);
+
+  constructor() {
+    // Si el responsable no tiene ningún código activo, se genera uno de larga duración
+    effect(() => {
+      const lista = this.invitaciones();
+      const persona = this.persona();
+      if (this.esPrincipal() && persona && lista && lista.length === 0) {
+        untracked(() => void this.crearCodigoPermanente());
+      }
+    });
+    // Imagen del QR para el código actual
+    effect(() => {
+      const inv = this.invitacionActual();
+      this.qr.set(null);
+      if (inv) {
+        untracked(() =>
+          this.invitacionesSvc
+            .qrDataUrl(inv.codigo)
+            .then((src) => {
+              if (this.invitacionActual()?.codigo === inv.codigo) this.qr.set(src);
+            })
+            .catch((e) => console.error('No se pudo generar el QR', e)),
+        );
+      }
+    });
+  }
+
+  private async crearCodigoPermanente() {
     const persona = this.persona();
-    if (!persona) return;
+    if (!persona || this.creandoCodigo) return;
+    this.creandoCodigo = true;
     try {
-      const inv = await this.invitacionesSvc.crear(persona);
-      await this.mostrarInvitacion(inv);
+      await this.invitacionesSvc.crear(persona, DIAS_CODIGO_PERMANENTE, USOS_CODIGO_PERMANENTE);
     } catch (error) {
       console.error(error);
-      await this.aviso('No se pudo crear la invitación.', 'danger');
+      await this.aviso('No se pudo generar el código de acceso.', 'danger');
+    } finally {
+      this.creandoCodigo = false;
     }
   }
 
+  /** Nuevo código; el anterior deja de funcionar. */
+  async renovar(inv: Invitacion) {
+    const alerta = await this.alertCtrl.create({
+      header: '¿Generar un código nuevo?',
+      message: `El código ${formatearCodigo(inv.codigo)} dejará de funcionar. Quienes ya se unieron no se ven afectados.`,
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        { text: 'Generar nuevo', role: 'destructive' },
+      ],
+    });
+    await alerta.present();
+    const { role } = await alerta.onDidDismiss();
+    if (role !== 'destructive') return;
+    const persona = this.persona();
+    if (!persona) return;
+    try {
+      this.creandoCodigo = true;
+      await this.invitacionesSvc.crear(persona, DIAS_CODIGO_PERMANENTE, USOS_CODIGO_PERMANENTE);
+      await this.invitacionesSvc.desactivar(inv.codigo);
+      await this.aviso('Código renovado.', 'success');
+    } catch (error) {
+      console.error(error);
+      await this.aviso('No se pudo renovar el código.', 'danger');
+    } finally {
+      this.creandoCodigo = false;
+    }
+  }
+
+  async compartir(inv: Invitacion) {
+    try {
+      const resultado = await this.invitacionesSvc.compartir(inv);
+      if (resultado === 'copiado') await this.aviso('Invitación copiada al portapapeles.', 'success');
+    } catch {
+      await this.aviso('No se pudo compartir en este dispositivo.', 'danger');
+    }
+  }
+
+  async copiarCodigo(inv: Invitacion) {
+    try {
+      await navigator.clipboard.writeText(formatearCodigo(inv.codigo));
+      await this.aviso('Código copiado.', 'success');
+    } catch {
+      await this.aviso('No se pudo copiar en este dispositivo.', 'danger');
+    }
+  }
+
+  /** QR en grande, con botones de compartir. */
   async mostrarInvitacion(invitacion: Invitacion) {
     const modal = await this.modalCtrl.create({
       component: CompartirModal,

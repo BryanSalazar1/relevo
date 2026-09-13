@@ -326,11 +326,14 @@ La doc marca esto como lo más delicado; conviene probarlo pronto. Todo lo neces
   edita lo suyo y el responsable todo; familiar y médico **solo leen**.
 
 ### Compartir por código y QR (`Equipo` → *Crear invitación*)
-- Solo el **responsable** invita, con un clic: la app genera un código de 8 caracteres (sin 0/O/1/I
-  para dictarlo sin confusión), un **QR** con el enlace `https://relevo-e5eaf.web.app/unirse/CODIGO`
-  y botones para compartir/copiar. La invitación no lleva rol: **cada persona entra según su
-  cuenta** (familiar → familiar, enfermero/a → cuidador, médico → solo lectura).
-- Vence a los 7 días, admite hasta 10 usos y se puede cancelar desde la lista de invitaciones.
+- Al entrar a la persona → **Equipo**, el **responsable** ve de inmediato la tarjeta "Código de
+  acceso" con el **QR permanente** de esa persona, su código de 8 caracteres (sin 0/O/1/I para
+  dictarlo sin confusión) y botones **Compartir**, **Copiar código** y **Renovar**. Se genera solo la
+  primera vez (vale 1 año y hasta 100 usos); *Renovar* crea uno nuevo e invalida el anterior. Tocar
+  el QR lo abre en grande. El QR codifica `https://relevo-e5eaf.web.app/unirse/CODIGO`.
+- La invitación no lleva rol: **cada persona entra según su cuenta** (familiar → familiar,
+  enfermero/a → cuidador, médico → solo lectura). Los códigos temporales antiguos siguen en
+  "Otros códigos activos" hasta que venzan o se cancelen.
 - Para unirse: **Inicio → Unirme con código o QR**, escribir el código, **escanear** el QR con la
   cámara (navegador o app Android) o abrir el enlace (si no hay sesión, pide login y regresa).
 - En **Equipo**, el responsable toca a un miembro para *Hacer responsable* (solo familiares),
