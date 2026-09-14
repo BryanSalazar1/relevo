@@ -35,6 +35,11 @@ export const routes: Routes = [
           import('./pages/bitacora/bitacora.page').then((m) => m.BitacoraPage),
       },
       {
+        path: 'medicamentos',
+        loadComponent: () =>
+          import('./pages/medicamentos/medicamentos.page').then((m) => m.MedicamentosPage),
+      },
+      {
         path: 'equipo',
         loadComponent: () => import('./pages/equipo/equipo.page').then((m) => m.EquipoPage),
       },

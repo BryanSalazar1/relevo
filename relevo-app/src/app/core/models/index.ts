@@ -51,9 +51,9 @@ export const ROLES_COMPATIBLES: Record<TipoUsuario, Rol[]> = {
 };
 
 export const ROLES: { valor: Rol; etiqueta: string; descripcion: string }[] = [
-  { valor: 'cuidador_principal', etiqueta: 'Responsable', descripcion: 'Familiar que administra la bitácora e invita al equipo' },
-  { valor: 'familiar', etiqueta: 'Familiar', descripcion: 'Sigue el estado y coordina citas y turnos' },
-  { valor: 'cuidador_turno', etiqueta: 'Enfermero/a', descripcion: 'Registra la bitácora, medicamentos y signos vitales' },
+  { valor: 'cuidador_principal', etiqueta: 'Responsable', descripcion: 'Familiar que administra la bitácora, los medicamentos y el equipo' },
+  { valor: 'familiar', etiqueta: 'Familiar', descripcion: 'Escribe en la bitácora, registra tomas y coordina citas' },
+  { valor: 'cuidador_turno', etiqueta: 'Enfermero/a', descripcion: 'Registra la bitácora, tomas y signos vitales en sus turnos' },
   { valor: 'medico', etiqueta: 'Médico', descripcion: 'Consulta el historial y los reportes (solo lectura)' },
 ];
 
@@ -72,7 +72,11 @@ export const ROL_COLOR: Record<Rol, string> = {
 };
 
 /** Roles que pueden crear entradas en la bitácora (coincide con firestore.rules). */
-export const PUEDE_ESCRIBIR_BITACORA: Rol[] = ['cuidador_principal', 'cuidador_turno'];
+export const PUEDE_ESCRIBIR_BITACORA: Rol[] = ['cuidador_principal', 'cuidador_turno', 'familiar'];
+/** Roles que registran tomas de medicamentos (coincide con firestore.rules). */
+export const PUEDE_REGISTRAR_TOMAS: Rol[] = ['cuidador_principal', 'cuidador_turno', 'familiar'];
+/** Roles que dan de alta / editan medicamentos (coincide con firestore.rules). */
+export const PUEDE_EDITAR_MEDICAMENTOS: Rol[] = ['cuidador_principal'];
 
 /** usuarios/{uid} */
 export interface Usuario {
@@ -181,17 +185,21 @@ export interface Medicamento {
   nombre: string;
   dosis: string;
   horarios: string[]; // "08:00", "20:00"
-  inventario: number;
+  /** Unidades restantes; null si no se controla */
+  inventario: number | null;
   activo: boolean;
+  notas?: string;
+  creadoEn?: Timestamp;
 }
 
-/** personas_cuidadas/{id}/medicamentos/{id}/tomas/{id} */
+/** personas_cuidadas/{id}/medicamentos/{id}/tomas/{id}  (id = yyyyMMdd-HHmm de la hora programada) */
 export interface Toma {
   id?: string;
   horaProgramada: Timestamp;
   horaReal?: Timestamp | null;
   tomado: boolean;
   registradoPor: string;
+  registradoNombre?: string;
 }
 
 export type TipoEvento = 'cita' | 'terapia' | 'turno';

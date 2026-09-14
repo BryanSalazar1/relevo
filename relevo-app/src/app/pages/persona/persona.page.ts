@@ -12,6 +12,10 @@ import { IonIcon, IonLabel, IonTabBar, IonTabButton, IonTabs } from '@ionic/angu
           <ion-icon name="book-outline" />
           <ion-label>Bitácora</ion-label>
         </ion-tab-button>
+        <ion-tab-button tab="medicamentos">
+          <ion-icon name="medkit-outline" />
+          <ion-label>Medicinas</ion-label>
+        </ion-tab-button>
         <ion-tab-button tab="equipo">
           <ion-icon name="people-outline" />
           <ion-label>Equipo</ion-label>

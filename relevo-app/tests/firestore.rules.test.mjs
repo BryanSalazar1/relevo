@@ -236,13 +236,26 @@ test('roles: solo el responsable define medicamentos y administra miembros', asy
   await assertFails(
     setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m2`), { nombre: 'X' }),
   );
-  // El de turno sí registra la toma
+  // El de turno sí registra la toma (firmada por él) y solo puede ajustar el inventario
   await assertSucceeds(
     setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m1/tomas/t1`), {
       tomado: true,
       registradoPor: 'luis',
     }),
   );
+  await assertFails(
+    setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m1/tomas/t2`), {
+      tomado: true,
+      registradoPor: 'ana',
+    }),
+  );
+  await assertSucceeds(
+    updateDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m1`), { inventario: 29 }),
+  );
+  await assertFails(
+    updateDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m1`), { dosis: '1000 mg' }),
+  );
+  await assertFails(deleteDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m1`)));
   // Luis no puede auto-ascenderse ni meter a alguien más
   await assertFails(
     updateDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/miembros/luis`), { rol: 'cuidador_principal' }),
@@ -305,7 +318,7 @@ test('roles: quien dio de alta a la persona (familiar) puede recuperar el rol de
   assert.equal(ana2.data().rol, 'cuidador_principal');
 });
 
-test('roles: el familiar coordina el calendario', async () => {
+test('roles: el familiar coordina el calendario, escribe en la bitácora y registra tomas, pero no define medicamentos', async () => {
   await anaCreaPersona();
   await agregarLuisComo('familiar');
   await assertSucceeds(
@@ -314,12 +327,24 @@ test('roles: el familiar coordina el calendario', async () => {
       titulo: 'Cardiólogo',
     }),
   );
-  await assertFails(
+  await assertSucceeds(
     setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/entradas_bitacora/e1`), {
       tipo: 'nota',
-      texto: 'no debería',
+      texto: 'Comió bien',
       autorUid: 'luis',
     }),
+  );
+  await assertFails(
+    setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m9`), { nombre: 'X', dosis: '1', horarios: [] }),
+  );
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m1`), { nombre: 'Losartán', dosis: '50 mg', horarios: ['08:00'], inventario: 10, activo: true });
+  });
+  await assertSucceeds(
+    setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m1/tomas/20260914-0800`), { tomado: true, registradoPor: 'luis' }),
+  );
+  await assertSucceeds(
+    updateDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m1`), { inventario: 9 }),
   );
 });
 
@@ -408,15 +433,18 @@ test('invitaciones: cada tipo de cuenta entra con su rol (familiar, enfermero, m
   const inv = await getDoc(doc(ana(), `invitaciones/${CODIGO}`));
   assert.equal(inv.data().usos, 3);
 
-  // Pedro (familiar) agenda citas pero no escribe bitácora; Marta (enfermera) sí escribe
+  // Pedro (familiar) y Marta (enfermera) escriben en la bitácora; Luis (médico) no
   await assertSucceeds(
     setDoc(doc(pedro(), `personas_cuidadas/${PERSONA_ID}/eventos_calendario/c1`), { tipo: 'cita', titulo: 'Dentista' }),
   );
-  await assertFails(
+  await assertSucceeds(
     setDoc(doc(pedro(), `personas_cuidadas/${PERSONA_ID}/entradas_bitacora/e9`), { tipo: 'nota', texto: 'x', autorUid: 'pedro' }),
   );
   await assertSucceeds(
     setDoc(doc(marta(), `personas_cuidadas/${PERSONA_ID}/entradas_bitacora/e8`), { tipo: 'nota', texto: 'x', autorUid: 'marta' }),
+  );
+  await assertFails(
+    setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/entradas_bitacora/e7`), { tipo: 'nota', texto: 'x', autorUid: 'luis' }),
   );
 });
 

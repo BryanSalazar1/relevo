@@ -89,6 +89,25 @@ try {
   await page.waitForSelector(`text=${TEXTO}`, { timeout: 20_000 });
   ok('nuevo registro guardado y visible en tiempo real');
 
+  // ---------------------------------------------------------------- medicamentos
+  await page.click('ion-tab-button[tab="medicamentos"]');
+  await page.waitForSelector('text=Tomas del día', { timeout: 15_000 });
+  await page.click('button[aria-label="Nuevo medicamento"]');
+  await page.waitForSelector('app-medicamento-modal ion-input[name="nombre"] input', { timeout: 10_000 });
+  await page.fill('app-medicamento-modal ion-input[name="nombre"] input', 'Prueba Med');
+  await page.fill('app-medicamento-modal ion-input[name="dosis"] input', '1 tableta');
+  await page.fill('app-medicamento-modal ion-input[name="nuevaHora"] input', '08:00');
+  await page.click('app-medicamento-modal ion-button:has-text("Agregar")');
+  await page.waitForSelector('app-medicamento-modal ion-chip:has-text("08:00")');
+  await page.fill('app-medicamento-modal ion-input[name="inventario"] input', '10');
+  await page.click('app-medicamento-modal ion-button:has-text("Guardar")');
+  await page.waitForSelector('ion-list.lista-medicamentos ion-item:has-text("Prueba Med")', { timeout: 20_000 });
+  await page.waitForSelector('ion-list.agenda ion-item:has-text("Prueba Med") button[aria-label="Marcar tomada"]', { timeout: 20_000 });
+  await page.click('ion-list.agenda ion-item:has-text("Prueba Med") button[aria-label="Marcar tomada"]');
+  await page.waitForSelector('ion-list.agenda ion-item:has-text("Prueba Med"):has-text("Tomada")', { timeout: 20_000 });
+  await page.waitForSelector('ion-list.lista-medicamentos ion-item:has-text("Prueba Med") ion-badge:has-text("9 rest.")', { timeout: 20_000 });
+  ok('medicamento registrado, toma de las 08:00 marcada y el inventario bajó de 10 a 9');
+
   await page.click('ion-tab-button[tab="equipo"]');
   await page.waitForSelector('text=Dr. Luis Pérez', { timeout: 15_000 });
   ok('pestaña Equipo con miembros (soy responsable)');
@@ -105,7 +124,7 @@ try {
 
   await page.click('ion-tab-button[tab="reporte"]');
   await page.waitForSelector('text=Reporte de cuidado', { timeout: 30_000 });
-  await page.waitForSelector('text=Metformina', { timeout: 20_000 });
+  await page.waitForSelector('app-reporte ion-item:has-text("Metformina")', { timeout: 20_000 });
   ok('reporte semanal generado (bitácora, signos y medicamentos)');
 
   const [descarga] = await Promise.all([
@@ -148,9 +167,8 @@ try {
   await page.click('ion-button:has-text("Unirme")');
   await page.waitForURL(/\/personas\/persona-demo/, { timeout: 30_000 });
   await page.waitForSelector('text=Desayunó avena', { timeout: 20_000 });
-  const fab = await page.$('button[aria-label="Nuevo registro"]');
-  if (fab) throw new Error('Un familiar no debería poder crear registros');
-  ok('se unió con el código como familiar y ve la bitácora en solo lectura');
+  await page.waitForSelector('button[aria-label="Nuevo registro"]', { timeout: 15_000 });
+  ok('se unió con el código como familiar y puede escribir en la bitácora');
 
   await cerrarSesion(page);
 
@@ -170,6 +188,13 @@ try {
   await page.click('ion-alert button:has-text("Quitar")');
   await page.waitForSelector(`text=${NUEVO.nombre}`, { state: 'detached', timeout: 20_000 });
   ok('miembro de prueba quitado (el código de acceso permanente se conserva)');
+
+  await page.goto(`${BASE}/personas/${PERSONA_ID}/medicamentos`);
+  await page.click('ion-list.lista-medicamentos ion-item:has-text("Prueba Med")');
+  await page.click('ion-action-sheet button:has-text("Eliminar")');
+  await page.click('ion-alert button:has-text("Eliminar")');
+  await page.waitForSelector('ion-list.lista-medicamentos ion-item:has-text("Prueba Med")', { state: 'detached', timeout: 20_000 });
+  ok('medicamento de prueba eliminado');
 } finally {
   await browser.close();
   if (erroresConsola.length) {

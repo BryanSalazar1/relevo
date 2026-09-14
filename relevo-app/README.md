@@ -310,9 +310,10 @@ La doc marca esto como lo más delicado; conviene probarlo pronto. Todo lo neces
 
 ### Tipos de cuenta (al registrarse)
 - **Familiar**: es el único que puede **dar de alta** a una persona cuidada; queda como
-  **Responsable** de su bitácora (administra, invita, hace responsable a otro familiar).
+  **Responsable** de su bitácora (administra, invita, define medicamentos, hace responsable a otro
+  familiar). Un familiar invitado escribe en la bitácora, registra tomas y coordina citas.
 - **Enfermero/a**: se une con un código y entra como cuidador: registra bitácora, tomas y signos.
-- **Médico**: se une con un código y entra en solo lectura (bitácora y reportes).
+- **Médico**: se une con un código y entra en solo lectura (bitácora, medicamentos y reportes).
 - El tipo se guarda en `usuarios/{uid}.tipo`, no se puede cambiar después, y las reglas lo usan para
   decidir quién crea personas y con qué rol entra cada quien (`ROL_POR_TIPO`, `ROLES_COMPATIBLES`).
   Cuentas anteriores a esta versión lo eligen una sola vez al entrar.
@@ -322,8 +323,19 @@ La doc marca esto como lo más delicado; conviene probarlo pronto. Todo lo neces
   comida, sueño, incidente y nota. Filtro por tipo desde el embudo de la barra.
 - Botón **+** abre el formulario (tipo, descripción, fecha y hora). Tocar un registro propio abre
   Editar / Eliminar.
-- Permisos (en las rules y en la interfaz): responsable y enfermero/a **crean**; cada autor
-  edita lo suyo y el responsable todo; familiar y médico **solo leen**.
+- Permisos (en las rules y en la interfaz): responsable, enfermero/a **y familiar crean**; cada
+  autor edita lo suyo y el responsable todo; el **médico solo lee**.
+
+### Medicamentos (`/personas/:id/medicamentos`) — 13/09/2026
+- Pestaña **Medicinas**: el responsable da de alta medicamentos (nombre, dosis, horarios "HH:mm",
+  inventario opcional, notas), los edita, suspende/reactiva o elimina (con su historial de tomas).
+- **Tomas del día**: por cada medicamento activo y cada horario aparece la dosis del día elegido
+  (flechas para ver días anteriores) con estado Pendiente / Tomada / No tomada. Responsable,
+  enfermero/a y familiar la marcan con un toque; marcar "tomada" resta 1 al inventario (y deshacerla
+  lo devuelve). El id de cada toma es `yyyyMMdd-HHmm`, así que corregir una toma no crea duplicados.
+- Reglas: solo el responsable crea/edita/elimina medicamentos; enfermero/a y familiar solo pueden
+  tocar el campo `inventario` (al registrar tomas) y sus propias tomas; el médico solo lee.
+- El reporte y el asistente ya leen estos datos (adherencia, tomas omitidas).
 
 ### Compartir por código y QR (`Equipo` → *Crear invitación*)
 - Al entrar a la persona → **Equipo**, el **responsable** ve de inmediato la tarjeta "Código de

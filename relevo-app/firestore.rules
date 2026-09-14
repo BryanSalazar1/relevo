@@ -168,24 +168,29 @@ service cloud.firestore {
         allow delete: if tieneRol(personaId, ['cuidador_principal']);
       }
 
-      // entradas_bitacora: cuidadores registran; el autor o el responsable editan
+      // entradas_bitacora: responsable, enfermeros y familiares registran; el médico solo lee.
+      // El autor edita/borra lo suyo; el responsable, todo.
       match /entradas_bitacora/{entradaId} {
         allow read: if esMiembro(personaId);
-        allow create: if tieneRol(personaId, ['cuidador_principal', 'cuidador_turno'])
+        allow create: if tieneRol(personaId, ['cuidador_principal', 'cuidador_turno', 'familiar'])
           && request.resource.data.autorUid == request.auth.uid;
         allow update, delete: if tieneRol(personaId, ['cuidador_principal'])
           || (esMiembro(personaId) && resource.data.autorUid == request.auth.uid);
       }
 
-      // medicamentos: solo el responsable los define; las tomas las registran cuidadores
+      // medicamentos: solo el responsable los define; quienes registran tomas solo ajustan el inventario
       match /medicamentos/{medicamentoId} {
         allow read: if esMiembro(personaId);
-        allow write: if tieneRol(personaId, ['cuidador_principal']);
+        allow create, delete: if tieneRol(personaId, ['cuidador_principal']);
+        allow update: if tieneRol(personaId, ['cuidador_principal'])
+          || (tieneRol(personaId, ['cuidador_turno', 'familiar'])
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['inventario']));
 
+        // tomas: responsable, enfermeros y familiares registran (y corrigen) las tomas
         match /tomas/{tomaId} {
           allow read: if esMiembro(personaId);
-          allow create, update: if tieneRol(personaId, ['cuidador_principal', 'cuidador_turno']);
-          allow delete: if tieneRol(personaId, ['cuidador_principal']);
+          allow create, update, delete: if tieneRol(personaId, ['cuidador_principal', 'cuidador_turno', 'familiar'])
+            && (request.method == 'delete' || request.resource.data.registradoPor == request.auth.uid);
         }
       }
 
