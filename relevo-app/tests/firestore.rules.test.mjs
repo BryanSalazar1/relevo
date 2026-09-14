@@ -281,6 +281,30 @@ test('roles: el responsable puede hacer responsable a otro familiar, pero no a u
   );
 });
 
+test('roles: quien dio de alta a la persona (familiar) puede recuperar el rol de responsable; un invitado no', async () => {
+  await anaCreaPersona();
+  await perfil(pedro(), 'pedro', 'familiar');
+  // Simula datos de la versión anterior: la creadora quedó como "familiar" y hay otro familiar invitado
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await updateDoc(doc(db, `personas_cuidadas/${PERSONA_ID}/miembros/ana`), { rol: 'familiar' });
+    await setDoc(doc(db, `personas_cuidadas/${PERSONA_ID}/miembros/pedro`), { uid: 'pedro', rol: 'familiar', nombre: 'Pedro' });
+    await updateDoc(doc(db, `personas_cuidadas/${PERSONA_ID}`), { miembrosUids: arrayUnion('pedro') });
+  });
+
+  await assertFails(
+    updateDoc(doc(pedro(), `personas_cuidadas/${PERSONA_ID}/miembros/pedro`), { rol: 'cuidador_principal' }),
+  );
+  await assertFails(
+    updateDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/miembros/ana`), { rol: 'cuidador_principal', nombre: 'Otra' }),
+  );
+  await assertSucceeds(
+    updateDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/miembros/ana`), { rol: 'cuidador_principal' }),
+  );
+  const ana2 = await getDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/miembros/ana`));
+  assert.equal(ana2.data().rol, 'cuidador_principal');
+});
+
 test('roles: el familiar coordina el calendario', async () => {
   await anaCreaPersona();
   await agregarLuisComo('familiar');

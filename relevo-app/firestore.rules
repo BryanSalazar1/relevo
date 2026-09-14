@@ -156,9 +156,15 @@ service cloud.firestore {
                     && request.resource.data.rol == rolPorTipo(tipoUsuario(request.auth.uid)))
               ));
         // El responsable cambia roles (p. ej. hacer responsable a otro familiar), siempre acordes al tipo
-        allow update: if tieneRol(personaId, ['cuidador_principal'])
-          && request.resource.data.uid == resource.data.uid
-          && rolCompatible(tipoUsuario(memberId), request.resource.data.rol);
+        allow update: if (tieneRol(personaId, ['cuidador_principal'])
+            && request.resource.data.uid == resource.data.uid
+            && rolCompatible(tipoUsuario(memberId), request.resource.data.rol))
+          // ...o quien dio de alta a la persona (familiar) recupera el rol de responsable
+          || (memberId == request.auth.uid
+            && get(/databases/$(database)/documents/personas_cuidadas/$(personaId)).data.creadoPor == request.auth.uid
+            && tipoUsuario(request.auth.uid) == 'familiar'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rol'])
+            && request.resource.data.rol == 'cuidador_principal');
         allow delete: if tieneRol(personaId, ['cuidador_principal']);
       }
 

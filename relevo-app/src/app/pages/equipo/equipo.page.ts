@@ -96,6 +96,14 @@ export class EquipoPage {
   );
   readonly esPrincipal = computed(() => this.rol() === 'cuidador_principal');
   readonly edad = computed(() => edad(this.persona()?.fechaNacimiento));
+  /** Dio de alta a la persona con una versión anterior y quedó sin el rol de responsable */
+  readonly puedeRecuperarResponsable = computed(
+    () =>
+      !!this.rol() &&
+      !this.esPrincipal() &&
+      this.persona()?.creadoPor === this.uid &&
+      this.auth.tipoActual === 'familiar',
+  );
 
   /** Invitaciones activas (solo el responsable puede listarlas; las rules lo garantizan). */
   readonly invitaciones = toSignal(
@@ -153,6 +161,19 @@ export class EquipoPage {
       await this.aviso('No se pudo generar el código de acceso.', 'danger');
     } finally {
       this.creandoCodigo = false;
+    }
+  }
+
+  /** Quien dio de alta a la persona recupera el rol de responsable (permitido por las rules). */
+  async hacermeResponsable() {
+    const personaId = this.ctx.personaId();
+    if (!personaId || !this.uid) return;
+    try {
+      await this.miembrosSvc.cambiarRol(personaId, this.uid, 'cuidador_principal');
+      await this.aviso('Ahora eres responsable de esta persona.', 'success');
+    } catch (error) {
+      console.error(error);
+      await this.aviso('No se pudo cambiar el rol.', 'danger');
     }
   }
 
