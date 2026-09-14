@@ -7,6 +7,7 @@ import {
   collectionData,
   doc,
   getDoc,
+  getDocsFromServer,
   increment,
   query,
   serverTimestamp,
@@ -141,6 +142,22 @@ export class InvitacionesService {
 
   async desactivar(codigo: string): Promise<void> {
     await updateDoc(doc(this.db, 'invitaciones', codigo), { activa: false });
+  }
+
+  /**
+   * Invitaciones activas leídas directamente del servidor (ignora la caché local).
+   * Sirve para decidir si hay que generar un código sin que una lista vacía de caché engañe.
+   */
+  async activasEnServidor(personaId: string): Promise<Invitacion[]> {
+    const q = query(
+      collection(this.db, 'invitaciones'),
+      where('personaId', '==', personaId),
+      where('activa', '==', true),
+    );
+    const snap = await getDocsFromServer(q);
+    return snap.docs
+      .map((d) => d.data() as Invitacion)
+      .filter((i) => i.expiraEn.toMillis() > Date.now() && i.usos < i.usosMax);
   }
 
   /** Busca una invitación por código y dice si se puede usar. */

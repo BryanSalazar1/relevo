@@ -140,9 +140,13 @@ export class EquipoPage {
 
   private async crearCodigoPermanente() {
     const persona = this.persona();
-    if (!persona || this.creandoCodigo) return;
+    if (!persona?.id || this.creandoCodigo) return;
     this.creandoCodigo = true;
     try {
+      // La lista en tiempo real puede llegar vacía desde la caché local antes que del servidor;
+      // se confirma con el servidor para no duplicar códigos.
+      const existentes = await this.invitacionesSvc.activasEnServidor(persona.id);
+      if (existentes.length > 0) return;
       await this.invitacionesSvc.crear(persona, DIAS_CODIGO_PERMANENTE, USOS_CODIGO_PERMANENTE);
     } catch (error) {
       console.error(error);
