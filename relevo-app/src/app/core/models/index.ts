@@ -167,6 +167,13 @@ export const TIPO_ENTRADA_INFO: Record<TipoEntrada, TipoEntradaInfo> = Object.fr
   TIPOS_ENTRADA.map((t) => [t.valor, t]),
 ) as Record<TipoEntrada, TipoEntradaInfo>;
 
+/** Cómo se muestra una toma de medicamento dentro de la bitácora (no es un tipo de entrada que se guarde). */
+export const INFO_TOMA: Omit<TipoEntradaInfo, 'valor'> = {
+  etiqueta: 'Medicamento',
+  icono: 'medkit-outline',
+  color: 'primary',
+};
+
 /** personas_cuidadas/{id}/entradas_bitacora/{id} */
 export interface EntradaBitacora {
   id?: string;

@@ -14,9 +14,10 @@ import {
   updateDoc,
   where,
 } from '@angular/fire/firestore';
-import { Observable, catchError, of } from 'rxjs';
+import { Observable, catchError, combineLatest, map, of } from 'rxjs';
 import { EntradaBitacora, TipoEntrada } from '../models';
 import { AuthService } from './auth.service';
+import { MedicamentosService, TomaRegistrada } from './medicamentos.service';
 
 export interface DatosEntrada {
   tipo: TipoEntrada;
@@ -24,10 +25,16 @@ export interface DatosEntrada {
   fecha: Date;
 }
 
+/** Un elemento de la línea de tiempo: algo que alguien escribió o una toma de medicamento registrada. */
+export type ItemBitacora =
+  | { clase: 'entrada'; id: string; fecha: Date; entrada: EntradaBitacora }
+  | { clase: 'toma'; id: string; fecha: Date; toma: TomaRegistrada };
+
 @Injectable({ providedIn: 'root' })
 export class BitacoraService {
   private readonly db = inject(Firestore);
   private readonly authSvc = inject(AuthService);
+  private readonly medsSvc = inject(MedicamentosService);
 
   private ref(personaId: string) {
     return collection(this.db, `personas_cuidadas/${personaId}/entradas_bitacora`);
@@ -38,6 +45,31 @@ export class BitacoraService {
     const q = query(this.ref(personaId), orderBy('fecha', 'desc'), limit(maximo));
     return (collectionData(q, { idField: 'id' }) as Observable<EntradaBitacora[]>).pipe(
       catchError(() => of([] as EntradaBitacora[])),
+    );
+  }
+
+  /**
+   * Entradas escritas y tomas de medicamentos en una sola línea de tiempo, de lo más reciente
+   * a lo más antiguo. Las tomas se ubican por su hora programada.
+   */
+  lineaDeTiempo(personaId: string): Observable<ItemBitacora[]> {
+    return combineLatest([this.entradas(personaId), this.medsSvc.tomasRecientes(personaId)]).pipe(
+      map(([entradas, tomas]) =>
+        [
+          ...entradas.map((e): ItemBitacora => ({
+            clase: 'entrada',
+            id: `e-${e.id}`,
+            fecha: e.fecha.toDate(),
+            entrada: e,
+          })),
+          ...tomas.map((t): ItemBitacora => ({
+            clase: 'toma',
+            id: `t-${t.medicamento.id}-${t.toma.id}`,
+            fecha: t.fecha,
+            toma: t,
+          })),
+        ].sort((a, b) => b.fecha.getTime() - a.fecha.getTime()),
+      ),
     );
   }
 

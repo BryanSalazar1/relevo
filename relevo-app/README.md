@@ -321,8 +321,14 @@ La doc marca esto como lo más delicado; conviene probarlo pronto. Todo lo neces
 ### Bitácora (`/personas/:id/bitacora`)
 - Feed en **tiempo real** agrupado por día (Hoy / Ayer / fecha), con 6 tipos: síntoma, ánimo,
   comida, sueño, incidente y nota. Filtro por tipo desde el embudo de la barra.
-- Botón **+** abre el formulario (tipo, descripción, fecha y hora). Tocar un registro propio abre
-  Editar / Eliminar.
+- Las **tomas de medicamentos** (tomadas y no tomadas) aparecen en la misma línea de tiempo,
+  ubicadas por su hora programada y con quién las registró; el filtro tiene la opción
+  "Tomas de medicamentos". Se leen de la agenda de medicamentos, no se editan desde aquí
+  (`BitacoraService.lineaDeTiempo`).
+- Botón **+** abre el formulario (tipo, descripción y hora). La fecha es siempre la de **hoy** y la
+  hora solo puede ir **hasta una hora atrás** de la actual (sin pasar de las 00:00), para que la
+  bitácora se escriba en el momento. Al editar se conservan la fecha y hora originales. Tocar un
+  registro propio abre Editar / Eliminar.
 - Permisos (en las rules y en la interfaz): responsable, enfermero/a **y familiar crean**; cada
   autor edita lo suyo y el responsable todo; el **médico solo lee**.
 

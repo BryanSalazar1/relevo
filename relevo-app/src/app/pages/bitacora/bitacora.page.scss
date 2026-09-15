@@ -22,6 +22,11 @@ ion-avatar.tipo {
   white-space: pre-wrap;
 }
 
+// Las tomas vienen de la agenda de medicamentos: se leen aquí, no se editan.
+ion-item.toma .texto {
+  font-size: 0.95rem;
+}
+
 ion-item-divider {
   --background: var(--ion-color-light);
   font-weight: 600;

@@ -28,6 +28,7 @@ import {
 import { switchMap } from 'rxjs';
 import {
   EntradaBitacora,
+  INFO_TOMA,
   PUEDE_ESCRIBIR_BITACORA,
   TIPOS_ENTRADA,
   TIPO_ENTRADA_INFO,
@@ -35,9 +36,13 @@ import {
 } from '../../core/models';
 import { AuthService } from '../../core/services/auth.service';
 import { BitacoraService, DatosEntrada } from '../../core/services/bitacora.service';
+import { TomaRegistrada } from '../../core/services/medicamentos.service';
 import { agruparPorDia, etiquetaDia } from '../../core/utils/fechas';
 import { personaActual } from '../../core/utils/persona-actual';
 import { EntradaModal } from './entrada.modal';
+
+/** Qué se muestra: un tipo de entrada, solo las tomas de medicamentos, o todo (null). */
+export type FiltroBitacora = TipoEntrada | 'toma';
 
 @Component({
   selector: 'app-bitacora',
@@ -76,30 +81,41 @@ export class BitacoraPage {
   private readonly ctx = personaActual();
   readonly persona = this.ctx.persona;
   readonly rol = this.ctx.rol;
-  readonly entradas = toSignal(
-    this.ctx.personaId$.pipe(switchMap((id) => this.bitacoraSvc.entradas(id))),
+  /** Entradas escritas + tomas de medicamentos, de lo más reciente a lo más antiguo. */
+  readonly linea = toSignal(
+    this.ctx.personaId$.pipe(switchMap((id) => this.bitacoraSvc.lineaDeTiempo(id))),
   );
 
-  readonly filtro = signal<TipoEntrada | null>(null);
+  readonly filtro = signal<FiltroBitacora | null>(null);
   readonly etiquetaDia = etiquetaDia;
+  readonly infoToma = INFO_TOMA;
 
   readonly grupos = computed(() => {
-    const lista = this.entradas();
+    const lista = this.linea();
     if (!lista) return undefined;
     const f = this.filtro();
-    const filtradas = f ? lista.filter((e) => e.tipo === f) : lista;
-    return agruparPorDia(filtradas, (e) => e.fecha.toDate());
+    const filtradas = !f
+      ? lista
+      : f === 'toma'
+        ? lista.filter((i) => i.clase === 'toma')
+        : lista.filter((i) => i.clase === 'entrada' && i.entrada.tipo === f);
+    return agruparPorDia(filtradas, (i) => i.fecha);
   });
 
-  readonly total = computed(() => this.entradas()?.length ?? 0);
+  readonly total = computed(() => this.linea()?.length ?? 0);
 
   readonly puedeEscribir = computed(() => {
     const r = this.rol();
     return !!r && PUEDE_ESCRIBIR_BITACORA.includes(r);
   });
 
-  info(tipo: TipoEntrada) {
-    return TIPO_ENTRADA_INFO[tipo];
+  info(tipo: FiltroBitacora) {
+    return tipo === 'toma' ? INFO_TOMA : TIPO_ENTRADA_INFO[tipo];
+  }
+
+  /** Verde si se tomó, rojo si se marcó como no tomada. */
+  colorToma(t: TomaRegistrada): string {
+    return t.toma.tomado ? 'success' : 'danger';
   }
 
   /** El cuidador principal edita todo; los demás solo lo que escribieron. */
@@ -118,6 +134,13 @@ export class BitacoraPage {
             this.filtro.set(t.valor);
           },
         })),
+        {
+          text: 'Tomas de medicamentos',
+          icon: INFO_TOMA.icono,
+          handler: () => {
+            this.filtro.set('toma');
+          },
+        },
         {
           text: 'Todas las entradas',
           icon: 'funnel-outline',

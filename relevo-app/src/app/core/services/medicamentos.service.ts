@@ -10,6 +10,8 @@ import {
   doc,
   getDocs,
   increment,
+  limit,
+  orderBy,
   query,
   serverTimestamp,
   updateDoc,
@@ -39,6 +41,14 @@ export interface DosisProgramada {
 }
 
 export type EstadoToma = 'tomada' | 'omitida' | 'quitar';
+
+/** Toma registrada junto con su medicamento, para mostrarla fuera de la agenda (p. ej. en la bitácora). */
+export interface TomaRegistrada {
+  medicamento: Medicamento;
+  toma: Toma;
+  /** Hora programada de la dosis; es la que ordena la línea de tiempo. */
+  fecha: Date;
+}
 
 /** Id determinista de la toma: la misma hora programada siempre apunta al mismo documento. */
 export function idToma(hora: Date): string {
@@ -109,6 +119,45 @@ export class MedicamentosService {
                 }),
               )
               .sort((a, b) => a.hora.getTime() - b.hora.getTime()),
+          ),
+        );
+      }),
+    );
+  }
+
+  /**
+   * Las `maximo` tomas registradas más recientes (tomadas u omitidas) de todos los medicamentos,
+   * incluidos los suspendidos, de la más reciente a la más antigua. Alimenta la bitácora.
+   */
+  tomasRecientes(personaId: string, maximo = 300): Observable<TomaRegistrada[]> {
+    return this.medicamentos(personaId).pipe(
+      switchMap((meds) => {
+        const conId = meds.filter((m) => m.id);
+        if (!conId.length) return of([] as TomaRegistrada[]);
+        return combineLatest(
+          conId.map((m) => {
+            const q = query(
+              collection(this.db, `personas_cuidadas/${personaId}/medicamentos/${m.id}/tomas`),
+              orderBy('horaProgramada', 'desc'),
+              limit(maximo),
+            );
+            return (collectionData(q, { idField: 'id' }) as Observable<Toma[]>).pipe(
+              catchError(() => of([] as Toma[])),
+              map((tomas) =>
+                tomas.map((toma): TomaRegistrada => ({
+                  medicamento: m,
+                  toma,
+                  fecha: toma.horaProgramada.toDate(),
+                })),
+              ),
+            );
+          }),
+        ).pipe(
+          map((listas) =>
+            listas
+              .flat()
+              .sort((a, b) => b.fecha.getTime() - a.fecha.getTime())
+              .slice(0, maximo),
           ),
         );
       }),

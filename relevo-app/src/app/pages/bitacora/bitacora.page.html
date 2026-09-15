@@ -42,28 +42,64 @@
           <ion-item-divider sticky>
             <ion-label>{{ etiquetaDia(g.dia) }}</ion-label>
           </ion-item-divider>
-          @for (e of g.items; track e.id) {
-            <ion-item [button]="puedeEditar(e)" [detail]="false" (click)="opciones(e)">
-              <ion-avatar
-                slot="start"
-                class="tipo"
-                [style.background]="'var(--ion-color-' + info(e.tipo).color + ')'"
-              >
-                <ion-icon [name]="info(e.tipo).icono" />
-              </ion-avatar>
-              <ion-label class="ion-text-wrap">
-                <p class="meta">
-                  <strong>{{ info(e.tipo).etiqueta }}</strong>
-                  · {{ e.fecha.toDate() | date: 'HH:mm' }} · {{ e.autorNombre }}
-                </p>
-                <p class="texto">{{ e.texto }}</p>
-              </ion-label>
-            </ion-item>
+          @for (item of g.items; track item.id) {
+            @if (item.clase === 'entrada') {
+              @let e = item.entrada;
+              <ion-item [button]="puedeEditar(e)" [detail]="false" (click)="opciones(e)">
+                <ion-avatar
+                  slot="start"
+                  class="tipo"
+                  [style.background]="'var(--ion-color-' + info(e.tipo).color + ')'"
+                >
+                  <ion-icon [name]="info(e.tipo).icono" />
+                </ion-avatar>
+                <ion-label class="ion-text-wrap">
+                  <p class="meta">
+                    <strong>{{ info(e.tipo).etiqueta }}</strong>
+                    · {{ item.fecha | date: 'HH:mm' }} · {{ e.autorNombre }}
+                  </p>
+                  <p class="texto">{{ e.texto }}</p>
+                </ion-label>
+              </ion-item>
+            } @else {
+              @let t = item.toma;
+              <ion-item class="toma" [detail]="false">
+                <ion-avatar
+                  slot="start"
+                  class="tipo"
+                  [style.background]="'var(--ion-color-' + colorToma(t) + ')'"
+                >
+                  <ion-icon [name]="infoToma.icono" />
+                </ion-avatar>
+                <ion-label class="ion-text-wrap">
+                  <p class="meta">
+                    <strong>{{ infoToma.etiqueta }}</strong>
+                    · {{ item.fecha | date: 'HH:mm' }}
+                    @if (t.toma.registradoNombre) {
+                      · {{ t.toma.registradoNombre }}
+                    }
+                  </p>
+                  <p class="texto">
+                    {{ t.medicamento.nombre }} {{ t.medicamento.dosis }} ·
+                    @if (t.toma.tomado) {
+                      Tomada
+                      @if (t.toma.horaReal) {
+                        a las {{ t.toma.horaReal.toDate() | date: 'HH:mm' }}
+                      }
+                    } @else {
+                      No tomada
+                    }
+                  </p>
+                </ion-label>
+              </ion-item>
+            }
           }
         }
       </ion-list>
       <div class="ion-text-center ion-padding">
-        <ion-text color="medium"><small>{{ total() }} registro(s) en total</small></ion-text>
+        <ion-text color="medium"
+          ><small>{{ total() }} registro(s) en total</small></ion-text
+        >
       </div>
     }
   } @else {
