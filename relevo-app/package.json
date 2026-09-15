@@ -1,0 +1,83 @@
+{
+  "name": "relevo-app",
+  "version": "0.2.0",
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve",
+    "build": "ng build",
+    "watch": "ng build --watch --configuration development",
+    "test": "ng test",
+    "emulators": "node scripts/con-java.js firebase emulators:start --project demo-relevo",
+    "deploy:rules": "firebase deploy --only firestore:rules",
+    "cap:sync": "ng build && npx cap sync",
+    "test:rules": "node scripts/con-java.js firebase emulators:exec --project demo-relevo --only firestore \"node --test tests/firestore.rules.test.mjs\"",
+    "semilla": "node scripts/semilla.mjs",
+    "semilla:real": "node scripts/semilla.mjs --real",
+    "deploy:storage": "firebase deploy --only storage",
+    "test:e2e": "node tests/e2e.smoke.mjs",
+    "android:apk": "ng build && npx cap sync android && cd android && gradlew.bat assembleDebug"
+  },
+  "prettier": {
+    "printWidth": 100,
+    "singleQuote": true,
+    "overrides": [
+      {
+        "files": "*.html",
+        "options": {
+          "parser": "angular"
+        }
+      }
+    ]
+  },
+  "private": true,
+  "dependencies": {
+    "@angular/common": "^20.3.0",
+    "@angular/compiler": "^20.3.0",
+    "@angular/core": "^20.3.0",
+    "@angular/fire": "^20.0.1",
+    "@angular/forms": "^20.3.0",
+    "@angular/platform-browser": "^20.3.0",
+    "@angular/router": "^20.3.0",
+    "@angular/service-worker": "^20.3.0",
+    "@capacitor/android": "^8.5.1",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/camera": "^8.2.4",
+    "@capacitor/cli": "^8.5.1",
+    "@capacitor/core": "^8.5.1",
+    "@capacitor/filesystem": "^8.1.3",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.5.1",
+    "@capacitor/keyboard": "^8.0.5",
+    "@capacitor/network": "^8.0.1",
+    "@capacitor/preferences": "^8.0.1",
+    "@capacitor/push-notifications": "^8.1.2",
+    "@capacitor/share": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.3",
+    "@ionic/angular": "^9.0.2",
+    "ionicons": "^8.1.0",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
+    "jsqr": "^1.4.0",
+    "qrcode": "^1.5.4",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.3.0",
+    "zone.js": "~0.15.0"
+  },
+  "devDependencies": {
+    "@angular/build": "^20.3.36",
+    "@angular/cli": "^20.3.36",
+    "@angular/compiler-cli": "^20.3.0",
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "@ionic/angular-toolkit": "latest",
+    "@types/jasmine": "~5.1.0",
+    "@types/qrcode": "^1.5.6",
+    "jasmine-core": "~5.9.0",
+    "karma": "~6.4.0",
+    "karma-chrome-launcher": "~3.2.0",
+    "karma-coverage": "~2.2.0",
+    "karma-jasmine": "~5.1.0",
+    "karma-jasmine-html-reporter": "~2.1.0",
+    "playwright": "^1.63.0",
+    "typescript": "~5.9.2"
+  }
+}

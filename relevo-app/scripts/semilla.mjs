@@ -1,0 +1,216 @@
+// Semilla de datos de prueba.
+//
+//   npm run semilla          -> EMULADORES (requiere `npm run emulators` en otra terminal)
+//   npm run semilla:real     -> tu proyecto REAL de Firebase (lee src/environments/firebase.config.ts;
+//                               requiere Auth Email/Contraseña habilitado y Firestore creado)
+//
+// Crea 4 usuarios (uno por rol), una persona cuidada y datos de ejemplo. Es idempotente:
+// puedes correrla varias veces. Escribe con el SDK cliente y pasando por las Security Rules,
+// así que además sirve como prueba del flujo real.
+
+import { readFileSync } from 'node:fs';
+import { initializeApp } from 'firebase/app';
+import {
+  connectAuthEmulator,
+  createUserWithEmailAndPassword,
+  getAuth,
+  signInWithEmailAndPassword,
+  updateProfile,
+} from 'firebase/auth';
+import {
+  Timestamp,
+  arrayUnion,
+  connectFirestoreEmulator,
+  doc,
+  getFirestore,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  writeBatch,
+} from 'firebase/firestore';
+
+const PROJECT_ID = 'demo-relevo';
+const PASSWORD = 'relevo123';
+const PERSONA_ID = 'persona-demo';
+
+// tipo = tipo de cuenta (familiar | enfermero | medico); rol = rol dentro de la persona cuidada
+export const USUARIOS = [
+  { uid: 'ana', email: 'ana@relevo.test', nombre: 'Ana García', tipo: 'familiar', rol: 'cuidador_principal' },
+  { uid: 'marta', email: 'marta@relevo.test', nombre: 'Marta López', tipo: 'enfermero', rol: 'cuidador_turno' },
+  { uid: 'sofia', email: 'sofia@relevo.test', nombre: 'Sofía García', tipo: 'familiar', rol: 'familiar' },
+  { uid: 'luis', email: 'luis@relevo.test', nombre: 'Dr. Luis Pérez', tipo: 'medico', rol: 'medico' },
+];
+
+const REAL = process.argv.includes('--real');
+
+/** Lee el objeto firebaseConfig de firebase.config.ts sin compilar TypeScript. */
+function leerConfigReal() {
+  const src = readFileSync(new URL('../src/environments/firebase.config.ts', import.meta.url), 'utf8');
+  const bloque = src.match(/firebaseConfig\s*=\s*\{([\s\S]*?)\};/)?.[1] ?? '';
+  const cfg = {};
+  for (const m of bloque.matchAll(/(\w+)\s*:\s*['"]([^'"]+)['"]/g)) cfg[m[1]] = m[2];
+  if (!cfg.apiKey || cfg.apiKey.startsWith('TU_')) {
+    console.error('firebase.config.ts todavía tiene los placeholders "TU_...". Pega tu config real primero.');
+    process.exit(1);
+  }
+  return cfg;
+}
+
+const app = initializeApp(REAL ? leerConfigReal() : { projectId: PROJECT_ID, apiKey: 'demo-api-key' });
+const auth = getAuth(app);
+const db = getFirestore(app);
+if (REAL) {
+  console.log(`>>> Sembrando en el proyecto REAL: ${app.options.projectId}\n`);
+} else {
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+  connectFirestoreEmulator(db, '127.0.0.1', 8080);
+}
+
+const uids = {}; // email -> uid real que asigna el emulador
+
+const hace = (dias, hora = 9, min = 0) => {
+  const d = new Date();
+  d.setDate(d.getDate() - dias);
+  d.setHours(hora, min, 0, 0);
+  return Timestamp.fromDate(d);
+};
+
+async function entrarComo(u) {
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, u.email, PASSWORD);
+    await updateProfile(cred.user, { displayName: u.nombre });
+    console.log(`  + creado ${u.email}`);
+    return cred.user;
+  } catch (e) {
+    if (e.code !== 'auth/email-already-in-use') throw e;
+    const cred = await signInWithEmailAndPassword(auth, u.email, PASSWORD);
+    return cred.user;
+  }
+}
+
+async function main() {
+  console.log('1) Usuarios y perfiles');
+  for (const u of USUARIOS) {
+    const user = await entrarComo(u);
+    uids[u.email] = user.uid;
+    await setDoc(
+      doc(db, 'usuarios', user.uid),
+      { uid: user.uid, nombre: u.nombre, email: u.email, tipo: u.tipo, fotoUrl: null, fcmTokens: [], personas: [], creadoEn: serverTimestamp() },
+      { merge: true },
+    );
+  }
+  const ana = uids['ana@relevo.test'];
+  const marta = uids['marta@relevo.test'];
+  const sofia = uids['sofia@relevo.test'];
+  const luis = uids['luis@relevo.test'];
+
+  console.log('2) Persona cuidada + miembros (como Ana, cuidadora principal)');
+  await signInWithEmailAndPassword(auth, 'ana@relevo.test', PASSWORD);
+  const personaRef = doc(db, 'personas_cuidadas', PERSONA_ID);
+  let b = writeBatch(db);
+  b.set(
+    personaRef,
+    {
+      nombre: 'Carmen Hernández',
+      fechaNacimiento: '1948-05-12',
+      tipoSangre: 'O+',
+      alergias: ['Penicilina'],
+      condiciones: ['Hipertensión', 'Diabetes tipo 2'],
+      medicoTratante: 'Dr. Luis Pérez',
+      contactosEmergencia: [
+        { nombre: 'Sofía García', telefono: '+52 33 1234 5678', relacion: 'Hija' },
+        { nombre: 'Ana García', telefono: '+52 33 8765 4321', relacion: 'Hija' },
+      ],
+      miembrosUids: [ana],
+      creadoPor: ana,
+      creadoEn: serverTimestamp(),
+    },
+    { merge: true },
+  );
+  b.set(doc(personaRef, 'miembros', ana), { uid: ana, rol: 'cuidador_principal', nombre: 'Ana García', agregadoEn: serverTimestamp() });
+  b.update(doc(db, 'usuarios', ana), { personas: arrayUnion(PERSONA_ID) });
+  await b.commit();
+
+  // Ana agrega al resto del equipo
+  b = writeBatch(db);
+  for (const u of USUARIOS.filter((x) => x.uid !== 'ana')) {
+    const uid = uids[u.email];
+    b.set(doc(personaRef, 'miembros', uid), { uid, rol: u.rol, nombre: u.nombre, agregadoEn: serverTimestamp() });
+  }
+  b.update(personaRef, { miembrosUids: arrayUnion(marta, sofia, luis) });
+  await b.commit();
+
+  console.log('3) Medicamentos, signos vitales y bitácora (como Ana)');
+  b = writeBatch(db);
+  b.set(doc(personaRef, 'medicamentos', 'metformina'), { nombre: 'Metformina', dosis: '850 mg', horarios: ['08:00', '20:00'], inventario: 42, activo: true });
+  b.set(doc(personaRef, 'medicamentos', 'losartan'), { nombre: 'Losartán', dosis: '50 mg', horarios: ['08:00'], inventario: 28, activo: true });
+  b.set(doc(personaRef, 'medicamentos/metformina/tomas', 'hoy-0800'), { horaProgramada: hace(0, 8), horaReal: hace(0, 8, 10), tomado: true, registradoPor: ana });
+  b.set(doc(personaRef, 'medicamentos/metformina/tomas', 'ayer-0800'), { horaProgramada: hace(1, 8), horaReal: hace(1, 8, 5), tomado: true, registradoPor: ana });
+  b.set(doc(personaRef, 'medicamentos/metformina/tomas', 'ayer-2000'), { horaProgramada: hace(1, 20), horaReal: null, tomado: false, registradoPor: ana });
+  b.set(doc(personaRef, 'medicamentos/metformina/tomas', 'antier-0800'), { horaProgramada: hace(2, 8), horaReal: hace(2, 8, 20), tomado: true, registradoPor: ana });
+  // Losartán (presión): dos tomas omitidas en la semana, para que el asistente tenga qué contar
+  b.set(doc(personaRef, 'medicamentos/losartan/tomas', 'hoy-0800'), { horaProgramada: hace(0, 8), horaReal: hace(0, 8, 12), tomado: true, registradoPor: ana });
+  b.set(doc(personaRef, 'medicamentos/losartan/tomas', 'ayer-0800'), { horaProgramada: hace(1, 8), horaReal: null, tomado: false, registradoPor: ana });
+  b.set(doc(personaRef, 'medicamentos/losartan/tomas', 'antier-0800'), { horaProgramada: hace(2, 8), horaReal: hace(2, 8, 30), tomado: true, registradoPor: ana });
+  b.set(doc(personaRef, 'medicamentos/losartan/tomas', 'hace3-0800'), { horaProgramada: hace(3, 8), horaReal: hace(3, 8, 15), tomado: true, registradoPor: ana });
+  b.set(doc(personaRef, 'medicamentos/losartan/tomas', 'hace4-0800'), { horaProgramada: hace(4, 8), horaReal: null, tomado: false, registradoPor: ana });
+  b.set(doc(personaRef, 'medicamentos/losartan/tomas', 'hace5-0800'), { horaProgramada: hace(5, 8), horaReal: hace(5, 8, 5), tomado: true, registradoPor: ana });
+
+  b.set(doc(personaRef, 'signos_vitales', 'sv1'), { tipo: 'presion', valor: 130, valorSecundario: 85, unidad: 'mmHg', fecha: hace(0, 8, 30), autorUid: ana });
+  b.set(doc(personaRef, 'signos_vitales', 'sv2'), { tipo: 'presion', valor: 138, valorSecundario: 90, unidad: 'mmHg', fecha: hace(1, 8, 30), autorUid: ana });
+  b.set(doc(personaRef, 'signos_vitales', 'sv3'), { tipo: 'glucosa', valor: 128, valorSecundario: null, unidad: 'mg/dL', fecha: hace(0, 7, 45), autorUid: ana });
+  b.set(doc(personaRef, 'signos_vitales', 'sv4'), { tipo: 'glucosa', valor: 142, valorSecundario: null, unidad: 'mg/dL', fecha: hace(1, 7, 45), autorUid: ana });
+  b.set(doc(personaRef, 'signos_vitales', 'sv5'), { tipo: 'peso', valor: 68.2, valorSecundario: null, unidad: 'kg', fecha: hace(2, 9), autorUid: ana });
+  b.set(doc(personaRef, 'signos_vitales', 'sv6'), { tipo: 'temperatura', valor: 36.6, valorSecundario: null, unidad: '°C', fecha: hace(0, 8, 35), autorUid: ana });
+
+  b.set(doc(personaRef, 'entradas_bitacora', 'e1'), { tipo: 'comida', texto: 'Desayunó avena con fruta, comió todo.', fotos: [], notaVozUrl: null, autorUid: ana, autorNombre: 'Ana García', fecha: hace(0, 8, 40) });
+  b.set(doc(personaRef, 'entradas_bitacora', 'e2'), { tipo: 'animo', texto: 'De buen humor, estuvo viendo fotos con Sofía.', fotos: [], notaVozUrl: null, autorUid: ana, autorNombre: 'Ana García', fecha: hace(0, 11) });
+  b.set(doc(personaRef, 'entradas_bitacora', 'e3'), { tipo: 'sueno', texto: 'Durmió unas 7 horas, se levantó una vez al baño.', fotos: [], notaVozUrl: null, autorUid: ana, autorNombre: 'Ana García', fecha: hace(1, 7, 30) });
+  b.set(doc(personaRef, 'eventos_calendario', 'turno-marta'), { tipo: 'turno', titulo: 'Turno de Marta', inicio: hace(-1, 20), fin: hace(-2, 8), responsableUid: marta, notas: 'Turno de noche' });
+  await b.commit();
+
+  console.log('4) Turno de Marta (cuidadora de turno)');
+  await signInWithEmailAndPassword(auth, 'marta@relevo.test', PASSWORD);
+  b = writeBatch(db);
+  b.set(doc(personaRef, 'entradas_bitacora', 'e4'), { tipo: 'sintoma', texto: 'Se quejó de dolor en la rodilla derecha al caminar. Se aplicó compresa tibia.', fotos: [], notaVozUrl: null, autorUid: marta, autorNombre: 'Marta López', fecha: hace(1, 22, 15) });
+  b.set(doc(personaRef, 'entradas_bitacora', 'e5'), { tipo: 'incidente', texto: 'Casi resbala en el baño; sin golpe. Revisar tapete antiderrapante.', fotos: [], notaVozUrl: null, autorUid: marta, autorNombre: 'Marta López', fecha: hace(2, 23, 5) });
+  b.set(doc(personaRef, 'medicamentos/metformina/tomas', 'antier-2000'), { horaProgramada: hace(2, 20), horaReal: hace(2, 20, 5), tomado: true, registradoPor: marta });
+  b.update(doc(db, 'usuarios', marta), { personas: arrayUnion(PERSONA_ID) });
+  await b.commit();
+
+  console.log('5) Cita agendada por Sofía (familiar)');
+  await signInWithEmailAndPassword(auth, 'sofia@relevo.test', PASSWORD);
+  b = writeBatch(db);
+  b.set(doc(personaRef, 'eventos_calendario', 'cita-cardio'), { tipo: 'cita', titulo: 'Cardiólogo — control de presión', inicio: hace(-6, 10), fin: hace(-6, 11), responsableUid: sofia, notas: 'Llevar reporte de presión de la semana' });
+  b.update(doc(db, 'usuarios', sofia), { personas: arrayUnion(PERSONA_ID) });
+  await b.commit();
+
+  await signInWithEmailAndPassword(auth, 'luis@relevo.test', PASSWORD);
+  await updateDoc(doc(db, 'usuarios', luis), { personas: arrayUnion(PERSONA_ID) });
+
+  console.log('\nListo. Usuarios de prueba (contraseña: ' + PASSWORD + '):');
+  for (const u of USUARIOS) console.log(`  ${u.email.padEnd(20)} cuenta: ${u.tipo.padEnd(10)} rol: ${u.rol}`);
+  console.log(`\nPersona cuidada: Carmen Hernández (${PERSONA_ID})`);
+  console.log(
+    REAL
+      ? `Consola: https://console.firebase.google.com/project/${app.options.projectId}/firestore`
+      : 'UI del emulador: http://localhost:4000',
+  );
+}
+
+main()
+  .then(() => process.exit(0))
+  .catch((e) => {
+    if (!REAL && (e?.code === 'auth/network-request-failed' || /ECONNREFUSED|UNAVAILABLE/.test(String(e)))) {
+      console.error('\nNo se pudo conectar con los emuladores. ¿Corriste `npm run emulators` en otra terminal?');
+    } else if (e?.code === 'auth/operation-not-allowed') {
+      console.error('\nFalta habilitar Correo/Contraseña: Firebase Console > Authentication > Sign-in method.');
+    } else if (e?.code === 'permission-denied' || /PERMISSION_DENIED/.test(String(e))) {
+      console.error('\nFirestore rechazó la escritura. ¿Ya subiste las reglas? -> npm run deploy:rules');
+    } else if (/NOT_FOUND|does not exist/.test(String(e))) {
+      console.error('\nFirestore no existe todavía en el proyecto: créalo en Firebase Console > Firestore Database.');
+    } else {
+      console.error('\nError sembrando datos:', e);
+    }
+    process.exit(1);
+  });

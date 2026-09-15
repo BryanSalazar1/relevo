@@ -1,0 +1,212 @@
+rules_version = '2';
+
+// Reglas de seguridad de Relevo.
+// Todo el acceso se resuelve POR PERSONA CUIDADA usando la subcolección `miembros`
+// (sección 8 de la documentación). Un usuario solo ve/edita a las personas
+// en las que es miembro, y lo que puede hacer depende de su rol.
+//
+// Tipos de cuenta (usuarios/{uid}.tipo): familiar | enfermero | medico.
+//   - Solo un FAMILIAR da de alta personas cuidadas y queda como responsable (cuidador_principal).
+//   - Al unirse por invitación cada cuenta recibe el rol que le corresponde:
+//     familiar -> familiar, enfermero -> cuidador_turno, medico -> medico.
+//   - Un familiar puede ser ascendido a responsable por otro responsable.
+//
+// Invitaciones (compartir por código/QR): el responsable crea `invitaciones/{codigo}`; quien
+// conoce el código se agrega a sí mismo como miembro en un batch que estas reglas validan
+// de punta a punta (sin Cloud Functions).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+    function autenticado() {
+      return request.auth != null;
+    }
+
+    function esMiembro(personaId) {
+      return autenticado()
+        && exists(/databases/$(database)/documents/personas_cuidadas/$(personaId)/miembros/$(request.auth.uid));
+    }
+
+    function rol(personaId) {
+      return get(/databases/$(database)/documents/personas_cuidadas/$(personaId)/miembros/$(request.auth.uid)).data.rol;
+    }
+
+    function tieneRol(personaId, roles) {
+      return esMiembro(personaId) && rol(personaId) in roles;
+    }
+
+    function tipoUsuario(uid) {
+      return get(/databases/$(database)/documents/usuarios/$(uid)).data.tipo;
+    }
+
+    // Rol que recibe cada tipo de cuenta al unirse por invitación
+    function rolPorTipo(tipo) {
+      return tipo == 'familiar' ? 'familiar' : (tipo == 'enfermero' ? 'cuidador_turno' : 'medico');
+    }
+
+    // Roles que puede tener cada tipo de cuenta
+    function rolCompatible(tipo, rolNuevo) {
+      return (tipo == 'familiar' && rolNuevo in ['familiar', 'cuidador_principal'])
+        || (tipo == 'enfermero' && rolNuevo == 'cuidador_turno')
+        || (tipo == 'medico' && rolNuevo == 'medico');
+    }
+
+    // Estado de la persona DESPUÉS del batch actual (creación atómica persona + miembro, o canje)
+    function estaraEnMiembrosUids(personaId) {
+      return autenticado()
+        && request.auth.uid in getAfter(/databases/$(database)/documents/personas_cuidadas/$(personaId)).data.miembrosUids;
+    }
+
+    function invitacion(codigo) {
+      return get(/databases/$(database)/documents/invitaciones/$(codigo)).data;
+    }
+
+    // Una invitación se puede canjear si pertenece a esa persona, está activa, no venció y tiene usos
+    function invitacionValida(codigo, personaId) {
+      return exists(/databases/$(database)/documents/invitaciones/$(codigo))
+        && invitacion(codigo).personaId == personaId
+        && invitacion(codigo).activa == true
+        && invitacion(codigo).expiraEn > request.time
+        && invitacion(codigo).usos < invitacion(codigo).usosMax;
+    }
+
+    // El documento de miembro que este mismo batch está creando para el usuario actual
+    function miMiembroDespues(personaId) {
+      return getAfter(/databases/$(database)/documents/personas_cuidadas/$(personaId)/miembros/$(request.auth.uid)).data;
+    }
+
+    function canjeValidoDespues(personaId) {
+      return miMiembroDespues(personaId).uid == request.auth.uid
+        && invitacionValida(miMiembroDespues(personaId).invitacionCodigo, personaId)
+        && miMiembroDespues(personaId).rol == rolPorTipo(tipoUsuario(request.auth.uid));
+    }
+
+    // La actualización solo agrega mi uid al final de miembrosUids y no toca nada más
+    function soloAgregaMiUid() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['miembrosUids'])
+        && !(request.auth.uid in resource.data.miembrosUids)
+        && request.resource.data.miembrosUids == resource.data.miembrosUids.concat([request.auth.uid]);
+    }
+
+    // ---------- usuarios/{uid} ----------
+    match /usuarios/{userId} {
+      allow read: if autenticado();
+      // Cada quien crea y edita solo su propio perfil; el tipo de cuenta es obligatorio y,
+      // una vez definido, no cambia (las cuentas antiguas sin tipo pueden definirlo una vez)
+      allow create: if autenticado() && request.auth.uid == userId
+        && request.resource.data.tipo in ['familiar', 'enfermero', 'medico'];
+      allow update: if autenticado() && request.auth.uid == userId
+        && request.resource.data.tipo in ['familiar', 'enfermero', 'medico']
+        && (!('tipo' in resource.data) || request.resource.data.tipo == resource.data.tipo);
+      allow delete: if autenticado() && request.auth.uid == userId;
+    }
+
+    // ---------- invitaciones/{codigo} ----------
+    match /invitaciones/{codigo} {
+      // El código (8 caracteres aleatorios) es la llave: se puede leer uno concreto, no listar todos
+      allow get: if autenticado();
+      allow list: if tieneRol(resource.data.personaId, ['cuidador_principal']);
+      allow create: if autenticado()
+        && request.resource.data.creadoPor == request.auth.uid
+        && request.resource.data.personaId is string
+        && tieneRol(request.resource.data.personaId, ['cuidador_principal'])
+        && request.resource.data.usos == 0
+        && request.resource.data.usosMax > 0
+        && request.resource.data.expiraEn > request.time;
+      allow update: if tieneRol(resource.data.personaId, ['cuidador_principal'])
+        // ...o quien la canjea, que solo puede sumar 1 a usos
+        || (autenticado()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usos'])
+            && request.resource.data.usos == resource.data.usos + 1
+            && invitacionValida(codigo, resource.data.personaId));
+      allow delete: if tieneRol(resource.data.personaId, ['cuidador_principal']);
+    }
+
+    // ---------- personas_cuidadas/{id} ----------
+    match /personas_cuidadas/{personaId} {
+      // Leer/listar: solo si mi uid está en miembrosUids (hace posible el query array-contains)
+      allow read: if autenticado() && request.auth.uid in resource.data.miembrosUids;
+      // Crear: solo una cuenta de tipo familiar, y debe quedar como miembro
+      allow create: if autenticado()
+        && request.auth.uid in request.resource.data.miembrosUids
+        && request.resource.data.creadoPor == request.auth.uid
+        && tipoUsuario(request.auth.uid) == 'familiar';
+      // Actualizar: el responsable, o alguien que se une con una invitación válida
+      allow update: if tieneRol(personaId, ['cuidador_principal'])
+        || (autenticado() && soloAgregaMiUid() && canjeValidoDespues(personaId));
+      allow delete: if tieneRol(personaId, ['cuidador_principal']);
+
+      // miembros/{uid}: quién tiene acceso y con qué rol
+      match /miembros/{memberId} {
+        allow read: if esMiembro(personaId);
+        allow create: if
+          // el responsable agrega a alguien con un rol acorde a su tipo de cuenta
+          (tieneRol(personaId, ['cuidador_principal'])
+            && rolCompatible(tipoUsuario(memberId), request.resource.data.rol))
+          || (memberId == request.auth.uid
+              && request.resource.data.uid == request.auth.uid
+              && estaraEnMiembrosUids(personaId)
+              && (
+                // (a) un familiar crea la persona en este mismo batch y queda como responsable
+                (!exists(/databases/$(database)/documents/personas_cuidadas/$(personaId))
+                  && request.resource.data.rol == 'cuidador_principal'
+                  && tipoUsuario(request.auth.uid) == 'familiar')
+                // (b) o canjea una invitación válida con el rol que corresponde a su cuenta
+                || (invitacionValida(request.resource.data.invitacionCodigo, personaId)
+                    && request.resource.data.rol == rolPorTipo(tipoUsuario(request.auth.uid)))
+              ));
+        // El responsable cambia roles (p. ej. hacer responsable a otro familiar), siempre acordes al tipo
+        allow update: if (tieneRol(personaId, ['cuidador_principal'])
+            && request.resource.data.uid == resource.data.uid
+            && rolCompatible(tipoUsuario(memberId), request.resource.data.rol))
+          // ...o quien dio de alta a la persona (familiar) recupera el rol de responsable
+          || (memberId == request.auth.uid
+            && get(/databases/$(database)/documents/personas_cuidadas/$(personaId)).data.creadoPor == request.auth.uid
+            && tipoUsuario(request.auth.uid) == 'familiar'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rol'])
+            && request.resource.data.rol == 'cuidador_principal');
+        allow delete: if tieneRol(personaId, ['cuidador_principal']);
+      }
+
+      // entradas_bitacora: responsable, enfermeros y familiares registran; el médico solo lee.
+      // El autor edita/borra lo suyo; el responsable, todo.
+      match /entradas_bitacora/{entradaId} {
+        allow read: if esMiembro(personaId);
+        allow create: if tieneRol(personaId, ['cuidador_principal', 'cuidador_turno', 'familiar'])
+          && request.resource.data.autorUid == request.auth.uid;
+        allow update, delete: if tieneRol(personaId, ['cuidador_principal'])
+          || (esMiembro(personaId) && resource.data.autorUid == request.auth.uid);
+      }
+
+      // medicamentos: solo el responsable los define; quienes registran tomas solo ajustan el inventario
+      match /medicamentos/{medicamentoId} {
+        allow read: if esMiembro(personaId);
+        allow create, delete: if tieneRol(personaId, ['cuidador_principal']);
+        allow update: if tieneRol(personaId, ['cuidador_principal'])
+          || (tieneRol(personaId, ['cuidador_turno', 'familiar'])
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['inventario']));
+
+        // tomas: responsable, enfermeros y familiares registran (y corrigen) las tomas
+        match /tomas/{tomaId} {
+          allow read: if esMiembro(personaId);
+          allow create, update, delete: if tieneRol(personaId, ['cuidador_principal', 'cuidador_turno', 'familiar'])
+            && (request.method == 'delete' || request.resource.data.registradoPor == request.auth.uid);
+        }
+      }
+
+      // eventos_calendario: familiares y cuidadores coordinan citas y turnos
+      match /eventos_calendario/{eventoId} {
+        allow read: if esMiembro(personaId);
+        allow write: if tieneRol(personaId, ['familiar', 'cuidador_principal', 'cuidador_turno']);
+      }
+
+      // signos_vitales: cuidadores registran; el médico solo lee
+      match /signos_vitales/{signoId} {
+        allow read: if esMiembro(personaId);
+        allow create: if tieneRol(personaId, ['cuidador_principal', 'cuidador_turno'])
+          && request.resource.data.autorUid == request.auth.uid;
+        allow update, delete: if tieneRol(personaId, ['cuidador_principal']);
+      }
+    }
+  }
+}

@@ -1,0 +1,157 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/home" text="" />
+    </ion-buttons>
+    <ion-title>Reporte</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="exportar()" [disabled]="!reporte() || exportando()" aria-label="Exportar PDF">
+        <ion-icon slot="icon-only" name="share-social-outline" />
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+  <ion-toolbar>
+    <ion-segment [value]="periodo()" (ionChange)="cambiarPeriodo($any($event).detail.value)">
+      <ion-segment-button value="semana"><ion-label>Semana</ion-label></ion-segment-button>
+      <ion-segment-button value="mes"><ion-label>Mes</ion-label></ion-segment-button>
+    </ion-segment>
+  </ion-toolbar>
+  <ion-toolbar class="rango">
+    <ion-buttons slot="start">
+      <ion-button (click)="anterior()" aria-label="Periodo anterior">
+        <ion-icon slot="icon-only" name="chevron-back-outline" />
+      </ion-button>
+    </ion-buttons>
+    <ion-title size="small" class="ion-text-center">{{ rango() }}</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="siguiente()" [disabled]="!puedeAvanzar()" aria-label="Periodo siguiente">
+        <ion-icon slot="icon-only" name="chevron-forward-outline" />
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  @if (cargando()) {
+    <div class="ion-text-center ion-padding">
+      <ion-spinner name="crescent" />
+    </div>
+  } @else if (error(); as e) {
+    <div class="ion-padding ion-text-center">
+      <ion-text color="danger"><p>{{ e }}</p></ion-text>
+      <ion-button size="small" fill="outline" (click)="hoy()">Reintentar</ion-button>
+    </div>
+  } @else if (reporte(); as r) {
+    <ion-card>
+      <ion-card-header>
+        <ion-card-subtitle>Reporte de cuidado · {{ r.rango }}</ion-card-subtitle>
+        <ion-card-title>{{ r.persona.nombre }}</ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <p><strong>Condiciones:</strong> {{ r.persona.condiciones?.join(', ') || '—' }}</p>
+        <p><strong>Alergias:</strong> {{ r.persona.alergias?.join(', ') || 'Ninguna registrada' }}</p>
+        <div class="resumen">
+          @for (c of r.conteoPorTipo; track c.tipo.valor) {
+            <ion-chip [color]="c.tipo.color" [outline]="true">
+              <ion-icon [name]="c.tipo.icono" />
+              <ion-label>{{ c.cantidad }} {{ c.tipo.etiqueta.toLowerCase() }}</ion-label>
+            </ion-chip>
+          } @empty {
+            <ion-text color="medium"><p>Sin registros en la bitácora en este periodo.</p></ion-text>
+          }
+        </div>
+      </ion-card-content>
+    </ion-card>
+
+    <ion-list inset>
+      <ion-list-header>
+        <ion-label>Síntomas e incidentes</ion-label>
+        <ion-badge color="danger">{{ r.alertas.length }}</ion-badge>
+      </ion-list-header>
+      @for (e of r.alertas; track e.id) {
+        <ion-item>
+          <ion-icon slot="start" [name]="info(e.tipo).icono" color="danger" />
+          <ion-label class="ion-text-wrap">
+            <p>{{ e.fecha.toDate() | date: 'd MMM, HH:mm' }} · {{ e.autorNombre }}</p>
+            <h3>{{ e.texto }}</h3>
+          </ion-label>
+        </ion-item>
+      } @empty {
+        <ion-item lines="none"><ion-label color="medium">Ninguno en este periodo.</ion-label></ion-item>
+      }
+    </ion-list>
+
+    <ion-list inset>
+      <ion-list-header><ion-label>Signos vitales</ion-label></ion-list-header>
+      @for (s of r.signos; track s.tipo) {
+        <ion-item>
+          <ion-icon slot="start" name="pulse-outline" color="primary" />
+          <ion-label class="ion-text-wrap">
+            <h3>{{ s.etiqueta }}</h3>
+            <p>Última: <strong>{{ textoSigno(s.ultimo) }}</strong> ({{ s.ultimo.fecha.toDate() | date: 'd MMM' }})</p>
+            <p>{{ s.n }} registro(s) · mín {{ s.min }} · prom {{ s.promedio }} · máx {{ s.max }} {{ s.unidad }}</p>
+          </ion-label>
+        </ion-item>
+      } @empty {
+        <ion-item lines="none"><ion-label color="medium">Sin mediciones en este periodo.</ion-label></ion-item>
+      }
+    </ion-list>
+
+    <ion-list inset>
+      <ion-list-header><ion-label>Medicamentos</ion-label></ion-list-header>
+      @for (m of r.medicamentos; track m.nombre) {
+        <ion-item>
+          <ion-icon slot="start" name="medical-outline" color="success" />
+          <ion-label class="ion-text-wrap">
+            <h3>{{ m.nombre }} · {{ m.dosis }}</h3>
+            <p>{{ m.horarios.join(', ') || 'Sin horario' }} · {{ m.tomadas }}/{{ m.programadas }} tomas</p>
+          </ion-label>
+          @if (m.adherencia !== null) {
+            <ion-badge slot="end" [color]="m.adherencia >= 80 ? 'success' : m.adherencia >= 50 ? 'warning' : 'danger'">
+              {{ m.adherencia }} %
+            </ion-badge>
+          } @else {
+            <ion-note slot="end">sin tomas</ion-note>
+          }
+        </ion-item>
+      } @empty {
+        <ion-item lines="none"><ion-label color="medium">No hay medicamentos registrados.</ion-label></ion-item>
+      }
+    </ion-list>
+
+    <ion-list inset>
+      <ion-list-header>
+        <ion-label>Bitácora del periodo</ion-label>
+        <ion-badge>{{ r.entradas.length }}</ion-badge>
+      </ion-list-header>
+      @for (g of grupos(); track g.clave) {
+        <ion-item-divider>
+          <ion-label>{{ etiquetaDia(g.dia) }}</ion-label>
+        </ion-item-divider>
+        @for (e of g.items; track e.id) {
+          <ion-item>
+            <ion-icon slot="start" [name]="info(e.tipo).icono" [color]="info(e.tipo).color" />
+            <ion-label class="ion-text-wrap">
+              <p>{{ e.fecha.toDate() | date: 'HH:mm' }} · {{ info(e.tipo).etiqueta }} · {{ e.autorNombre }}</p>
+              <h3>{{ e.texto }}</h3>
+            </ion-label>
+          </ion-item>
+        }
+      } @empty {
+        <ion-item lines="none"><ion-label color="medium">Sin registros.</ion-label></ion-item>
+      }
+    </ion-list>
+
+    <div class="ion-padding">
+      <ion-button expand="block" (click)="exportar()" [disabled]="exportando()">
+        <ion-icon slot="start" name="document-text-outline" />
+        Exportar PDF para el médico
+      </ion-button>
+      <ion-text color="medium">
+        <p class="ion-text-center">
+          <small>Generado por {{ r.generadoPor }} · {{ r.generadoEn | date: 'd MMM y, HH:mm' }}</small>
+        </p>
+      </ion-text>
+    </div>
+  }
+</ion-content>

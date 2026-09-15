@@ -1,0 +1,19 @@
+.resumen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+ion-toolbar.rango ion-title {
+  font-weight: 500;
+}
+
+ion-list-header ion-badge {
+  margin-right: 16px;
+}
+
+ion-item h3 {
+  font-size: 0.95rem;
+  white-space: pre-wrap;
+}

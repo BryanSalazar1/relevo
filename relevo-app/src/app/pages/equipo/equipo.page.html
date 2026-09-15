@@ -1,0 +1,150 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/home" text="" />
+    </ion-buttons>
+    <ion-title>Equipo de cuidado</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  @if (persona(); as p) {
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>{{ p.nombre }}</ion-card-title>
+        <ion-card-subtitle>
+          @if (edad() !== null) {
+            {{ edad() }} años ·
+          }
+          {{ p.tipoSangre || 'Tipo de sangre sin registrar' }}
+        </ion-card-subtitle>
+      </ion-card-header>
+      <ion-card-content>
+        <p><strong>Condiciones:</strong> {{ p.condiciones?.join(', ') || 'Ninguna registrada' }}</p>
+        <p><strong>Alergias:</strong> {{ p.alergias?.join(', ') || 'Ninguna registrada' }}</p>
+        @if (p.medicoTratante) {
+          <p><strong>Médico:</strong> {{ p.medicoTratante }}</p>
+        }
+        @for (c of p.contactosEmergencia; track c.telefono) {
+          <p>
+            <strong>Emergencia:</strong> {{ c.nombre }}@if (c.relacion) { ({{ c.relacion }})} ·
+            <a [href]="'tel:' + c.telefono">{{ c.telefono }}</a>
+          </p>
+        }
+      </ion-card-content>
+    </ion-card>
+
+    @if (esPrincipal()) {
+      <ion-card class="acceso">
+        <ion-card-header>
+          <ion-card-subtitle>Código de acceso de {{ p.nombre }}</ion-card-subtitle>
+          <ion-card-title>Comparte el QR para unir al equipo</ion-card-title>
+        </ion-card-header>
+        <ion-card-content>
+          @if (invitacionActual(); as inv) {
+            <button type="button" class="qr-wrap" (click)="mostrarInvitacion(inv)" aria-label="Ver QR en grande">
+              @if (qr(); as src) {
+                <img class="qr" [src]="src" alt="Código QR de acceso" />
+              } @else {
+                <ion-skeleton-text [animated]="true" class="qr" />
+              }
+            </button>
+            <div class="codigo grande">{{ formatearCodigo(inv.codigo) }}</div>
+            <p class="ion-text-center ayuda">
+              <ion-text color="medium">
+                Quien lo escanee o escriba el código entra con el rol de su cuenta: familiar,
+                enfermero/a o médico. Vence el {{ inv.expiraEn.toDate() | date: 'd MMM y' }} ·
+                {{ inv.usos }}/{{ inv.usosMax }} usos.
+              </ion-text>
+            </p>
+            <div class="acciones">
+              <ion-button (click)="compartir(inv)">
+                <ion-icon slot="start" name="share-social-outline" />
+                Compartir
+              </ion-button>
+              <ion-button fill="outline" (click)="copiarCodigo(inv)">
+                <ion-icon slot="start" name="copy-outline" />
+                Copiar código
+              </ion-button>
+              <ion-button fill="clear" color="medium" (click)="renovar(inv)">
+                <ion-icon slot="start" name="refresh-outline" />
+                Renovar
+              </ion-button>
+            </div>
+          } @else {
+            <div class="ion-text-center ion-padding">
+              <ion-spinner name="crescent" />
+              <p><ion-text color="medium">Generando el código de acceso…</ion-text></p>
+            </div>
+          }
+        </ion-card-content>
+      </ion-card>
+    }
+  }
+
+  <ion-list inset>
+    <ion-list-header>
+      <ion-label>Miembros</ion-label>
+    </ion-list-header>
+    @if (miembros(); as lista) {
+      @for (m of lista; track m.uid) {
+        <ion-item [button]="esPrincipal() && m.uid !== uid" [detail]="false" (click)="opcionesMiembro(m)">
+          <ion-label>
+            <h2>
+              {{ m.nombre }}
+              @if (m.uid === uid) {
+                <ion-note>(tú)</ion-note>
+              }
+            </h2>
+            <p><ion-badge [color]="ROL_COLOR[m.rol]">{{ ROL_ETIQUETA[m.rol] }}</ion-badge></p>
+          </ion-label>
+          @if (esPrincipal() && m.uid !== uid) {
+            <ion-button slot="end" fill="clear" color="medium" aria-label="Opciones">
+              <ion-icon slot="icon-only" name="ellipsis-horizontal" />
+            </ion-button>
+          }
+        </ion-item>
+      }
+    } @else {
+      <ion-item lines="none"><ion-spinner name="crescent" /></ion-item>
+    }
+  </ion-list>
+
+  @if (esPrincipal() && otrasInvitaciones().length > 0) {
+    <ion-list inset>
+      <ion-list-header>
+        <ion-label>Otros códigos activos</ion-label>
+      </ion-list-header>
+      @for (inv of otrasInvitaciones(); track inv.codigo) {
+        <ion-item button [detail]="false" (click)="mostrarInvitacion(inv)">
+          <ion-icon slot="start" name="qr-code-outline" color="primary" />
+          <ion-label>
+            <h2 class="codigo">{{ formatearCodigo(inv.codigo) }}</h2>
+            <p>Vence {{ inv.expiraEn.toDate() | date: 'd MMM' }} · {{ inv.usos }}/{{ inv.usosMax }} usos</p>
+          </ion-label>
+          <ion-button slot="end" fill="clear" color="medium" (click)="revocar(inv); $event.stopPropagation()" aria-label="Cancelar invitación">
+            <ion-icon slot="icon-only" name="ban-outline" />
+          </ion-button>
+        </ion-item>
+      }
+    </ion-list>
+  } @else if (puedeRecuperarResponsable()) {
+    <ion-card color="light">
+      <ion-card-content>
+        <p>
+          Diste de alta a <strong>{{ persona()?.nombre }}</strong> con una versión anterior de la app y
+          quedaste como familiar. Hazte responsable para compartir el código de acceso y administrar
+          el equipo.
+        </p>
+        <ion-button expand="block" class="ion-margin-top" (click)="hacermeResponsable()">
+          <ion-icon slot="start" name="key-outline" />
+          Hacerme responsable
+        </ion-button>
+      </ion-card-content>
+    </ion-card>
+  } @else if (!esPrincipal() && rol()) {
+    <div class="ion-padding ion-text-center">
+      <ion-text color="medium"><p>Solo el familiar responsable puede compartir el código de acceso.</p></ion-text>
+    </div>
+  }
+</ion-content>

@@ -1,0 +1,36 @@
+ion-avatar.tipo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  color: #fff;
+
+  ion-icon {
+    font-size: 20px;
+  }
+}
+
+.meta {
+  font-size: 0.8rem;
+  margin-bottom: 2px;
+}
+
+.texto {
+  font-size: 1rem;
+  color: var(--ion-text-color);
+  white-space: pre-wrap;
+}
+
+ion-item-divider {
+  --background: var(--ion-color-light);
+  font-weight: 600;
+}
+
+.vacio {
+  margin-top: 3rem;
+
+  ion-icon {
+    font-size: 64px;
+  }
+}
