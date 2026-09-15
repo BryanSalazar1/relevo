@@ -1,0 +1,7 @@
+node_modules/
+# Valores locales de parámetros y secretos (ver .env.example)
+.env
+.env.*
+!.env.example
+.secret.local
+*.log

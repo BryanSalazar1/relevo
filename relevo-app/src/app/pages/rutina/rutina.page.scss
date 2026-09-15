@@ -1,0 +1,23 @@
+ion-toolbar.dia ion-title {
+  font-weight: 500;
+  cursor: pointer;
+}
+
+ion-list-header ion-badge {
+  margin-right: 16px;
+}
+
+ion-item.inactiva ion-label {
+  opacity: 0.6;
+}
+
+h2 ion-icon.tipo {
+  font-size: 1em;
+  vertical-align: -2px;
+  margin-right: 2px;
+}
+
+h2 ion-note {
+  font-size: 0.85em;
+  margin-left: 4px;
+}

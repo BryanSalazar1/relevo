@@ -11,7 +11,7 @@ import {
   writeBatch,
 } from '@angular/fire/firestore';
 import { Observable, catchError, map, of, switchMap } from 'rxjs';
-import { Miembro, ROLES, Rol, TipoUsuario, Usuario } from '../models';
+import { Miembro, ROLES, Rol, TipoUsuario, Turno, Usuario } from '../models';
 import { AuthService } from './auth.service';
 
 const ORDEN_ROL: Record<Rol, number> = Object.fromEntries(
@@ -59,6 +59,15 @@ export class MiembrosService {
   /** Cambia el rol de un miembro (solo el responsable; las rules validan que sea compatible). */
   async cambiarRol(personaId: string, uid: string, rol: Rol): Promise<void> {
     await updateDoc(doc(this.db, `personas_cuidadas/${personaId}/miembros/${uid}`), { rol });
+  }
+
+  /** Guardias y alertas de un miembro (solo el responsable; las rules exigen que uid y rol no cambien). */
+  async actualizarAvisos(
+    personaId: string,
+    uid: string,
+    datos: { turnos: Turno[]; alertas: boolean },
+  ): Promise<void> {
+    await updateDoc(doc(this.db, `personas_cuidadas/${personaId}/miembros/${uid}`), datos);
   }
 
   /** Quita a un miembro (solo lo permiten las rules al responsable). */

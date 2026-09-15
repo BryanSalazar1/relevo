@@ -18,6 +18,7 @@ import {
   IonText,
   IonTitle,
   IonToolbar,
+  ModalController,
   ToastController,
 } from '@ionic/angular';
 import { TIPO_USUARIO_ETIQUETA } from '../../core/models';
@@ -25,6 +26,8 @@ import { AuthService } from '../../core/services/auth.service';
 import { PersonasService } from '../../core/services/personas.service';
 import { edad } from '../../core/utils/fechas';
 import { pedirTipoCuenta } from '../../core/utils/tipo-cuenta';
+import { DatosPersona, PersonaModal } from './persona.modal';
+import { PerfilModal } from './perfil.modal';
 
 @Component({
   selector: 'app-home',
@@ -54,6 +57,7 @@ export class HomePage {
   private readonly personasSvc = inject(PersonasService);
   private readonly router = inject(Router);
   private readonly alertCtrl = inject(AlertController);
+  private readonly modalCtrl = inject(ModalController);
   private readonly toast = inject(ToastController);
   private pidiendoTipo = false;
 
@@ -96,37 +100,43 @@ export class HomePage {
       await this.mostrar('Solo una cuenta de familiar puede dar de alta a una persona.', 'danger');
       return;
     }
-    const alerta = await this.alertCtrl.create({
-      header: 'Nueva persona cuidada',
-      message: 'Quedarás como responsable de su bitácora y podrás invitar al equipo.',
-      inputs: [
-        { name: 'nombre', type: 'text', placeholder: 'Nombre', attributes: { autocapitalize: 'words' } },
-        { name: 'fechaNacimiento', type: 'date', placeholder: 'Fecha de nacimiento' },
-      ],
-      buttons: [
-        { text: 'Cancelar', role: 'cancel' },
-        { text: 'Crear', role: 'confirm' },
-      ],
-    });
-    await alerta.present();
-    const { role, data } = await alerta.onDidDismiss<{
-      values: { nombre: string; fechaNacimiento: string };
-    }>();
-    if (role !== 'confirm') return;
-
-    const nombre = data?.values?.nombre?.trim();
-    if (!nombre) return;
+    const modal = await this.modalCtrl.create({ component: PersonaModal, componentProps: { persona: null } });
+    await modal.present();
+    const { data, role } = await modal.onWillDismiss<DatosPersona>();
+    if (role !== 'guardar' || !data) return;
+    const nombre = data.nombre;
 
     try {
       const id = await this.personasSvc.crearPersona({
         nombre,
-        fechaNacimiento: data?.values?.fechaNacimiento || undefined,
+        ...(data.fechaNacimiento ? { fechaNacimiento: data.fechaNacimiento } : {}),
+        ...(data.descripcion ? { descripcion: data.descripcion } : {}),
       });
       await this.mostrar(`"${nombre}" se creó. Ya puedes registrar su bitácora.`, 'success');
       await this.router.navigate(['/personas', id]);
     } catch (error) {
       console.error(error);
       await this.mostrar('No se pudo guardar. Revisa tu conexión.', 'danger');
+    }
+  }
+
+  /** Nombre y, en la zona de peligro, eliminación de la cuenta. */
+  async editarPerfil() {
+    const modal = await this.modalCtrl.create({ component: PerfilModal });
+    await modal.present();
+    const { data, role } = await modal.onWillDismiss<{ nombre: string }>();
+    if (role === 'eliminada') {
+      await this.mostrar('Tu cuenta se eliminó.', 'success');
+      await this.router.navigateByUrl('/login', { replaceUrl: true });
+      return;
+    }
+    if (role !== 'guardar' || !data?.nombre) return;
+    try {
+      await this.auth.actualizarNombre(data.nombre);
+      await this.mostrar('Nombre actualizado.', 'success');
+    } catch (error) {
+      console.error(error);
+      await this.mostrar('No se pudo actualizar el nombre.', 'danger');
     }
   }
 

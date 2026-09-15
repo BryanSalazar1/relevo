@@ -28,21 +28,25 @@ import {
 import { switchMap } from 'rxjs';
 import {
   EntradaBitacora,
+  INFO_TAREA_BITACORA,
   INFO_TOMA,
   PUEDE_ESCRIBIR_BITACORA,
+  TIPO_TAREA_INFO,
+  TipoTarea,
   TIPOS_ENTRADA,
   TIPO_ENTRADA_INFO,
   TipoEntrada,
 } from '../../core/models';
 import { AuthService } from '../../core/services/auth.service';
-import { BitacoraService, DatosEntrada } from '../../core/services/bitacora.service';
+import { BitacoraService, DatosEntrada, ItemBitacora } from '../../core/services/bitacora.service';
 import { TomaRegistrada } from '../../core/services/medicamentos.service';
+import { RegistroReciente } from '../../core/services/tareas.service';
 import { agruparPorDia, etiquetaDia } from '../../core/utils/fechas';
 import { personaActual } from '../../core/utils/persona-actual';
 import { EntradaModal } from './entrada.modal';
 
-/** Qué se muestra: un tipo de entrada, solo las tomas de medicamentos, o todo (null). */
-export type FiltroBitacora = TipoEntrada | 'toma';
+/** Qué se muestra: un tipo de entrada, solo tomas de medicamentos, solo tareas, o todo (null). */
+export type FiltroBitacora = TipoEntrada | 'toma' | 'tarea';
 
 @Component({
   selector: 'app-bitacora',
@@ -89,6 +93,7 @@ export class BitacoraPage {
   readonly filtro = signal<FiltroBitacora | null>(null);
   readonly etiquetaDia = etiquetaDia;
   readonly infoToma = INFO_TOMA;
+  readonly infoTarea = INFO_TAREA_BITACORA;
 
   readonly grupos = computed(() => {
     const lista = this.linea();
@@ -96,8 +101,8 @@ export class BitacoraPage {
     const f = this.filtro();
     const filtradas = !f
       ? lista
-      : f === 'toma'
-        ? lista.filter((i) => i.clase === 'toma')
+      : f === 'toma' || f === 'tarea'
+        ? lista.filter((i) => i.clase === f)
         : lista.filter((i) => i.clase === 'entrada' && i.entrada.tipo === f);
     return agruparPorDia(filtradas, (i) => i.fecha);
   });
@@ -110,7 +115,29 @@ export class BitacoraPage {
   });
 
   info(tipo: FiltroBitacora) {
-    return tipo === 'toma' ? INFO_TOMA : TIPO_ENTRADA_INFO[tipo];
+    if (tipo === 'toma') return INFO_TOMA;
+    if (tipo === 'tarea') return INFO_TAREA_BITACORA;
+    return TIPO_ENTRADA_INFO[tipo];
+  }
+
+  /** Icono y color del tipo de tarea (comida, baño…) para el registro en la bitácora. */
+  infoTipoTarea(tipo: TipoTarea) {
+    return TIPO_TAREA_INFO[tipo] ?? TIPO_TAREA_INFO['otro'];
+  }
+
+  /** Verde si se hizo, rojo si se marcó como no hecha. */
+  colorRegistro(r: RegistroReciente): string {
+    return r.registro.hecha ? 'success' : 'danger';
+  }
+
+  /**
+   * Hora en que ocurrió lo escrito, solo si difiere de cuándo se registró (2 min o más);
+   * la bitácora se ordena por el registro, pero el usuario pudo fechar el hecho un poco antes.
+   */
+  ocurrio(item: ItemBitacora): Date | null {
+    if (item.clase !== 'entrada') return null;
+    const hecho = item.entrada.fecha.toDate();
+    return Math.abs(item.fecha.getTime() - hecho.getTime()) >= 2 * 60_000 ? hecho : null;
   }
 
   /** Verde si se tomó, rojo si se marcó como no tomada. */
@@ -139,6 +166,13 @@ export class BitacoraPage {
           icon: INFO_TOMA.icono,
           handler: () => {
             this.filtro.set('toma');
+          },
+        },
+        {
+          text: 'Tareas de la rutina',
+          icon: INFO_TAREA_BITACORA.icono,
+          handler: () => {
+            this.filtro.set('tarea');
           },
         },
         {

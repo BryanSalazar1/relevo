@@ -14,8 +14,10 @@
     "semilla": "node scripts/semilla.mjs",
     "semilla:real": "node scripts/semilla.mjs --real",
     "deploy:storage": "firebase deploy --only storage",
+    "deploy:functions": "firebase deploy --only functions",
+    "test:functions": "npm --prefix functions test",
     "test:e2e": "node tests/e2e.smoke.mjs",
-    "android:apk": "ng build && npx cap sync android && cd android && gradlew.bat assembleDebug"
+    "android:apk": "ng build && npx cap sync android && cd android && .\\gradlew.bat assembleDebug"
   },
   "prettier": {
     "printWidth": 100,

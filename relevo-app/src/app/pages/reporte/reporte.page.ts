@@ -30,6 +30,7 @@ import {
   ToastController,
 } from '@ionic/angular';
 import { SignoVital, TIPO_ENTRADA_INFO, TipoEntrada } from '../../core/models';
+import { AsistenteService } from '../../core/services/asistente.service';
 import { Reporte, ReporteService } from '../../core/services/reporte.service';
 import {
   agruparPorDia,
@@ -77,6 +78,7 @@ type Periodo = 'semana' | 'mes';
 })
 export class ReportePage {
   private readonly reporteSvc = inject(ReporteService);
+  private readonly asistente = inject(AsistenteService);
   private readonly loadingCtrl = inject(LoadingController);
   private readonly toast = inject(ToastController);
 
@@ -95,6 +97,8 @@ export class ReportePage {
   readonly cargando = signal(false);
   readonly error = signal<string | null>(null);
   readonly exportando = signal(false);
+  readonly resumiendo = signal(false);
+  readonly errorResumen = signal<string | null>(null);
 
   readonly grupos = computed(() => {
     const r = this.reporte();
@@ -158,6 +162,24 @@ export class ReportePage {
 
   hoy() {
     this.fin.set(this.manana());
+  }
+
+  /** Pide a la IA el resumen narrativo del periodo y lo guarda en el reporte (entra en el PDF). */
+  async resumir() {
+    const personaId = this.ctx.personaId();
+    const r = this.reporte();
+    if (!personaId || !r || this.resumiendo()) return;
+    this.resumiendo.set(true);
+    this.errorResumen.set(null);
+    try {
+      const texto = await this.asistente.resumirPeriodo(personaId, r.desde, r.hasta);
+      this.reporte.update((actual) => (actual ? { ...actual, resumenIA: texto } : actual));
+    } catch (e) {
+      console.error(e);
+      this.errorResumen.set(this.asistente.mensajeError(e));
+    } finally {
+      this.resumiendo.set(false);
+    }
   }
 
   async exportar() {

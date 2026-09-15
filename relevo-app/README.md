@@ -47,6 +47,8 @@ firebase login              # una sola vez, cuando ya tengas proyecto real
 firebase use --add          # vincula esta carpeta con tu proyecto de Firebase (crea .firebaserc)
 npm run deploy:rules        # sube firestore.rules al proyecto real
 npm run deploy:storage      # sube storage.rules (solo si activaste Storage, §4.6)
+npm run test:functions      # pruebas de la lógica de notificaciones (functions/logica.test.mjs)
+npm run deploy:functions    # sube las Cloud Functions de notificaciones (requiere plan Blaze, §8)
 npm run semilla:real        # usuarios y datos de prueba en tu proyecto real
 npm run test:e2e            # prueba de humo con navegador real contra la app publicada (Playwright)
 firebase deploy --only hosting   # publica la PWA (www/) en Firebase Hosting → https://relevo-e5eaf.web.app
@@ -87,7 +89,7 @@ relevo-app/
         └── pages/
             ├── login/           # correo + contraseña (login / registro)
             ├── home/            # lista "mis personas" + "Unirme con código o QR"
-            ├── persona/         # pestañas de una persona: Bitácora · Equipo · Reporte
+            ├── persona/         # pestañas de una persona: Bitácora · Medicinas · Rutina · Equipo · Reporte · Asistente
             ├── bitacora/        # feed agrupado por día, filtro por tipo, modal de registro
             ├── equipo/          # perfil, miembros, invitaciones y modal con QR
             ├── unirse/          # escribir código o escanear QR con la cámara
@@ -105,7 +107,7 @@ scripts/                         # con-java.js · semilla.mjs
 > `2202110@universidad-une.com`), app web `Relevo web`, Auth Correo/Contraseña activo, Firestore
 > en `nam5`, reglas publicadas y datos de prueba sembrados (`npm run semilla:real`). La carpeta
 > está vinculada con `.firebaserc`. Los pasos de abajo quedan como referencia para rehacerlo.
-> Pendiente: Storage (§4.6, requiere plan Blaze) y push (§7).
+> Pendiente: Storage (§4.6) y desplegar las notificaciones (§8); ambos requieren plan Blaze.
 
 ### 4.1 Crear el proyecto
 1. Entra a <https://console.firebase.google.com> → **Agregar proyecto** → nombre `relevo`.
@@ -273,18 +275,85 @@ Cada vez que cambies código web: `ionic build && npx cap sync`.
 
 ---
 
-## 8. Siguiente paso delicado: notificaciones push (FCM)
+## 8. Notificaciones (push en el teléfono, correo en la web) — 15/09/2026
 
-La doc marca esto como lo más delicado; conviene probarlo pronto. Todo lo necesario ya está instalado
-(`@angular/fire/messaging`, `@capacitor/push-notifications`). Pasos resumidos:
+> **Estado:** desplegado el 15/09/2026 en `relevo-e5eaf` (ya en plan **Blaze**). Correo de avisos:
+> `relevo740@gmail.com`; su contraseña de aplicación vive en Secret Manager (`CORREO_CONTRASENA`),
+> nunca en el repositorio. Para desplegar desde otra máquina hay que recrear `functions/.env`
+> (copiar `.env.example` y poner `CORREO_USUARIO=relevo740@gmail.com`), porque está ignorado por git.
 
-- **Web/PWA**: Console → *Cloud Messaging → Web configuration → Web Push certificates → Generar par
-  de claves* → pega la clave pública en `vapidKey` de `firebase.config.ts`. Crear `public/firebase-messaging-sw.js`
-  y añadir `provideMessaging(() => getMessaging())` en `app.config.ts` (solo si `isSupported()`).
-- **Android**: con `google-services.json` en su lugar, `PushNotifications.register()` del plugin de
-  Capacitor devuelve el token; guárdalo en `usuarios/{uid}.fcmTokens`.
-- **Envío**: desde la consola (*Messaging → Nueva campaña*) para probar, y luego con Cloud Functions
-  para recordatorios de medicamentos.
+### Qué avisa y a quién
+| Evento | Quién recibe |
+|---|---|
+| Alguien escribe en la bitácora (cualquier tipo) | Los demás miembros de la persona |
+| Una toma se marca **no tomada**, o se registra una toma **según necesidad** | Los demás miembros (las tomas programadas realizadas solo si `NOTIFICAR_TOMAS_REALIZADAS=true`) |
+| Una tarea de la rutina se marca **no hecha** | Los demás miembros (con la nota, si la hay) |
+| Una dosis pasó de su hora y nadie la registró (revisión cada 10 min, hasta 2 h después, una sola vez) | **Quien está de guardia** (turnos de cada miembro, ver *Equipo*); sin turnos definidos, todos los que registran; nadie de guardia, el responsable |
+| **Se acerca una tarea de la rutina o una toma** (revisión cada 5 min; tareas: minutos que eligió el responsable, medicamentos: `AVISO_MEDICAMENTOS_MIN`, 15 por defecto). Una sola vez y solo si aún no se registró | **Quien está de guardia** (igual que arriba) |
+
+Tocar la notificación abre la pantalla correspondiente (`data.url`). Con la app abierta se muestra
+como aviso dentro de la app.
+
+### Turnos y alertas (15/09/2026)
+- En *Equipo*, el responsable pulsa el botón **Turnos** de cada miembro (o a sí mismo desde el menú
+  ⋯ → **Turnos y alertas**): franjas de
+  guardia con días de la semana y hora desde/hasta (si "hasta" ≤ "desde" cruza la medianoche, p. ej.
+  22:00–06:00), y el interruptor **Recibe incidentes siempre**. Se guardan en `miembros/{uid}.turnos`
+  y `.alertas`; las rules ya permitían al responsable actualizar miembros sin cambiar `uid` ni `rol`.
+- **Recordatorios de rutina** (tomas pendientes y avisos previos de tomas y tareas) → solo a quien
+  está de guardia en ese momento (`deGuardia` en `functions/logica.js`). Si nadie del equipo tiene
+  turnos, se comportan como antes (todos los que registran); si hay turnos pero nadie está de guardia,
+  van al responsable.
+- **Alertas** (cualquier registro en la bitácora, tomas no realizadas y tomas según necesidad) → a
+  todos menos quien lo originó, salvo quien tenga las alertas apagadas (`destinatariosAlertas`).
+  Incidentes y síntomas llevan ⚠️ en el título. El médico recibe alertas pero nunca recordatorios.
+
+### Cómo llega
+- **Teléfono (Android/iOS)**: al iniciar sesión la app pide permiso, se registra en FCM y guarda el
+  token en `usuarios/{uid}.fcmTokens` (`NotificacionesService`); al cerrar sesión lo quita. Los
+  tokens que FCM rechaza se limpian solos.
+- **Web**: a quien **no** tiene ningún token (usa Relevo desde el navegador) se le avisa **por correo**
+  con un enlace a la app. Mientras `CORREO_USUARIO` esté vacío, el correo se omite y solo salen push.
+
+### Dónde está
+- `functions/index.js` — ocho Cloud Functions (`notificarEntradaBitacora`, `notificarToma`,
+  `notificarRegistroTarea`, `recordarTomasPendientes`, `avisarProximas`, `limpiarUsuarioEliminado`,
+  `preguntarAsistente`, `resumirReporte`) y el envío por FCM / SMTP (nodemailer).
+- `functions/logica.js` — lógica pura (mensajes, destinatarios, dosis vencidas, zona horaria) con
+  pruebas en `functions/logica.test.mjs` (`npm run test:functions`; también corren antes de cada deploy).
+- `src/app/core/services/notificaciones.service.ts` — registro del teléfono y manejo de la notificación.
+- `functions/.env.example` — parámetros; `recordatorios/` en Firestore guarda qué dosis ya se recordaron.
+
+### Pasos para activarlo
+1. **Plan Blaze** en Firebase Console (Cloud Functions y Cloud Scheduler lo requieren; el nivel
+   gratuito cubre de sobra el uso de la app).
+2. **Android**: hecho el 15/09/2026. La app `com.relevo.app` está registrada y
+   `android/app/google-services.json` en el repo; el APK ya se generó con él (`npm run android:apk`).
+   Si se pierde el archivo, la app funciona igual, solo no recibe push.
+3. **Correo (cuando exista la cuenta)**: copia `functions/.env.example` a `functions/.env`, pon
+   `CORREO_USUARIO=correo@dominio` y define la contraseña como secreto:
+   ```bash
+   firebase functions:secrets:set CORREO_CONTRASENA
+   ```
+   Con Gmail usa una *contraseña de aplicación* (requiere verificación en dos pasos). Con otro
+   proveedor ajusta `CORREO_SMTP_HOST` / `CORREO_SMTP_PUERTO`.
+4. **Desplegar**: `npm run deploy:functions` (antes corre las pruebas de `functions/`). Avisos del
+   primer despliegue, ya resueltos en este proyecto:
+   - *"User code failed to load… Timeout after 10000"*: la CLI da 10 s para analizar el código y en
+     Windows a veces no alcanza. Dale más margen: `$env:FUNCTIONS_DISCOVERY_TIMEOUT=60` antes del
+     comando (PowerShell).
+   - *"Permission denied while using the Eventarc Service Agent"* o *"failed to modify the IAM
+     policy"*: Google todavía está creando las cuentas de servicio. Espera 2 o 3 minutos y repite.
+   - *"No cleanup policy detected"*: se resolvió una vez con `--force`, que deja programado el borrado
+     de imágenes viejas de contenedor (evita el "pequeño cargo mensual" del aviso).
+5. Para probar sin desplegar: `npm run emulators` también levanta el emulador de funciones
+   (puerto 5001); los disparadores de Firestore reaccionan a lo que hagas en la app apuntando a
+   emuladores, y la función programada se dispara a mano desde la UI del emulador.
+
+Notas: los horarios "HH:mm" de los medicamentos se interpretan en `ZONA_HORARIA`
+(`America/Mexico_City`); si un teléfono está en otra zona, el recordatorio podría no coincidir con
+la toma registrada. La web **no** recibe push (aunque hay `vapidKey` en `firebase.config.ts`), por
+decisión: en la web se avisa por correo.
 
 ---
 
@@ -318,13 +387,37 @@ La doc marca esto como lo más delicado; conviene probarlo pronto. Todo lo neces
   decidir quién crea personas y con qué rol entra cada quien (`ROL_POR_TIPO`, `ROLES_COMPATIBLES`).
   Cuentas anteriores a esta versión lo eligen una sola vez al entrar.
 
+### Mi perfil y eliminar cuenta — 15/09/2026
+- En *Mis personas*, tocar la tarjeta del usuario abre **Mi perfil**: cambia el nombre (se actualiza
+  en Auth, en `usuarios/{uid}` y en `miembros/{uid}` de cada equipo; las rules permiten a cada quien
+  cambiar solo su propio nombre). Correo y tipo de cuenta no se cambian.
+- **Eliminar cuenta**: pide la contraseña (Firebase exige sesión reciente), borra el usuario de Auth y
+  la Cloud Function `limpiarUsuarioEliminado` (disparador Auth de 1.ª gen) borra su perfil, lo quita
+  de `miembros` y `miembrosUids` de cada equipo y, si era la única persona en una bitácora, borra a esa
+  persona cuidada con todo su historial (`recursiveDelete`).
+
+### Personas cuidadas: alta y datos — 15/09/2026
+- **+** en *Mis personas* (solo cuentas de familiar) abre un formulario completo: nombre, fecha de
+  nacimiento (opcional, con la edad calculada al escribirla) y una descripción libre de hasta 500
+  caracteres (quién es, qué padece, qué le gusta). La descripción la ve todo el equipo: aparece en
+  la lista de inicio, en la tarjeta de *Equipo*, en el reporte (pantalla y PDF) y en el contexto
+  que recibe el asistente.
+- El responsable corrige esos datos desde *Equipo → Editar datos* (`PersonasService.actualizar`;
+  las rules ya permitían al responsable actualizar la persona).
+
 ### Bitácora (`/personas/:id/bitacora`)
-- Feed en **tiempo real** agrupado por día (Hoy / Ayer / fecha), con 6 tipos: síntoma, ánimo,
-  comida, sueño, incidente y nota. Filtro por tipo desde el embudo de la barra.
-- Las **tomas de medicamentos** (tomadas y no tomadas) aparecen en la misma línea de tiempo,
-  ubicadas por su hora programada y con quién las registró; el filtro tiene la opción
-  "Tomas de medicamentos". Se leen de la agenda de medicamentos, no se editan desde aquí
-  (`BitacoraService.lineaDeTiempo`).
+- Feed en **tiempo real** agrupado por día (Hoy / Ayer / fecha), con 5 tipos: síntoma, ánimo,
+  sueño, incidente y nota ("comida" dejó de capturarse el 15/09/2026: las comidas son tareas de la
+  rutina; los registros antiguos de comida se siguen mostrando y contando). Filtro por tipo desde el
+  embudo de la barra.
+- Las **tomas de medicamentos** (tomadas y no tomadas) aparecen en la misma línea de tiempo con
+  quién las registró; el filtro tiene la opción "Tomas de medicamentos". Se leen de la agenda de
+  medicamentos, no se editan desde aquí (`BitacoraService.lineaDeTiempo`).
+- **Orden** (15/09/2026): todo se ordena por el momento en que se registró (`creadoEn` en las
+  entradas, `registradoEn` en las tomas), de lo más reciente a lo más antiguo. La hora que se
+  muestra junto al tipo es la del registro; si el hecho se fechó antes, la entrada añade "ocurrió a
+  las HH:mm", y las tomas indican "dosis de las HH:mm". Registros anteriores a esta versión no tienen
+  esos campos y se ordenan por su fecha u hora real.
 - Botón **+** abre el formulario (tipo, descripción y hora). La fecha es siempre la de **hoy** y la
   hora solo puede ir **hasta una hora atrás** de la actual (sin pasar de las 00:00), para que la
   bitácora se escriba en el momento. Al editar se conservan la fecha y hora originales. Tocar un
@@ -337,11 +430,52 @@ La doc marca esto como lo más delicado; conviene probarlo pronto. Todo lo neces
   inventario opcional, notas), los edita, suspende/reactiva o elimina (con su historial de tomas).
 - **Tomas del día**: por cada medicamento activo y cada horario aparece la dosis del día elegido
   (flechas para ver días anteriores) con estado Pendiente / Tomada / No tomada. Responsable,
-  enfermero/a y familiar la marcan con un toque; marcar "tomada" resta 1 al inventario (y deshacerla
-  lo devuelve). El id de cada toma es `yyyyMMdd-HHmm`, así que corregir una toma no crea duplicados.
+  enfermero/a y familiar la marcan con un toque; al marcar se pide confirmación con una **nota
+  opcional** (15/09/2026: "vomitó", "la tomó con leche"), y desde la toma se puede agregar o editar
+  la nota después (quien la registró o el responsable; rules `hasOnly(['nota'])`). Marcar "tomada"
+  resta 1 al inventario (y deshacerla lo devuelve). El id de cada toma es `yyyyMMdd-HHmm`, así que
+  corregir una toma no crea duplicados.
 - Reglas: solo el responsable crea/edita/elimina medicamentos; enfermero/a y familiar solo pueden
   tocar el campo `inventario` (al registrar tomas) y sus propias tomas; el médico solo lee.
+- **Duración del tratamiento** (15/09/2026): cada medicamento tiene *Empieza el* (por defecto hoy) y
+  *Duración*: "hasta que el médico lo indique" o "cierto número de días" (campos `inicio` y
+  `duracionDias`). Solo aparece en *Tomas del día* y en la sección según necesidad los días en que
+  está vigente; al pasar el último día se muestra como **Terminado** en la lista, sin recordatorios
+  ni avisos previos. Los medicamentos anteriores a esta versión no tienen `inicio` y se tratan como
+  vigentes siempre.
+- **Según necesidad** (15/09/2026): al dar de alta un medicamento, el interruptor *Sin horario fijo*
+  lo deja sin horarios (p. ej. "solo si siente dolor"). Aparece en una sección propia con su última
+  toma ("hace 3 h · Ana") y el botón **Tomó ahora**, que pide confirmación, admite una **nota**
+  opcional (motivo, cómo se sentía; campo `nota`) y registra la toma en ese instante (id
+  `yyyyMMdd-HHmmss`, campo `aDemanda: true`, descuenta inventario). La nota se ve en la agenda, en
+  la bitácora, en el aviso al equipo y en el contexto del asistente. Esas tomas salen en
+  *Tomas del día* a la hora en que se dieron (solo se pueden quitar), en la bitácora y en el reporte
+  como "N tomas en el periodo" sin porcentaje de adherencia. No generan recordatorios ni avisos
+  previos, pero sí avisan al equipo cuando se registran (`notificarToma`).
 - El reporte y el asistente ya leen estos datos (adherencia, tomas omitidas).
+
+### Rutina (`/personas/:id/rutina`) — 15/09/2026
+- Pestaña **Rutina**: el responsable da de alta tareas con horario: comidas, baño,
+  ejercicio, terapia, cita u otra (nombre, **días de la semana** en que aplica, horarios "HH:mm",
+  **duración** de cada horario para tareas con rango, p. ej. ejercicio de 10:00 a 11:00
+  (`duracionMin`; se muestra "10:00–11:00" y el aviso previo dice "de 10:00 a 11:00"), notas y con
+  cuántos minutos de anticipación avisar: 5, 10, 15, 30 o 60). Las edita,
+  suspende/reactiva o elimina (con su historial). Los días se guardan en `dias` como
+  `Date.getDay()` (0 = domingo); sin días = todos. Una tarea de "L, X, V y D" solo aparece en la
+  agenda y avisa esos días.
+- **Tareas del día**: por cada tarea activa y cada horario aparece la tarea del día elegido (flechas
+  para ver días anteriores) con estado Pendiente / Hecha / No hecha. Responsable, enfermero/a y
+  familiar la marcan con un toque; al marcar se pide confirmación con una **nota opcional** ("comió
+  poco", "no quiso bañarse"), y desde el registro se puede agregar o editar la nota después. El id
+  del registro es `yyyyMMdd-HHmm`, como en las tomas.
+- **Aviso previo**: la Cloud Function `avisarProximas` revisa cada 5 minutos y manda push (o correo,
+  §8) a quienes cuidan cuando se acerca la hora de una tarea o de un medicamento, una sola vez por
+  horario y solo si todavía no se registró.
+- Datos en `personas_cuidadas/{id}/tareas/{id}` y `…/tareas/{id}/registros/{id}`. Rules: solo el
+  responsable define tareas; responsable, enfermero/a y familiar registran (firmado por ellos); el
+  médico solo lee. Probado en `tests/firestore.rules.test.mjs`.
+- Los registros de tareas (hechas y no hechas, con su nota) aparecen en la **bitácora**, con el
+  filtro "Tareas de la rutina". Pendiente: incluirlos en el reporte PDF.
 
 ### Compartir por código y QR (`Equipo` → *Crear invitación*)
 - Al entrar a la persona → **Equipo**, el **responsable** ve de inmediato la tarjeta "Código de
@@ -368,24 +502,48 @@ La doc marca esto como lo más delicado; conviene probarlo pronto. Todo lo neces
   nativa (WhatsApp, correo, Drive…). Los medicamentos y signos se leen si existen (la semilla los
   crea); la captura desde la app queda para una etapa posterior.
 
-### Asistente con IA (`/personas/:id/asistente`) — 11/09/2026
+### Resumen del reporte con IA — 15/09/2026
+- En *Reporte*, la tarjeta **Resumen del periodo** tiene el botón *Generar resumen con IA*. La app
+  arma el contexto del periodo elegido (semana o mes: bitácora, tomas, rutina, signos, citas) con
+  `AsistenteService.resumirPeriodo` y la Cloud Function **`resumirReporte`** pide a Gemini un texto
+  plano con secciones fijas (`INSTRUCCIONES_RESUMEN`): resumen general, medicamentos, síntomas e
+  incidentes, rutina y alimentación, signos vitales y qué comentar con el médico. Máximo 400 palabras,
+  solo con los datos, sin diagnósticos.
+- El texto se muestra en pantalla y, si existe, el PDF lo incluye como sección "Resumen con IA"
+  (títulos en negrita, con la nota "generado con IA… no sustituye el criterio médico"). Cambiar de
+  periodo lo descarta; se genera a petición porque cada resumen consume crédito de la Gemini API.
+- El contexto del asistente (chat y resumen) ahora también incluye la **rutina** (tareas y sus
+  registros con notas), no solo bitácora, medicamentos, signos y citas.
+
+### Asistente con IA (`/personas/:id/asistente`) — 11/09/2026, en el servidor desde el 15/09/2026
 - Chat en lenguaje natural sobre la persona cuidada: "¿Cómo ha estado mi mamá esta semana?",
   "¿Cuántas veces se le olvidó la pastilla de la presión?", "¿Cuándo es la próxima cita?".
 - `AsistenteService` arma un contexto compacto con los datos reales de Firestore de los últimos
-  30 días (perfil, equipo, bitácora, medicamentos con cada toma, signos vitales, citas) y lo entrega
-  como instrucción de sistema a **Gemini** (`gemini-3.6-flash`) a través de **Firebase AI Logic**,
-  con reglas: responder solo con esos datos, citar fechas y autores, no inventar, no diagnosticar.
-  Conversación con historial (últimas 8 vueltas); nada se guarda en Firestore.
-- Cualquier miembro (familiar, enfermero/a, médico) puede usarlo; el acceso a los datos sigue
-  siendo el de las reglas de Firestore (solo lee lo que el usuario ya puede leer).
-- **Requisito de Google**: Firebase AI Logic solo funciona si el proyecto aplica **App Check**.
-  Se configuró reCAPTCHA Enterprise (llave pública en `firebase.config.ts`, dominios
-  `relevo-e5eaf.web.app`, `relevo-e5eaf.firebaseapp.com` y `localhost`) y App Check en modo
-  *enforced* solo para el servicio de IA (`firebaseml.googleapis.com`); Auth y Firestore no cambian.
-  Las pruebas automatizadas usan un token de depuración registrado en Firebase
-  (`tests/.appcheck-debug.json`, fuera de git) inyectado como `self.FIREBASE_APPCHECK_DEBUG_TOKEN`.
-- Modelo y llave se cambian en `src/environments/firebase.config.ts` (`modeloIA`, `recaptchaSiteKey`).
-  Cuota: nivel gratuito de la Gemini Developer API (plan Spark).
+  30 días (perfil, equipo, bitácora, medicamentos con cada toma, signos vitales, citas), leídos con
+  los permisos del usuario, y lo manda a la Cloud Function invocable **`preguntarAsistente`**
+  (`functions/index.js`). La función exige sesión iniciada y ser miembro de la persona, y llama a
+  **Gemini** (`@google/genai`, modelo en el parámetro `MODELO_IA`, hoy `gemini-3.6-flash`) con la
+  clave del servidor (secreto `GEMINI_API_KEY`) y las reglas de `INSTRUCCIONES_ASISTENTE`
+  (`functions/logica.js`): responder solo con esos datos, citar fechas y autores, no inventar, no
+  diagnosticar. Conversación con historial (últimas 8 vueltas); nada se guarda en Firestore.
+- **Por qué en el servidor**: antes se llamaba a Firebase AI Logic desde la app, que exige App Check
+  (reCAPTCHA Enterprise en web, Play Integrity en Android). reCAPTCHA empezó a rechazar la
+  verificación ("App attestation failed") y Play Integrity nunca pasa en un APK de depuración, así que
+  el asistente no funcionaba. La función no depende de App Check; la clave nunca viaja al cliente.
+- **Dos formas de llamar a Gemini** (`IA_BACKEND` en `functions/.env`):
+  - `vertex` (por defecto): Vertex AI con la identidad de la función; se factura al proyecto de
+    Google Cloud (plan Blaze, cubierto por los créditos de prueba). Requiere habilitar la API
+    https://console.cloud.google.com/apis/library/aiplatform.googleapis.com?project=relevo-e5eaf y,
+    si el asistente responde "no tiene permiso", dar el rol *Usuario de Vertex AI* a
+    `765182515374-compute@developer.gserviceaccount.com` en IAM.
+  - `gemini` (**la que usa el proyecto desde el 15/09/2026**): Gemini Developer API con una clave de
+    AI Studio en el secreto `GEMINI_API_KEY` (`firebase functions:secrets:set GEMINI_API_KEY` y
+    redesplegar). Esa vía se cobra en AI Studio con créditos de prepago
+    (https://ai.studio/projects → proyecto → facturación); sin saldo responde "prepayment credits
+    are depleted". `maxOutputTokens` va en 4096 porque el modelo gasta parte del presupuesto en razonar.
+  Los mensajes de error del servidor se muestran tal cual en el chat para saber qué falta.
+- App Check sigue inicializado en `app.config.ts` (no afecta a Auth ni a Firestore); `vapidKey`,
+  `recaptchaSiteKey` y `modeloIA` de `firebase.config.ts` quedan solo como referencia.
 
 ### Android
 - Carpeta `android/` generada con Capacitor 8 (`compileSdk 36`, JDK 21) y permiso `CAMERA`
@@ -393,15 +551,26 @@ La doc marca esto como lo más delicado; conviene probarlo pronto. Todo lo neces
 - Compilar: `npm run android:apk` (= build web + `cap sync` + `gradlew assembleDebug`, sin Android
   Studio; la primera vez tarda ~13 min, después ~1 min) → `android/app/build/outputs/apk/debug/app-debug.apk`.
   También puedes abrir el proyecto en Android Studio con `npx cap open android`.
-- **APK ya generado el 10/09/2026** (10.4 MB): copia en `../Relevo-debug.apk`. Pásalo al teléfono
+- **APK regenerado el 15/09/2026** (11.6 MB): copia en `../Relevo-debug.apk`. Pásalo al teléfono
   (cable, WhatsApp, Drive…) y ábrelo; Android pedirá permitir *Instalar apps desconocidas*. Es una
   build de depuración: sirve para probar y para la demo, no para Play Store (eso requiere firma).
+- **Push activo desde el 15/09/2026**: la app Android `com.relevo.app` está registrada en Firebase y
+  `android/app/google-services.json` está en el repo (no es secreto). Gradle aplica el plugin
+  `google-services` solo cuando ese archivo existe. Al instalar el APK e iniciar sesión, la app pide
+  el permiso de notificaciones y guarda el token del teléfono en `usuarios/{uid}.fcmTokens` (§8).
+- `npm run android:apk` llama a `.\gradlew.bat` con ruta explícita: sin ella, en terminales con
+  `NoDefaultCurrentDirectoryInExePath` cmd no encuentra el archivo aunque esté en la carpeta.
 
 ### Pruebas
-- `npm run test:rules` — 15 pruebas de Security Rules contra el emulador.
+- `npm run test:rules` — 20 pruebas de Security Rules contra el emulador.
+- `npm run test:functions` — 25 pruebas de la lógica de notificaciones y del asistente (mensajes, destinatarios,
+  turnos de guardia, alertas, dosis vencidas, avisos previos, duración de tratamientos, días de la
+  semana, zona horaria).
 - `npm run test:e2e` — recorrido completo en Chromium contra la app publicada: login, bitácora,
   invitación con QR, reporte + PDF, unirse con código y limpieza de lo creado.
 
 ### Fuera de alcance por ahora
-Fotos y notas de voz (Storage requiere plan Blaze), notificaciones push, edición del perfil de la
-persona, captura de medicamentos/signos desde la app, traspaso de turno, alertas inteligentes, SOS.
+Fotos y notas de voz (Storage requiere plan Blaze), perfil clínico de la persona (tipo de sangre,
+condiciones, alergias, médico y contactos de emergencia se muestran pero aún no se capturan desde la
+app), captura de signos desde la app, traspaso de turno, alertas inteligentes, SOS. Las notificaciones (§8) están
+programadas pero no desplegadas.

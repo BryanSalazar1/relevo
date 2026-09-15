@@ -5,3 +5,10 @@
     font-size: 64px;
   }
 }
+
+ion-item .descripcion {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ion-color-medium);
+}

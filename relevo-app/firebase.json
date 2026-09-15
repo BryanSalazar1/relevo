@@ -6,6 +6,14 @@
   "storage": {
     "rules": "storage.rules"
   },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": ["node_modules", ".git", "firebase-debug.log", "*.local", "*.test.mjs"],
+      "predeploy": ["npm --prefix \"$RESOURCE_DIR\" test"]
+    }
+  ],
   "hosting": {
     "public": "www",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
@@ -15,6 +23,7 @@
     "auth": { "port": 9099 },
     "firestore": { "port": 8080 },
     "storage": { "port": 9199 },
+    "functions": { "port": 5001 },
     "ui": { "enabled": true },
     "singleProjectMode": true
   }

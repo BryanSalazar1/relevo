@@ -48,6 +48,9 @@
         <ion-card-title>{{ r.persona.nombre }}</ion-card-title>
       </ion-card-header>
       <ion-card-content>
+        @if (r.persona.descripcion) {
+          <p>{{ r.persona.descripcion }}</p>
+        }
         <p><strong>Condiciones:</strong> {{ r.persona.condiciones?.join(', ') || '—' }}</p>
         <p><strong>Alergias:</strong> {{ r.persona.alergias?.join(', ') || 'Ninguna registrada' }}</p>
         <div class="resumen">
@@ -60,6 +63,46 @@
             <ion-text color="medium"><p>Sin registros en la bitácora en este periodo.</p></ion-text>
           }
         </div>
+      </ion-card-content>
+    </ion-card>
+
+    <ion-card class="resumen-ia">
+      <ion-card-header>
+        <ion-card-subtitle>Inteligencia artificial</ion-card-subtitle>
+        <ion-card-title>Resumen del periodo</ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        @if (r.resumenIA; as resumen) {
+          <p class="texto-resumen">{{ resumen }}</p>
+          <ion-note color="medium">
+            Generado con IA a partir de los registros. No sustituye el criterio médico. Se incluye en el PDF.
+          </ion-note>
+          <div class="acciones">
+            <ion-button fill="clear" size="small" (click)="resumir()" [disabled]="resumiendo()">
+              <ion-icon slot="start" name="refresh-outline" />
+              Volver a generar
+            </ion-button>
+          </div>
+        } @else {
+          <p>
+            <ion-text color="medium">
+              La IA redacta en unas líneas cómo estuvo {{ r.persona.nombre }} en este periodo: medicamentos,
+              síntomas, rutina, signos vitales y qué comentar con el médico. El texto se agrega al PDF.
+            </ion-text>
+          </p>
+          @if (errorResumen(); as err) {
+            <ion-text color="danger"><p>{{ err }}</p></ion-text>
+          }
+          <ion-button expand="block" fill="outline" (click)="resumir()" [disabled]="resumiendo()">
+            @if (resumiendo()) {
+              <ion-spinner slot="start" name="crescent" />
+              Redactando…
+            } @else {
+              <ion-icon slot="start" name="sparkles-outline" />
+              Generar resumen con IA
+            }
+          </ion-button>
+        }
       </ion-card-content>
     </ion-card>
 
@@ -104,9 +147,15 @@
           <ion-icon slot="start" name="medical-outline" color="success" />
           <ion-label class="ion-text-wrap">
             <h3>{{ m.nombre }} · {{ m.dosis }}</h3>
-            <p>{{ m.horarios.join(', ') || 'Sin horario' }} · {{ m.tomadas }}/{{ m.programadas }} tomas</p>
+            @if (m.segunNecesidad) {
+              <p>Según necesidad · {{ m.tomadas }} toma(s) en el periodo</p>
+            } @else {
+              <p>{{ m.horarios.join(', ') || 'Sin horario' }} · {{ m.tomadas }}/{{ m.programadas }} tomas</p>
+            }
           </ion-label>
-          @if (m.adherencia !== null) {
+          @if (m.segunNecesidad) {
+            <ion-note slot="end">sin horario</ion-note>
+          } @else if (m.adherencia !== null) {
             <ion-badge slot="end" [color]="m.adherencia >= 80 ? 'success' : m.adherencia >= 50 ? 'warning' : 'danger'">
               {{ m.adherencia }} %
             </ion-badge>

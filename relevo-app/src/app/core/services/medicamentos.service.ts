@@ -7,6 +7,7 @@ import {
   collection,
   collectionData,
   deleteDoc,
+  deleteField,
   doc,
   getDocs,
   increment,
@@ -20,13 +21,19 @@ import {
 } from '@angular/fire/firestore';
 import { Observable, catchError, combineLatest, map, of, switchMap } from 'rxjs';
 import { Medicamento, Toma } from '../models';
-import { inicioDeDia, sumarDias } from '../utils/fechas';
+import { claveDia, inicioDeDia, sumarDias } from '../utils/fechas';
 import { AuthService } from './auth.service';
 
 export interface DatosMedicamento {
   nombre: string;
   dosis: string;
   horarios: string[];
+  /** true = sin horario fijo; se registra cada toma en el momento */
+  segunNecesidad?: boolean;
+  /** Primer día del tratamiento (yyyy-mm-dd) */
+  inicio?: string;
+  /** Días que dura; null = hasta que el médico lo indique */
+  duracionDias?: number | null;
   inventario: number | null;
   notas?: string;
 }
@@ -38,6 +45,8 @@ export interface DosisProgramada {
   hora: Date;
   idToma: string;
   toma?: Toma;
+  /** Toma según necesidad: no venía de un horario, se registró en el momento */
+  aDemanda?: boolean;
 }
 
 export type EstadoToma = 'tomada' | 'omitida' | 'quitar';
@@ -46,13 +55,32 @@ export type EstadoToma = 'tomada' | 'omitida' | 'quitar';
 export interface TomaRegistrada {
   medicamento: Medicamento;
   toma: Toma;
-  /** Hora programada de la dosis; es la que ordena la línea de tiempo. */
+  /** Cuándo se registró la toma (ordena la bitácora); en tomas antiguas, la hora real o la programada. */
   fecha: Date;
 }
 
 /** Id determinista de la toma: la misma hora programada siempre apunta al mismo documento. */
 export function idToma(hora: Date): string {
   return formatDate(hora, 'yyyyMMdd-HHmm', 'es');
+}
+
+/** Día siguiente al último del tratamiento (exclusivo), o null si no tiene fin definido. */
+export function finTratamiento(m: Pick<Medicamento, 'inicio' | 'duracionDias'>): Date | null {
+  if (!m.inicio || !m.duracionDias || m.duracionDias <= 0) return null;
+  return sumarDias(new Date(`${m.inicio}T00:00:00`), m.duracionDias);
+}
+
+/** ¿El medicamento se toma ese día? (aún no empieza o ya terminó → no) */
+export function vigenteEnDia(m: Pick<Medicamento, 'inicio' | 'duracionDias'>, dia: Date): boolean {
+  const clave = claveDia(dia);
+  if (m.inicio && clave < m.inicio) return false;
+  const fin = finTratamiento(m);
+  return !fin || clave < claveDia(fin);
+}
+
+/** Id de una toma según necesidad: con segundos, para que dos tomas seguidas no choquen. */
+export function idTomaAhora(hora: Date): string {
+  return formatDate(hora, 'yyyyMMdd-HHmmss', 'es');
 }
 
 /** Fecha concreta de un horario "HH:mm" en un día dado. */
@@ -102,7 +130,7 @@ export class MedicamentosService {
   agendaDelDia(personaId: string, dia: Date): Observable<DosisProgramada[]> {
     return this.medicamentos(personaId).pipe(
       switchMap((meds) => {
-        const activos = meds.filter((m) => m.activo !== false && m.id);
+        const activos = meds.filter((m) => m.activo !== false && m.id && vigenteEnDia(m, dia));
         if (!activos.length) return of([] as DosisProgramada[]);
         return combineLatest(
           activos.map((m) =>
@@ -111,16 +139,67 @@ export class MedicamentosService {
         ).pipe(
           map((pares) =>
             pares
-              .flatMap(({ m, tomas }) =>
-                (m.horarios ?? []).map((horario) => {
+              .flatMap(({ m, tomas }): DosisProgramada[] => {
+                // Según necesidad: cada toma registrada ese día es una fila, a la hora en que se dio
+                if (m.segunNecesidad) {
+                  return tomas.map((t) => {
+                    const hora = t.horaProgramada.toDate();
+                    return {
+                      medicamento: m,
+                      horario: formatDate(hora, 'HH:mm', 'es'),
+                      hora,
+                      idToma: t.id ?? idTomaAhora(hora),
+                      toma: t,
+                      aDemanda: true,
+                    };
+                  });
+                }
+                return (m.horarios ?? []).map((horario) => {
                   const hora = fechaDe(dia, horario);
                   const id = idToma(hora);
                   return { medicamento: m, horario, hora, idToma: id, toma: tomas.find((t) => t.id === id) };
-                }),
-              )
+                });
+              })
               .sort((a, b) => a.hora.getTime() - b.hora.getTime()),
           ),
         );
+      }),
+    );
+  }
+
+  /** Dosis "ahora mismo" de un medicamento según necesidad, lista para registrarToma(). */
+  dosisAhora(medicamento: Medicamento): DosisProgramada {
+    const hora = new Date();
+    return {
+      medicamento,
+      horario: formatDate(hora, 'HH:mm', 'es'),
+      hora,
+      idToma: idTomaAhora(hora),
+      aDemanda: true,
+    };
+  }
+
+  /** Última toma registrada de cada medicamento según necesidad (id → toma), en tiempo real. */
+  ultimasTomasSegunNecesidad(personaId: string): Observable<Record<string, Toma | undefined>> {
+    return this.medicamentos(personaId).pipe(
+      switchMap((meds) => {
+        const prn = meds.filter(
+          (m) => m.segunNecesidad && m.activo !== false && m.id && vigenteEnDia(m, new Date()),
+        );
+        if (!prn.length) return of({} as Record<string, Toma | undefined>);
+        return combineLatest(
+          prn.map((m) => {
+            const q = query(
+              collection(this.db, `personas_cuidadas/${personaId}/medicamentos/${m.id}/tomas`),
+              orderBy('horaProgramada', 'desc'),
+              limit(1),
+            );
+            return (collectionData(q, { idField: 'id' }) as Observable<Toma[]>).pipe(
+              catchError(() => of([] as Toma[])),
+              map((tomas) => [m.id!, tomas[0]] as const),
+            );
+          }),
+        ).pipe(map((pares) => Object.fromEntries(pares)));
       }),
     );
   }
@@ -147,7 +226,7 @@ export class MedicamentosService {
                 tomas.map((toma): TomaRegistrada => ({
                   medicamento: m,
                   toma,
-                  fecha: toma.horaProgramada.toDate(),
+                  fecha: (toma.registradoEn ?? toma.horaReal ?? toma.horaProgramada).toDate(),
                 })),
               ),
             );
@@ -194,7 +273,12 @@ export class MedicamentosService {
    * Registra (o corrige) una toma y ajusta el inventario en el mismo batch:
    * marcar tomada resta 1; deshacerla suma 1.
    */
-  async registrarToma(personaId: string, dosis: DosisProgramada, estado: EstadoToma): Promise<void> {
+  async registrarToma(
+    personaId: string,
+    dosis: DosisProgramada,
+    estado: EstadoToma,
+    nota?: string,
+  ): Promise<void> {
     const uid = this.authSvc.uid;
     const med = dosis.medicamento;
     if (!uid || !med.id) throw new Error('Datos incompletos');
@@ -211,6 +295,9 @@ export class MedicamentosService {
         tomado,
         registradoPor: uid,
         registradoNombre: this.authSvc.nombreActual,
+        registradoEn: serverTimestamp(),
+        ...(dosis.aDemanda ? { aDemanda: true } : {}),
+        ...(nota?.trim() ? { nota: nota.trim() } : {}),
       });
     }
 
@@ -223,11 +310,21 @@ export class MedicamentosService {
     await batch.commit();
   }
 
+  /** Cambia (o borra, si viene vacía) la nota de una toma ya registrada. */
+  async actualizarNotaToma(personaId: string, medicamentoId: string, tomaId: string, nota?: string): Promise<void> {
+    await updateDoc(doc(this.db, `personas_cuidadas/${personaId}/medicamentos/${medicamentoId}/tomas/${tomaId}`), {
+      nota: nota?.trim() ? nota.trim() : deleteField(),
+    });
+  }
+
   private limpiar(datos: Partial<DatosMedicamento>) {
     const salida: Record<string, unknown> = {};
     if (datos.nombre !== undefined) salida['nombre'] = datos.nombre.trim();
     if (datos.dosis !== undefined) salida['dosis'] = datos.dosis.trim();
     if (datos.horarios !== undefined) salida['horarios'] = [...new Set(datos.horarios)].sort();
+    if (datos.segunNecesidad !== undefined) salida['segunNecesidad'] = datos.segunNecesidad;
+    if (datos.inicio !== undefined) salida['inicio'] = datos.inicio;
+    if (datos.duracionDias !== undefined) salida['duracionDias'] = datos.duracionDias;
     if (datos.inventario !== undefined) salida['inventario'] = datos.inventario;
     if (datos.notas !== undefined) salida['notas'] = datos.notas.trim();
     return salida;

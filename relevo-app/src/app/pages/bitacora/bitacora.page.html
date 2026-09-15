@@ -57,8 +57,38 @@
                   <p class="meta">
                     <strong>{{ info(e.tipo).etiqueta }}</strong>
                     · {{ item.fecha | date: 'HH:mm' }} · {{ e.autorNombre }}
+                    @if (ocurrio(item); as hecho) {
+                      · ocurrió a las {{ hecho | date: 'HH:mm' }}
+                    }
                   </p>
                   <p class="texto">{{ e.texto }}</p>
+                </ion-label>
+              </ion-item>
+            } @else if (item.clase === 'tarea') {
+              @let r = item.registro;
+              <ion-item class="toma" [detail]="false">
+                <ion-avatar
+                  slot="start"
+                  class="tipo"
+                  [style.background]="'var(--ion-color-' + colorRegistro(r) + ')'"
+                >
+                  <ion-icon [name]="infoTipoTarea(r.tarea.tipo).icono" />
+                </ion-avatar>
+                <ion-label class="ion-text-wrap">
+                  <p class="meta">
+                    <strong>{{ infoTarea.etiqueta }} · {{ infoTipoTarea(r.tarea.tipo).etiqueta }}</strong>
+                    · {{ item.fecha | date: 'HH:mm' }}
+                    @if (r.registro.registradoNombre) {
+                      · {{ r.registro.registradoNombre }}
+                    }
+                  </p>
+                  <p class="texto">
+                    {{ r.tarea.nombre }} · programada {{ r.registro.horaProgramada.toDate() | date: 'HH:mm' }}
+                    · {{ r.registro.hecha ? 'Hecha' : 'No hecha' }}
+                    @if (r.registro.nota) {
+                      · {{ r.registro.nota }}
+                    }
+                  </p>
                 </ion-label>
               </ion-item>
             } @else {
@@ -80,14 +110,15 @@
                     }
                   </p>
                   <p class="texto">
-                    {{ t.medicamento.nombre }} {{ t.medicamento.dosis }} ·
-                    @if (t.toma.tomado) {
-                      Tomada
-                      @if (t.toma.horaReal) {
-                        a las {{ t.toma.horaReal.toDate() | date: 'HH:mm' }}
-                      }
+                    {{ t.medicamento.nombre }} {{ t.medicamento.dosis }}
+                    @if (t.toma.aDemanda) {
+                      · según necesidad
                     } @else {
-                      No tomada
+                      · dosis de las {{ t.toma.horaProgramada.toDate() | date: 'HH:mm' }}
+                    }
+                    · {{ t.toma.tomado ? 'Tomada' : 'No tomada' }}
+                    @if (t.toma.nota) {
+                      · {{ t.toma.nota }}
                     }
                   </p>
                 </ion-label>

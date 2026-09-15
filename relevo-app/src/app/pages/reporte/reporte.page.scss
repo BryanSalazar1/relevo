@@ -17,3 +17,24 @@ ion-item h3 {
   font-size: 0.95rem;
   white-space: pre-wrap;
 }
+
+.resumen-ia {
+  .texto-resumen {
+    white-space: pre-wrap;
+    font-size: 0.95rem;
+    line-height: 1.45;
+    margin-bottom: 8px;
+  }
+  ion-note {
+    display: block;
+    font-size: 0.8rem;
+  }
+  .acciones {
+    margin-top: 4px;
+  }
+  ion-spinner {
+    width: 18px;
+    height: 18px;
+    margin-right: 8px;
+  }
+}

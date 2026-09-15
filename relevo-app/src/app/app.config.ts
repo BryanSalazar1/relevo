@@ -26,6 +26,7 @@ import {
   provideFirestore,
 } from '@angular/fire/firestore';
 import { connectStorageEmulator, getStorage, provideStorage } from '@angular/fire/storage';
+import { connectFunctionsEmulator, getFunctions, provideFunctions } from '@angular/fire/functions';
 import { initializeAppCheck, provideAppCheck } from '@angular/fire/app-check';
 import { ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 
@@ -81,6 +82,15 @@ export const appConfig: ApplicationConfig = {
         connectStorageEmulator(storage, 'localhost', 9199);
       }
       return storage;
+    }),
+
+    // Cloud Functions invocables (asistente de IA). Misma región que functions/index.js.
+    provideFunctions(() => {
+      const fns = getFunctions(getApp(), 'us-central1');
+      if (environment.useEmulators) {
+        connectFunctionsEmulator(fns, 'localhost', 5001);
+      }
+      return fns;
     }),
 
     // App Check: Google exige que la app demuestre ser legítima (reCAPTCHA Enterprise) para usar

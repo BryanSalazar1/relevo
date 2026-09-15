@@ -484,3 +484,84 @@ test('invitaciones: el responsable puede cancelarla; quien la canjea solo suma 1
   await assertSucceeds(updateDoc(doc(ana(), `invitaciones/${CODIGO}`), { activa: false }));
   await assertFails(batchUnirse(pedro(), 'pedro', CODIGO, 'familiar'));
 });
+
+test('rutina: solo el responsable define tareas; enfermeros y familiares registran (firmado); el médico solo lee', async () => {
+  await anaCreaPersona();
+  await agregarLuisComo('cuidador_turno');
+  const tarea = { tipo: 'comida', nombre: 'Desayuno', horarios: ['08:00'], avisarMin: 15, activo: true };
+  await assertSucceeds(setDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/tareas/t1`), tarea));
+  await assertFails(setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/tareas/t2`), { ...tarea, nombre: 'Baño' }));
+  await assertFails(updateDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/tareas/t1`), { nombre: 'Otro' }));
+  await assertFails(deleteDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/tareas/t1`)));
+  await assertSucceeds(getDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/tareas/t1`)));
+  // El de turno registra que se hizo, firmado por él
+  await assertSucceeds(
+    setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/tareas/t1/registros/r1`), { hecha: true, registradoPor: 'luis' }),
+  );
+  await assertFails(
+    setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/tareas/t1/registros/r2`), { hecha: true, registradoPor: 'ana' }),
+  );
+  await assertSucceeds(deleteDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/tareas/t1/registros/r1`)));
+  // El médico solo lee
+  await agregarLuisComo('medico');
+  await assertSucceeds(getDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/tareas/t1`)));
+  await assertFails(
+    setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/tareas/t1/registros/r3`), { hecha: true, registradoPor: 'luis' }),
+  );
+  // Los recordatorios los escriben solo las Cloud Functions: desde la app nadie los lee ni escribe
+  await assertFails(getDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/recordatorios/x`)));
+  await assertFails(setDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/recordatorios/x`), { enviado: true }));
+});
+
+test('turnos: el responsable define turnos y alertas de cada miembro (y los suyos); un miembro no edita los propios', async () => {
+  await anaCreaPersona();
+  await perfil(luis(), 'luis', 'enfermero');
+  await agregarLuisComo('cuidador_turno');
+  const turnos = [{ dias: [1, 2, 3, 4, 5], desde: '08:00', hasta: '16:00' }];
+  await assertSucceeds(
+    updateDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/miembros/luis`), { turnos, alertas: false }),
+  );
+  await assertSucceeds(
+    updateDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/miembros/ana`), { turnos, alertas: true }),
+  );
+  await assertFails(
+    updateDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/miembros/luis`), { turnos: [], alertas: true }),
+  );
+  const m = await getDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/miembros/luis`));
+  assert.deepEqual(m.data().turnos, turnos);
+  assert.equal(m.data().alertas, false);
+});
+
+test('notas: quien registró edita su nota; el responsable solo la nota de otros; un tercero no', async () => {
+  await anaCreaPersona();
+  await agregarLuisComo('cuidador_turno');
+  await perfil(pedro(), 'pedro', 'familiar');
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, `personas_cuidadas/${PERSONA_ID}/miembros/pedro`), { uid: 'pedro', rol: 'familiar', nombre: 'Pedro' });
+    await updateDoc(doc(db, `personas_cuidadas/${PERSONA_ID}`), { miembrosUids: arrayUnion('pedro') });
+    await setDoc(doc(db, `personas_cuidadas/${PERSONA_ID}/medicamentos/m1`), { nombre: 'Losartán', dosis: '50 mg', horarios: ['08:00'], inventario: 10, activo: true });
+    await setDoc(doc(db, `personas_cuidadas/${PERSONA_ID}/tareas/t1`), { tipo: 'comida', nombre: 'Desayuno', horarios: ['08:00'], avisarMin: 15, activo: true });
+  });
+  // Luis registra una toma y un registro de tarea, y edita sus propias notas
+  await assertSucceeds(setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m1/tomas/x`), { tomado: false, registradoPor: 'luis' }));
+  await assertSucceeds(updateDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m1/tomas/x`), { nota: 'vomitó' }));
+  await assertSucceeds(setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/tareas/t1/registros/y`), { hecha: false, registradoPor: 'luis' }));
+  await assertSucceeds(updateDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/tareas/t1/registros/y`), { nota: 'no tenía hambre' }));
+  // La responsable (Ana) cambia solo la nota; no puede cambiar otra cosa sin firmarla
+  await assertSucceeds(updateDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m1/tomas/x`), { nota: 'vomitó a las 8' }));
+  await assertSucceeds(updateDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/tareas/t1/registros/y`), { nota: 'comió poco después' }));
+  await assertFails(updateDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m1/tomas/x`), { tomado: true }));
+  // Otro familiar no toca la nota de Luis
+  await assertFails(updateDoc(doc(pedro(), `personas_cuidadas/${PERSONA_ID}/tareas/t1/registros/y`), { nota: 'x' }));
+});
+
+test('perfil: cada quien cambia solo su nombre en los equipos; no su rol ni el nombre de otro', async () => {
+  await anaCreaPersona();
+  await agregarLuisComo('cuidador_turno');
+  await assertSucceeds(updateDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/miembros/luis`), { nombre: 'Luis P.' }));
+  await assertFails(updateDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/miembros/luis`), { nombre: 'X', rol: 'cuidador_principal' }));
+  await assertFails(updateDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/miembros/ana`), { nombre: 'Otra' }));
+  const m = await getDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/miembros/luis`));
+  assert.equal(m.data().nombre, 'Luis P.');
+});

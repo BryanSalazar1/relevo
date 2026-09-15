@@ -1,0 +1,168 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/home" text="" />
+    </ion-buttons>
+    <ion-title>Rutina</ion-title>
+    @if (puedeEditar()) {
+      <ion-buttons slot="end">
+        <ion-button (click)="nueva()" aria-label="Nueva tarea">
+          <ion-icon slot="icon-only" name="add" />
+        </ion-button>
+      </ion-buttons>
+    }
+  </ion-toolbar>
+  <ion-toolbar class="dia">
+    <ion-buttons slot="start">
+      <ion-button (click)="cambiarDia(-1)" aria-label="Día anterior">
+        <ion-icon slot="icon-only" name="chevron-back-outline" />
+      </ion-button>
+    </ion-buttons>
+    <ion-title size="small" class="ion-text-center" (click)="hoy()">{{
+      etiquetaDia(dia())
+    }}</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="cambiarDia(1)" [disabled]="esHoy()" aria-label="Día siguiente">
+        <ion-icon slot="icon-only" name="chevron-forward-outline" />
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <ion-list inset class="agenda">
+    <ion-list-header>
+      <ion-label>Tareas del día</ion-label>
+      @if (agenda(); as a) {
+        @if (a.length > 0) {
+          <ion-badge [color]="hechas() === a.length ? 'success' : 'medium'"
+            >{{ hechas() }}/{{ a.length }}</ion-badge
+          >
+        }
+      }
+    </ion-list-header>
+    @if (agenda(); as a) {
+      @for (p of a; track p.tarea.id + '-' + p.idRegistro) {
+        <ion-item [button]="puedeRegistrar()" [detail]="false" (click)="opcionesProgramada(p)">
+          <ion-icon slot="start" [name]="icono(p)" [color]="color(p)" />
+          <ion-label class="ion-text-wrap">
+            <h2>
+              <ion-icon
+                [name]="info(p.tarea.tipo).icono"
+                [color]="info(p.tarea.tipo).color"
+                class="tipo"
+              />
+              {{ p.tarea.nombre }}
+              <ion-note>{{ info(p.tarea.tipo).etiqueta }}</ion-note>
+            </h2>
+            <p>
+              <strong>{{ rangoHorario(p.horario, p.tarea.duracionMin) }}</strong> ·
+              @if (p.registro) {
+                {{ p.registro.hecha ? 'Hecha' : 'No hecha' }}
+                @if (p.registro.hecha && p.registro.horaReal) {
+                  a las {{ p.registro.horaReal.toDate() | date: 'HH:mm' }}
+                }
+                @if (p.registro.registradoNombre) {
+                  · {{ p.registro.registradoNombre }}
+                }
+                @if (p.registro.nota) {
+                  · {{ p.registro.nota }}
+                }
+              } @else {
+                Pendiente
+              }
+            </p>
+          </ion-label>
+          @if (puedeRegistrar() && !p.registro) {
+            <ion-button
+              slot="end"
+              fill="clear"
+              color="success"
+              (click)="marcar(p, 'hecha'); $event.stopPropagation()"
+              aria-label="Marcar hecha"
+            >
+              <ion-icon slot="icon-only" name="checkmark-circle-outline" />
+            </ion-button>
+            <ion-button
+              slot="end"
+              fill="clear"
+              color="danger"
+              (click)="marcar(p, 'omitida'); $event.stopPropagation()"
+              aria-label="Marcar no hecha"
+            >
+              <ion-icon slot="icon-only" name="close-circle-outline" />
+            </ion-button>
+          }
+        </ion-item>
+      } @empty {
+        <ion-item lines="none">
+          <ion-label class="ion-text-wrap" color="medium"
+            >No hay tareas programadas para este día.</ion-label
+          >
+        </ion-item>
+      }
+    } @else {
+      <ion-item lines="none"><ion-spinner name="crescent" /></ion-item>
+    }
+  </ion-list>
+
+  <ion-list inset class="lista-tareas">
+    <ion-list-header>
+      <ion-label>Tareas de la rutina</ion-label>
+    </ion-list-header>
+    @if (tareas(); as lista) {
+      @for (t of lista; track t.id) {
+        <ion-item
+          [button]="puedeEditar()"
+          [detail]="false"
+          (click)="opcionesTarea(t)"
+          [class.inactiva]="t.activo === false"
+        >
+          <ion-icon
+            slot="start"
+            [name]="info(t.tipo).icono"
+            [color]="t.activo === false ? 'medium' : info(t.tipo).color"
+          />
+          <ion-label class="ion-text-wrap">
+            <h2>
+              {{ t.nombre }}
+              @if (t.activo === false) {
+                <ion-badge color="medium">Suspendida</ion-badge>
+              }
+            </h2>
+            <p>
+              {{ textoDias(t.dias) }} · {{ horariosTexto(t) }} · aviso {{ t.avisarMin ?? 15 }} min
+              antes
+              @if (t.notas) {
+                · {{ t.notas }}
+              }
+            </p>
+          </ion-label>
+        </ion-item>
+      } @empty {
+        <ion-item lines="none">
+          <ion-label class="ion-text-wrap" color="medium">
+            Sin tareas en la rutina.
+            @if (puedeEditar()) {
+              Toca <strong>+</strong> para agregar la primera: comidas, baño, ejercicio, terapias…
+            }
+          </ion-label>
+        </ion-item>
+      }
+    } @else {
+      <ion-item lines="none"><ion-spinner name="crescent" /></ion-item>
+    }
+  </ion-list>
+
+  <div class="ion-padding ion-text-center">
+    <ion-text color="medium">
+      <p>
+        @if (rol() && !puedeRegistrar()) {
+          Tu cuenta es de solo lectura para la rutina.
+        } @else {
+          Quienes cuidan reciben un aviso antes de cada tarea y de cada medicamento.
+        }
+      </p>
+    </ion-text>
+  </div>
+</ion-content>

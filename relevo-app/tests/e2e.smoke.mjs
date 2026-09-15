@@ -104,6 +104,9 @@ try {
   await page.waitForSelector('ion-list.lista-medicamentos ion-item:has-text("Prueba Med")', { timeout: 20_000 });
   await page.waitForSelector('ion-list.agenda ion-item:has-text("Prueba Med") button[aria-label="Marcar tomada"]', { timeout: 20_000 });
   await page.click('ion-list.agenda ion-item:has-text("Prueba Med") button[aria-label="Marcar tomada"]');
+  // Desde el 15/09/2026 marcar pide confirmación con una nota opcional
+  await page.waitForSelector('ion-alert button:has-text("Marcar")', { timeout: 10_000 });
+  await page.click('ion-alert button:has-text("Marcar")');
   await page.waitForSelector('ion-list.agenda ion-item:has-text("Prueba Med"):has-text("Tomada")', { timeout: 20_000 });
   await page.waitForSelector('ion-list.lista-medicamentos ion-item:has-text("Prueba Med") ion-badge:has-text("9 rest.")', { timeout: 20_000 });
   ok('medicamento registrado, toma de las 08:00 marcada y el inventario bajó de 10 a 9');

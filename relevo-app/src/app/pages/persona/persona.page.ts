@@ -1,7 +1,7 @@
 import { Component } from '@angular/core';
 import { IonIcon, IonLabel, IonTabBar, IonTabButton, IonTabs } from '@ionic/angular';
 
-/** Contenedor con pestañas de una persona cuidada: bitácora, equipo y reporte. */
+/** Contenedor con pestañas de una persona cuidada: bitácora, medicinas, rutina, equipo, reporte y asistente. */
 @Component({
   selector: 'app-persona',
   imports: [IonTabs, IonTabBar, IonTabButton, IonIcon, IonLabel],
@@ -15,6 +15,10 @@ import { IonIcon, IonLabel, IonTabBar, IonTabButton, IonTabs } from '@ionic/angu
         <ion-tab-button tab="medicamentos">
           <ion-icon name="medkit-outline" />
           <ion-label>Medicinas</ion-label>
+        </ion-tab-button>
+        <ion-tab-button tab="rutina">
+          <ion-icon name="alarm-outline" />
+          <ion-label>Rutina</ion-label>
         </ion-tab-button>
         <ion-tab-button tab="equipo">
           <ion-icon name="people-outline" />

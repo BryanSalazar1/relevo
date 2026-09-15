@@ -20,6 +20,9 @@
         </ion-card-subtitle>
       </ion-card-header>
       <ion-card-content>
+        @if (p.descripcion) {
+          <p class="descripcion">{{ p.descripcion }}</p>
+        }
         <p><strong>Condiciones:</strong> {{ p.condiciones?.join(', ') || 'Ninguna registrada' }}</p>
         <p><strong>Alergias:</strong> {{ p.alergias?.join(', ') || 'Ninguna registrada' }}</p>
         @if (p.medicoTratante) {
@@ -30,6 +33,12 @@
             <strong>Emergencia:</strong> {{ c.nombre }}@if (c.relacion) { ({{ c.relacion }})} ·
             <a [href]="'tel:' + c.telefono">{{ c.telefono }}</a>
           </p>
+        }
+        @if (esPrincipal()) {
+          <ion-button fill="clear" size="small" (click)="editarDatos()">
+            <ion-icon slot="start" name="create-outline" />
+            Editar datos
+          </ion-button>
         }
       </ion-card-content>
     </ion-card>
@@ -88,8 +97,8 @@
     </ion-list-header>
     @if (miembros(); as lista) {
       @for (m of lista; track m.uid) {
-        <ion-item [button]="esPrincipal() && m.uid !== uid" [detail]="false" (click)="opcionesMiembro(m)">
-          <ion-label>
+        <ion-item [button]="esPrincipal()" [detail]="false" (click)="opcionesMiembro(m)">
+          <ion-label class="ion-text-wrap">
             <h2>
               {{ m.nombre }}
               @if (m.uid === uid) {
@@ -97,8 +106,23 @@
               }
             </h2>
             <p><ion-badge [color]="ROL_COLOR[m.rol]">{{ ROL_ETIQUETA[m.rol] }}</ion-badge></p>
+            @if (m.rol !== 'medico') {
+              <p class="turnos">
+                <ion-icon name="time-outline" />
+                {{ textoTurnos(m.turnos) }}
+                @if (m.alertas === false) {
+                  · sin alertas fuera de turno
+                }
+              </p>
+            }
           </ion-label>
-          @if (esPrincipal() && m.uid !== uid) {
+          @if (esPrincipal() && m.rol !== 'medico') {
+            <ion-button slot="end" fill="outline" size="small" (click)="editarTurnos(m); $event.stopPropagation()">
+              <ion-icon slot="start" name="time-outline" />
+              Turnos
+            </ion-button>
+          }
+          @if (esPrincipal()) {
             <ion-button slot="end" fill="clear" color="medium" aria-label="Opciones">
               <ion-icon slot="icon-only" name="ellipsis-horizontal" />
             </ion-button>
@@ -108,6 +132,13 @@
     } @else {
       <ion-item lines="none"><ion-spinner name="crescent" /></ion-item>
     }
+    <ion-item lines="none">
+      <ion-note class="ion-text-wrap ayuda-turnos">
+        Los recordatorios de tomas y tareas se envían a quien está de guardia; si nadie tiene turnos,
+        a todo el equipo, y si nadie está de guardia, al responsable. Los incidentes, síntomas y tomas
+        omitidas se avisan a todos.
+      </ion-note>
+    </ion-item>
   </ion-list>
 
   @if (esPrincipal() && otrasInvitaciones().length > 0) {
