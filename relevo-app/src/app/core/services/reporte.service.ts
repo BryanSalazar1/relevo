@@ -251,7 +251,10 @@ export class ReporteService {
         ['Tipo de sangre', p.tipoSangre || '—'],
         ['Condiciones', p.condiciones?.join(', ') || '—'],
         ['Alergias', p.alergias?.join(', ') || 'Ninguna registrada'],
-        ['Médico tratante', p.medicoTratante || '—'],
+        ['Médico tratante', [p.medicoTratante, p.telefonoMedico].filter(Boolean).join(' · ') || '—'],
+        ['Seguro médico', p.seguro || '—'],
+        ['Hospital o clínica', p.hospital || '—'],
+        ['Notas médicas', p.notasMedicas || '—'],
         [
           'Contactos de emergencia',
           p.contactosEmergencia?.map((c) => `${c.nombre} (${c.telefono})`).join(', ') || '—',

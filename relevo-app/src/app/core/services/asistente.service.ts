@@ -192,7 +192,10 @@ export class AsistenteService {
         `${persona.tipoSangre ? `, tipo de sangre ${persona.tipoSangre}` : ''}.` +
         ` Condiciones: ${persona.condiciones?.join(', ') || 'ninguna registrada'}.` +
         ` Alergias: ${persona.alergias?.join(', ') || 'ninguna registrada'}.` +
-        `${persona.medicoTratante ? ` Médico tratante: ${persona.medicoTratante}.` : ''}` +
+        `${persona.medicoTratante ? ` Médico tratante: ${persona.medicoTratante}${persona.telefonoMedico ? ` (${persona.telefonoMedico})` : ''}.` : ''}` +
+        `${persona.seguro ? ` Seguro: ${persona.seguro}.` : ''}${persona.hospital ? ` Hospital: ${persona.hospital}.` : ''}` +
+        `${persona.notasMedicas ? ` Notas médicas: ${persona.notasMedicas}` : ''}` +
+        `${persona.contactosEmergencia?.length ? ` Contactos de emergencia: ${persona.contactosEmergencia.map((c) => `${c.nombre}${c.relacion ? ` (${c.relacion})` : ''} ${c.telefono}`).join(', ')}.` : ''}` +
         `${persona.descripcion ? ` Descripción del responsable: ${persona.descripcion}` : ''}`,
     );
     lineas.push(

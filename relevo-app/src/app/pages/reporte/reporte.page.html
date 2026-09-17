@@ -53,6 +53,15 @@
         }
         <p><strong>Condiciones:</strong> {{ r.persona.condiciones?.join(', ') || '—' }}</p>
         <p><strong>Alergias:</strong> {{ r.persona.alergias?.join(', ') || 'Ninguna registrada' }}</p>
+        @if (r.persona.tipoSangre) {
+          <p><strong>Tipo de sangre:</strong> {{ r.persona.tipoSangre }}</p>
+        }
+        @if (r.persona.medicoTratante) {
+          <p><strong>Médico:</strong> {{ r.persona.medicoTratante }}</p>
+        }
+        @if (r.persona.notasMedicas) {
+          <p><strong>Notas médicas:</strong> {{ r.persona.notasMedicas }}</p>
+        }
         <div class="resumen">
           @for (c of r.conteoPorTipo; track c.tipo.valor) {
             <ion-chip [color]="c.tipo.color" [outline]="true">

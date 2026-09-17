@@ -50,6 +50,7 @@ npm run deploy:storage      # sube storage.rules (solo si activaste Storage, §4
 npm run test:functions      # pruebas de la lógica de notificaciones (functions/logica.test.mjs)
 npm run deploy:functions    # sube las Cloud Functions de notificaciones (requiere plan Blaze, §8)
 npm run semilla:real        # usuarios y datos de prueba en tu proyecto real
+npm run semilla:historial:real  # cuenta demo con 60 días de historial (ver "Datos de demostración")
 npm run test:e2e            # prueba de humo con navegador real contra la app publicada (Playwright)
 firebase deploy --only hosting   # publica la PWA (www/) en Firebase Hosting → https://relevo-e5eaf.web.app
 ```
@@ -219,6 +220,22 @@ ionic serve            # terminal 2
 ```
 UI de los emuladores: <http://localhost:4000> (ahí ves los usuarios y documentos que crea la app).
 
+### Datos de demostración con historial (15/09/2026)
+`scripts/semilla-historial.mjs` (`npm run semilla:historial:real`) crea a **Elena Ramírez**
+(`persona-elena`) con ficha médica completa y 60 días de historial: 5 medicamentos (uno según
+necesidad y uno terminado) con sus tomas, 6 tareas de rutina con registros y notas, 1 a 3 entradas
+de bitácora por día, glucosa y presión diarias, peso semanal, citas pasadas y próximas, y un equipo
+con turnos. Es idempotente (ids deterministas) y sus documentos llevan `semilla: true` para que las
+Cloud Functions no manden un aviso por cada uno. Cuentas (contraseña `Relevo.2026`; los correos son
+alias de la cuenta de la app, así que cualquier aviso llega a su bandeja):
+
+| Cuenta | Correo | Rol |
+|---|---|---|
+| Rosa Martínez (familiar) | `relevo740+rosa@gmail.com` | Responsable |
+| Marta Ruiz (enfermera) | `relevo740+marta@gmail.com` | Enfermera, turno L-V 08:00–16:00 |
+| Carlos Martínez (familiar) | `relevo740+carlos@gmail.com` | Familiar, turno L-V 16:00–22:00 y fines de semana |
+| Dr. Javier Soto (médico) | `relevo740+doctor@gmail.com` | Médico (solo lectura) |
+
 ### Datos de prueba
 
 Con los emuladores encendidos, `npm run semilla` crea usuarios de cada rol y una persona cuidada
@@ -387,6 +404,14 @@ decisión: en la web se avisa por correo.
   decidir quién crea personas y con qué rol entra cada quien (`ROL_POR_TIPO`, `ROLES_COMPATIBLES`).
   Cuentas anteriores a esta versión lo eligen una sola vez al entrar.
 
+### Logo — 15/09/2026
+- Corazón blanco con línea de pulso sobre el azul de la app (`#3880ff`). El SVG fuente es
+  `public/favicon.svg`; de él salen `public/favicon.ico` (16/32/48 px), los iconos de la PWA en
+  `public/icons/` y los de Android (`mipmap-*/ic_launcher*.png`, con el frontal adaptativo sobre fondo
+  `#3880FF` en `values/ic_launcher_background.xml`). Para regenerarlos tras cambiar el SVG, el script
+  que los produjo usa Playwright para rasterizar cada tamaño; basta repetir el proceso con el mismo
+  dibujo (o usar `npx @capacitor/assets generate` a partir de un PNG de 1024 px).
+
 ### Mi perfil y eliminar cuenta — 15/09/2026
 - En *Mis personas*, tocar la tarjeta del usuario abre **Mi perfil**: cambia el nombre (se actualiza
   en Auth, en `usuarios/{uid}` y en `miembros/{uid}` de cada equipo; las rules permiten a cada quien
@@ -395,6 +420,16 @@ decisión: en la web se avisa por correo.
   la Cloud Function `limpiarUsuarioEliminado` (disparador Auth de 1.ª gen) borra su perfil, lo quita
   de `miembros` y `miembrosUids` de cada equipo y, si era la única persona en una bitácora, borra a esa
   persona cuidada con todo su historial (`recursiveDelete`).
+
+### Ficha médica — 15/09/2026
+- En *Equipo*, la tarjeta de la persona muestra la **ficha médica**: tipo de sangre, condiciones y
+  diagnósticos, alergias, médico tratante y su teléfono, seguro, hospital o clínica, notas médicas
+  (marcapasos, dieta, movilidad…) y contactos de emergencia con enlace para llamar. La ve todo el
+  equipo; el responsable la edita con **Editar ficha médica** (`FichaModal` → `PersonasService.actualizar`).
+- Campos nuevos en `personas_cuidadas`: `telefonoMedico`, `seguro`, `hospital`, `notasMedicas`
+  (`TIPOS_SANGRE` para el selector). Las reglas ya permitían al responsable actualizar la persona.
+- La ficha entra en el reporte (pantalla y tabla "Datos de la persona" del PDF) y en el contexto del
+  asistente, para que pueda responder "¿a quién llamo en una emergencia?" o "¿qué alergias tiene?".
 
 ### Personas cuidadas: alta y datos — 15/09/2026
 - **+** en *Mis personas* (solo cuentas de familiar) abre un formulario completo: nombre, fecha de
@@ -570,7 +605,6 @@ decisión: en la web se avisa por correo.
   invitación con QR, reporte + PDF, unirse con código y limpieza de lo creado.
 
 ### Fuera de alcance por ahora
-Fotos y notas de voz (Storage requiere plan Blaze), perfil clínico de la persona (tipo de sangre,
-condiciones, alergias, médico y contactos de emergencia se muestran pero aún no se capturan desde la
-app), captura de signos desde la app, traspaso de turno, alertas inteligentes, SOS. Las notificaciones (§8) están
+Fotos y notas de voz (Storage requiere plan Blaze), captura de signos vitales desde la app, traspaso
+de turno, alertas inteligentes, SOS. Las notificaciones (§8) están
 programadas pero no desplegadas.

@@ -68,3 +68,23 @@ ion-item .turnos {
   font-size: 0.8rem;
   padding: 4px 0 8px;
 }
+
+ion-card-content .ficha-titulo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0 6px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+ion-card-content .notas-medicas {
+  white-space: pre-wrap;
+}
+
+ion-card-content .acciones-persona {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}

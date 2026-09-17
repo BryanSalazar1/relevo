@@ -92,6 +92,9 @@ export interface Usuario {
   creadoEn: Timestamp;
 }
 
+/** Opciones del selector de tipo de sangre. */
+export const TIPOS_SANGRE = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+
 export interface ContactoEmergencia {
   nombre: string;
   telefono: string;
@@ -105,10 +108,18 @@ export interface PersonaCuidada {
   fechaNacimiento?: string; // ISO yyyy-mm-dd
   /** Texto libre del responsable: quién es, qué padece, qué le gusta… Lo ve todo el equipo. */
   descripcion?: string;
+  // ---- Ficha médica (la edita el responsable; la ve todo el equipo) ----
   tipoSangre?: string;
   alergias?: string[];
   condiciones?: string[];
   medicoTratante?: string;
+  telefonoMedico?: string;
+  /** Aseguradora, número de póliza o "IMSS / ISSSTE / particular" */
+  seguro?: string;
+  /** Hospital o clínica a la que se le lleva */
+  hospital?: string;
+  /** Lo que el médico o el equipo deben saber: marcapasos, prótesis, dieta, movilidad… */
+  notasMedicas?: string;
   contactosEmergencia?: ContactoEmergencia[];
   /**
    * Copia desnormalizada de los uids en la subcolección `miembros`.

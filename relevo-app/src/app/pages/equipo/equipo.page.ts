@@ -44,6 +44,7 @@ import { edad, textoTurnos } from '../../core/utils/fechas';
 import { personaActual } from '../../core/utils/persona-actual';
 import { CompartirModal } from './compartir.modal';
 import { DatosAvisos, TurnosModal } from './turnos.modal';
+import { DatosFicha, FichaModal } from './ficha.modal';
 import { DatosPersona, PersonaModal } from '../home/persona.modal';
 
 @Component({
@@ -330,6 +331,23 @@ export class EquipoPage {
       buttons,
     });
     await sheet.present();
+  }
+
+  /** El responsable edita la ficha médica (tipo de sangre, alergias, condiciones, médico, contactos…). */
+  async editarFicha() {
+    const persona = this.persona();
+    if (!persona?.id || !this.esPrincipal()) return;
+    const modal = await this.modalCtrl.create({ component: FichaModal, componentProps: { persona } });
+    await modal.present();
+    const { data, role } = await modal.onWillDismiss<DatosFicha>();
+    if (role !== 'guardar' || !data) return;
+    try {
+      await this.personasSvc.actualizar(persona.id, data);
+      await this.aviso('Ficha médica actualizada.', 'success');
+    } catch (error) {
+      console.error(error);
+      await this.aviso('No se pudo guardar la ficha médica.', 'danger');
+    }
   }
 
   /** El responsable define cuándo está de guardia cada miembro y si recibe alertas fuera de turno. */

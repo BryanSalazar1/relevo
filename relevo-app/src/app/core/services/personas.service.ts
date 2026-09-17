@@ -55,12 +55,12 @@ export class PersonasService {
    * batch para que queden consistentes.
    */
   /**
-   * Actualiza los datos básicos (solo el responsable, según las rules). Un valor `undefined`
-   * borra el campo, para poder quitar la fecha o la descripción.
+   * Actualiza datos básicos o de la ficha médica (solo el responsable, según las rules). Un valor
+   * `undefined` borra el campo, para poder quitar la fecha, la descripción, el seguro, etc.
    */
   async actualizar(
     id: string,
-    datos: Partial<Pick<PersonaCuidada, 'nombre' | 'fechaNacimiento' | 'descripcion'>>,
+    datos: Partial<Omit<PersonaCuidada, 'id' | 'miembrosUids' | 'creadoPor' | 'creadoEn'>>,
   ): Promise<void> {
     const cambios: Record<string, unknown> = {};
     for (const [clave, valor] of Object.entries(datos)) {

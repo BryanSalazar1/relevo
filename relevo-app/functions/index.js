@@ -239,7 +239,7 @@ export const notificarEntradaBitacora = onDocumentCreated(
   },
   async (event) => {
     const entrada = event.data?.data();
-    if (!entrada) return;
+    if (!entrada || entrada.semilla) return; // los datos de demostración no avisan
     const { personaId } = event.params;
     const [p, ms] = await Promise.all([persona(personaId), miembros(personaId)]);
     if (!p) return;
@@ -263,7 +263,7 @@ export const notificarToma = onDocumentWritten(
   async (event) => {
     const antes = event.data?.before?.data();
     const despues = event.data?.after?.data();
-    if (!despues) return;
+    if (!despues || despues.semilla) return;
     if (antes && antes.tomado === despues.tomado) return;
     // Las tomas según necesidad no tenían horario: avisar que se dio es lo importante
     if (despues.tomado && !despues.aDemanda && !NOTIFICAR_TOMAS_REALIZADAS.value()) return;
@@ -300,7 +300,7 @@ export const notificarRegistroTarea = onDocumentWritten(
   async (event) => {
     const antes = event.data?.before?.data();
     const despues = event.data?.after?.data();
-    if (!despues) return;
+    if (!despues || despues.semilla) return;
     if (antes && antes.hecha === despues.hecha) return;
     if (despues.hecha) return;
 
