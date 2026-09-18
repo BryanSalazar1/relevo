@@ -11,11 +11,11 @@
 
 <ion-content>
   <ion-list inset>
-    <ion-item lines="full">
+    <ion-item lines="full" button detail (click)="editarPerfil()">
       <ion-icon name="person-circle-outline" slot="start" color="primary" />
       <ion-label>
         <h2>{{ usuario()?.displayName || usuario()?.email }}</h2>
-        <p>{{ usuario()?.email }}</p>
+        <p>{{ usuario()?.email }} · Mi perfil</p>
       </ion-label>
       @if (tipoEtiqueta(); as tipo) {
         <ion-badge slot="end" color="primary">{{ tipo }}</ion-badge>
@@ -55,6 +55,9 @@
                 }
                 {{ p.miembrosUids.length }} en el equipo
               </p>
+              @if (p.descripcion) {
+                <p class="descripcion">{{ p.descripcion }}</p>
+              }
             </ion-label>
           </ion-item>
         }

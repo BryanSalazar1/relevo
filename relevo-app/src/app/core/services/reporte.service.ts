@@ -17,7 +17,8 @@ import {
   Medicamento,
   PersonaCuidada,
   SignoVital,
-  TIPOS_ENTRADA,
+  TIPOS_ENTRADA_TODOS,
+  TIPO_ENTRADA_INFO,
   TIPO_SIGNO_ETIQUETA,
   TipoEntradaInfo,
   TipoSigno,
@@ -42,6 +43,8 @@ export interface ResumenMedicamento {
   nombre: string;
   dosis: string;
   horarios: string[];
+  /** Sin horario fijo: las tomas se registran cuando hacen falta; no aplica la adherencia */
+  segunNecesidad: boolean;
   programadas: number;
   tomadas: number;
   /** 0-100, null si no hubo tomas programadas */
@@ -61,6 +64,8 @@ export interface Reporte {
   alertas: EntradaBitacora[];
   signos: ResumenSigno[];
   medicamentos: ResumenMedicamento[];
+  /** Resumen narrativo generado con IA (opcional; lo pide el usuario en la pantalla de reporte) */
+  resumenIA?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -111,7 +116,7 @@ export class ReporteService {
       generadoEn: new Date(),
       generadoPor: this.authSvc.nombreActual,
       entradas,
-      conteoPorTipo: TIPOS_ENTRADA.map((tipo) => ({
+      conteoPorTipo: TIPOS_ENTRADA_TODOS.map((tipo) => ({
         tipo,
         cantidad: entradas.filter((e) => e.tipo === tipo.valor).length,
       })).filter((c) => c.cantidad > 0),
@@ -143,13 +148,15 @@ export class ReporteService {
 
   private resumirMedicamento(m: Medicamento, tomas: Toma[]): ResumenMedicamento {
     const tomadas = tomas.filter((t) => t.tomado).length;
+    const segunNecesidad = m.segunNecesidad === true;
     return {
       nombre: m.nombre,
       dosis: m.dosis,
       horarios: m.horarios ?? [],
-      programadas: tomas.length,
+      segunNecesidad,
+      programadas: segunNecesidad ? 0 : tomas.length,
       tomadas,
-      adherencia: tomas.length ? Math.round((tomadas / tomas.length) * 100) : null,
+      adherencia: !segunNecesidad && tomas.length ? Math.round((tomadas / tomas.length) * 100) : null,
     };
   }
 
@@ -199,6 +206,30 @@ export class ReporteService {
       pdf.setTextColor(0);
       y += 3;
     };
+    /** Texto plano en párrafos; las líneas en MAYÚSCULAS (secciones del resumen con IA) van en negrita. */
+    const parrafos = (texto: string) => {
+      pdf.setFontSize(9.5);
+      for (const cruda of texto.split(/\r?\n/)) {
+        const linea = cruda.trim();
+        if (!linea) {
+          y += 2;
+          continue;
+        }
+        const esTitulo = /^[A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ0-9 ,:]{2,}$/.test(linea);
+        pdf.setFont('helvetica', esTitulo ? 'bold' : 'normal');
+        if (esTitulo) y += 1.5;
+        for (const parte of pdf.splitTextToSize(linea, 182) as string[]) {
+          if (y > 280) {
+            pdf.addPage();
+            y = 20;
+          }
+          pdf.text(parte, 14, y);
+          y += 4.6;
+        }
+      }
+      pdf.setFont('helvetica', 'normal');
+      y += 3;
+    };
     const tabla = (head: string[], body: (string | number)[][], columnStyles = {}) => {
       autoTable(pdf, {
         startY: y,
@@ -216,10 +247,14 @@ export class ReporteService {
     tabla(
       ['Campo', 'Valor'],
       [
+        ['Descripción', p.descripcion || '—'],
         ['Tipo de sangre', p.tipoSangre || '—'],
         ['Condiciones', p.condiciones?.join(', ') || '—'],
         ['Alergias', p.alergias?.join(', ') || 'Ninguna registrada'],
-        ['Médico tratante', p.medicoTratante || '—'],
+        ['Médico tratante', [p.medicoTratante, p.telefonoMedico].filter(Boolean).join(' · ') || '—'],
+        ['Seguro médico', p.seguro || '—'],
+        ['Hospital o clínica', p.hospital || '—'],
+        ['Notas médicas', p.notasMedicas || '—'],
         [
           'Contactos de emergencia',
           p.contactosEmergencia?.map((c) => `${c.nombre} (${c.telefono})`).join(', ') || '—',
@@ -227,6 +262,20 @@ export class ReporteService {
       ],
       { 0: { fontStyle: 'bold', cellWidth: 45 } },
     );
+
+    if (r.resumenIA) {
+      seccion('Resumen con IA');
+      parrafos(r.resumenIA);
+      pdf.setFontSize(8);
+      pdf.setTextColor(120);
+      pdf.text(
+        'Resumen generado con inteligencia artificial a partir de los registros de Relevo. No sustituye el criterio médico.',
+        14,
+        y,
+      );
+      pdf.setTextColor(0);
+      y += 9;
+    }
 
     seccion('Resumen de la bitácora');
     tabla(
@@ -265,8 +314,8 @@ export class ReporteService {
       r.medicamentos.map((m) => [
         m.nombre,
         m.dosis,
-        m.horarios.join(', '),
-        m.programadas,
+        m.segunNecesidad ? 'Según necesidad' : m.horarios.join(', '),
+        m.segunNecesidad ? '—' : m.programadas,
         m.tomadas,
         m.adherencia === null ? '—' : `${m.adherencia} %`,
       ]),
@@ -277,7 +326,7 @@ export class ReporteService {
       ['Fecha', 'Tipo', 'Registro', 'Autor'],
       r.entradas.map((e) => [
         f(e.fecha.toDate()),
-        TIPOS_ENTRADA.find((t) => t.valor === e.tipo)?.etiqueta ?? e.tipo,
+        TIPO_ENTRADA_INFO[e.tipo]?.etiqueta ?? e.tipo,
         e.texto,
         e.autorNombre,
       ]),

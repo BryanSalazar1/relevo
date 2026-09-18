@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "765182515374",
+    "project_id": "relevo-e5eaf",
+    "storage_bucket": "relevo-e5eaf.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:765182515374:android:9e055d2f832f83146ef53f",
+        "android_client_info": {
+          "package_name": "com.relevo.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAg2YtyDxRXCvSlWDNwwfaey-_ZVpLYKOw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

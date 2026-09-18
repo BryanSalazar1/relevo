@@ -7,7 +7,9 @@ import {
   doc,
   docData,
   query,
+  deleteField,
   serverTimestamp,
+  updateDoc,
   where,
   writeBatch,
 } from '@angular/fire/firestore';
@@ -52,6 +54,21 @@ export class PersonasService {
    * que quedan como responsables (cuidador_principal). Persona + miembro + perfil van en un
    * batch para que queden consistentes.
    */
+  /**
+   * Actualiza datos básicos o de la ficha médica (solo el responsable, según las rules). Un valor
+   * `undefined` borra el campo, para poder quitar la fecha, la descripción, el seguro, etc.
+   */
+  async actualizar(
+    id: string,
+    datos: Partial<Omit<PersonaCuidada, 'id' | 'miembrosUids' | 'creadoPor' | 'creadoEn'>>,
+  ): Promise<void> {
+    const cambios: Record<string, unknown> = {};
+    for (const [clave, valor] of Object.entries(datos)) {
+      cambios[clave] = valor === undefined ? deleteField() : valor;
+    }
+    await updateDoc(doc(this.db, 'personas_cuidadas', id), cambios);
+  }
+
   async crearPersona(datos: Pick<PersonaCuidada, 'nombre'> & Partial<PersonaCuidada>): Promise<string> {
     const uid = this.authSvc.uid;
     if (!uid) throw new Error('No hay sesión iniciada');

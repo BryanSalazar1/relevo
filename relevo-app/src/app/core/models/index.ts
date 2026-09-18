@@ -92,6 +92,9 @@ export interface Usuario {
   creadoEn: Timestamp;
 }
 
+/** Opciones del selector de tipo de sangre. */
+export const TIPOS_SANGRE = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+
 export interface ContactoEmergencia {
   nombre: string;
   telefono: string;
@@ -103,10 +106,20 @@ export interface PersonaCuidada {
   id?: string;
   nombre: string;
   fechaNacimiento?: string; // ISO yyyy-mm-dd
+  /** Texto libre del responsable: quién es, qué padece, qué le gusta… Lo ve todo el equipo. */
+  descripcion?: string;
+  // ---- Ficha médica (la edita el responsable; la ve todo el equipo) ----
   tipoSangre?: string;
   alergias?: string[];
   condiciones?: string[];
   medicoTratante?: string;
+  telefonoMedico?: string;
+  /** Aseguradora, número de póliza o "IMSS / ISSSTE / particular" */
+  seguro?: string;
+  /** Hospital o clínica a la que se le lleva */
+  hospital?: string;
+  /** Lo que el médico o el equipo deben saber: marcapasos, prótesis, dieta, movilidad… */
+  notasMedicas?: string;
   contactosEmergencia?: ContactoEmergencia[];
   /**
    * Copia desnormalizada de los uids en la subcolección `miembros`.
@@ -118,12 +131,30 @@ export interface PersonaCuidada {
   creadoEn: Timestamp;
 }
 
+/**
+ * Franja de guardia de un miembro: días de la semana (Date.getDay(): 0 = domingo) y horas "HH:mm".
+ * Si `hasta` es menor o igual que `desde`, el turno cruza la medianoche (p. ej. 22:00–06:00).
+ */
+export interface Turno {
+  dias: number[];
+  desde: string;
+  hasta: string;
+}
+
 /** personas_cuidadas/{id}/miembros/{uid} */
 export interface Miembro {
   uid: string;
   rol: Rol;
   nombre: string;
   agregadoEn: Timestamp;
+  /**
+   * Guardias del miembro. Los recordatorios de tomas y tareas solo le llegan en sus turnos.
+   * Sin turnos (o vacío): si nadie del equipo tiene turnos, recibe todo; si otros sí tienen,
+   * no recibe recordatorios de rutina (salvo el responsable, que es el respaldo cuando nadie está de guardia).
+   */
+  turnos?: Turno[];
+  /** Recibe incidentes, síntomas y tomas omitidas aunque no esté de guardia (por defecto sí) */
+  alertas?: boolean;
   /** Código con el que se unió (si entró por invitación). Lo validan las rules. */
   invitacionCodigo?: string;
 }
@@ -154,7 +185,11 @@ export interface TipoEntradaInfo {
   color: string;
 }
 
-export const TIPOS_ENTRADA: TipoEntradaInfo[] = [
+/**
+ * Todos los tipos que han existido, para mostrar registros antiguos. "comida" ya no se captura desde
+ * el 15/09/2026: las comidas son tareas de la rutina.
+ */
+export const TIPOS_ENTRADA_TODOS: TipoEntradaInfo[] = [
   { valor: 'sintoma', etiqueta: 'Síntoma', icono: 'medical-outline', color: 'danger' },
   { valor: 'animo', etiqueta: 'Ánimo', icono: 'happy-outline', color: 'warning' },
   { valor: 'comida', etiqueta: 'Comida', icono: 'restaurant-outline', color: 'success' },
@@ -163,9 +198,19 @@ export const TIPOS_ENTRADA: TipoEntradaInfo[] = [
   { valor: 'nota', etiqueta: 'Nota', icono: 'chatbox-ellipses-outline', color: 'medium' },
 ];
 
+/** Tipos que se pueden elegir al escribir en la bitácora (y por los que se filtra). */
+export const TIPOS_ENTRADA: TipoEntradaInfo[] = TIPOS_ENTRADA_TODOS.filter((t) => t.valor !== 'comida');
+
 export const TIPO_ENTRADA_INFO: Record<TipoEntrada, TipoEntradaInfo> = Object.fromEntries(
-  TIPOS_ENTRADA.map((t) => [t.valor, t]),
+  TIPOS_ENTRADA_TODOS.map((t) => [t.valor, t]),
 ) as Record<TipoEntrada, TipoEntradaInfo>;
+
+/** Cómo se muestra una toma de medicamento dentro de la bitácora (no es un tipo de entrada que se guarde). */
+export const INFO_TOMA: Omit<TipoEntradaInfo, 'valor'> = {
+  etiqueta: 'Medicamento',
+  icono: 'medkit-outline',
+  color: 'primary',
+};
 
 /** personas_cuidadas/{id}/entradas_bitacora/{id} */
 export interface EntradaBitacora {
@@ -176,7 +221,10 @@ export interface EntradaBitacora {
   notaVozUrl?: string | null;
   autorUid: string;
   autorNombre: string;
+  /** Cuándo ocurrió (lo elige quien escribe, hasta 1 h atrás) */
   fecha: Timestamp;
+  /** Cuándo se registró; ordena la bitácora. Entradas antiguas no lo tienen (se usa `fecha`) */
+  creadoEn?: Timestamp;
 }
 
 /** personas_cuidadas/{id}/medicamentos/{id} */
@@ -184,7 +232,13 @@ export interface Medicamento {
   id?: string;
   nombre: string;
   dosis: string;
-  horarios: string[]; // "08:00", "20:00"
+  horarios: string[]; // "08:00", "20:00" (vacío si es según necesidad)
+  /** Sin horario fijo: se toma solo cuando hace falta (p. ej. "si siente dolor") y se registra al momento */
+  segunNecesidad?: boolean;
+  /** Desde qué día se toma (ISO yyyy-mm-dd). Sin valor = desde siempre (medicamentos antiguos) */
+  inicio?: string;
+  /** Cuántos días dura el tratamiento; null/sin valor = hasta que el médico lo indique */
+  duracionDias?: number | null;
   /** Unidades restantes; null si no se controla */
   inventario: number | null;
   activo: boolean;
@@ -200,6 +254,98 @@ export interface Toma {
   tomado: boolean;
   registradoPor: string;
   registradoNombre?: string;
+  /** Toma de un medicamento según necesidad: no había horario, se registró en el momento */
+  aDemanda?: boolean;
+  /** Nota de quien registró: motivo ("dolor de cabeza"), observación, etc. */
+  nota?: string;
+  /** Cuándo se registró; ordena la bitácora. Tomas antiguas no lo tienen (se usa horaReal u horaProgramada) */
+  registradoEn?: Timestamp;
+}
+
+// ---------------------------------------------------------------------------
+// Rutina: tareas diarias con horario (comidas, baño, ejercicio…) que define el responsable
+// ---------------------------------------------------------------------------
+export type TipoTarea = 'comida' | 'bano' | 'ejercicio' | 'terapia' | 'cita' | 'otro';
+
+export interface TipoTareaInfo {
+  valor: TipoTarea;
+  etiqueta: string;
+  icono: string;
+  color: string;
+}
+
+export const TIPOS_TAREA: TipoTareaInfo[] = [
+  { valor: 'comida', etiqueta: 'Comida', icono: 'restaurant-outline', color: 'success' },
+  { valor: 'bano', etiqueta: 'Baño', icono: 'water-outline', color: 'tertiary' },
+  { valor: 'ejercicio', etiqueta: 'Ejercicio', icono: 'walk-outline', color: 'warning' },
+  { valor: 'terapia', etiqueta: 'Terapia', icono: 'fitness-outline', color: 'secondary' },
+  { valor: 'cita', etiqueta: 'Cita', icono: 'calendar-outline', color: 'primary' },
+  { valor: 'otro', etiqueta: 'Otra', icono: 'checkmark-circle-outline', color: 'medium' },
+];
+
+export const TIPO_TAREA_INFO: Record<TipoTarea, TipoTareaInfo> = Object.fromEntries(
+  TIPOS_TAREA.map((t) => [t.valor, t]),
+) as Record<TipoTarea, TipoTareaInfo>;
+
+/** Días de la semana en orden de calendario (valor = Date.getDay()). */
+export const DIAS_SEMANA: { valor: number; corto: string; nombre: string }[] = [
+  { valor: 1, corto: 'L', nombre: 'lunes' },
+  { valor: 2, corto: 'M', nombre: 'martes' },
+  { valor: 3, corto: 'X', nombre: 'miércoles' },
+  { valor: 4, corto: 'J', nombre: 'jueves' },
+  { valor: 5, corto: 'V', nombre: 'viernes' },
+  { valor: 6, corto: 'S', nombre: 'sábado' },
+  { valor: 0, corto: 'D', nombre: 'domingo' },
+];
+
+/** Cómo se muestra un registro de tarea dentro de la bitácora (el color e icono vienen del tipo de tarea). */
+export const INFO_TAREA_BITACORA: Omit<TipoEntradaInfo, 'valor'> = {
+  etiqueta: 'Tarea',
+  icono: 'alarm-outline',
+  color: 'secondary',
+};
+
+/** Duraciones que ofrece el formulario de tarea, en minutos (0 = solo hora de inicio). */
+export const OPCIONES_DURACION_MIN = [0, 15, 30, 45, 60, 90, 120, 180, 240];
+
+/** Minutos de anticipación con que se avisa una tarea (el responsable elige uno por tarea). */
+export const OPCIONES_AVISO_MIN = [5, 10, 15, 30, 60];
+export const AVISO_MIN_POR_DEFECTO = 15;
+
+/** Roles que definen tareas de la rutina (coincide con firestore.rules). */
+export const PUEDE_EDITAR_TAREAS: Rol[] = ['cuidador_principal'];
+/** Roles que marcan una tarea como hecha (coincide con firestore.rules). */
+export const PUEDE_REGISTRAR_TAREAS: Rol[] = ['cuidador_principal', 'cuidador_turno', 'familiar'];
+
+/** personas_cuidadas/{id}/tareas/{id} */
+export interface Tarea {
+  id?: string;
+  tipo: TipoTarea;
+  nombre: string;
+  horarios: string[]; // "08:00", "14:00"
+  /** Minutos antes de la hora en que se avisa al cuidador (tareas antiguas pueden no tenerlo) */
+  avisarMin?: number;
+  /** Cuánto dura cada horario, en minutos ("ejercicio de 10 a 11" = 60); 0 o sin valor = solo hora de inicio */
+  duracionMin?: number;
+  /** Días de la semana en que aplica (0 = domingo … 6 = sábado). Vacío o sin valor = todos los días */
+  dias?: number[];
+  notas?: string;
+  activo: boolean;
+  creadoEn?: Timestamp;
+}
+
+/** personas_cuidadas/{id}/tareas/{id}/registros/{id}  (id = yyyyMMdd-HHmm de la hora programada) */
+export interface RegistroTarea {
+  id?: string;
+  horaProgramada: Timestamp;
+  horaReal?: Timestamp | null;
+  hecha: boolean;
+  registradoPor: string;
+  registradoNombre?: string;
+  /** Cuándo se registró */
+  registradoEn?: Timestamp;
+  /** Nota de quien registró: por qué no se hizo, cómo estuvo ("comió poco"), etc. */
+  nota?: string;
 }
 
 export type TipoEvento = 'cita' | 'terapia' | 'turno';

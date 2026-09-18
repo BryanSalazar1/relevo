@@ -53,6 +53,12 @@
                 @if (d.toma.registradoNombre) {
                   · {{ d.toma.registradoNombre }}
                 }
+                @if (d.aDemanda) {
+                  · según necesidad
+                }
+                @if (d.toma.nota) {
+                  · {{ d.toma.nota }}
+                }
               } @else {
                 Pendiente
               }
@@ -77,27 +83,58 @@
     }
   </ion-list>
 
+  @if (segunNecesidad().length > 0) {
+    <ion-list inset class="segun-necesidad">
+      <ion-list-header>
+        <ion-label>Según necesidad</ion-label>
+      </ion-list-header>
+      @for (m of segunNecesidad(); track m.id) {
+        <ion-item [detail]="false">
+          <ion-icon slot="start" name="medkit-outline" color="tertiary" />
+          <ion-label class="ion-text-wrap">
+            <h2>{{ m.nombre }} <ion-note>{{ m.dosis }}</ion-note></h2>
+            @if (m.notas) {
+              <p>{{ m.notas }}</p>
+            }
+            <p><strong>{{ ultimaTomaTexto(m) }}</strong></p>
+          </ion-label>
+          @if (puedeRegistrar()) {
+            <ion-button slot="end" fill="outline" size="small" (click)="registrarAhora(m)" aria-label="Registrar toma ahora">
+              <ion-icon slot="start" name="checkmark-circle-outline" />
+              Tomó ahora
+            </ion-button>
+          }
+        </ion-item>
+      }
+    </ion-list>
+  }
+
   <ion-list inset class="lista-medicamentos">
     <ion-list-header>
       <ion-label>Medicamentos</ion-label>
     </ion-list-header>
     @if (medicamentos(); as meds) {
       @for (m of meds; track m.id) {
-        <ion-item [button]="puedeEditar()" [detail]="false" (click)="opcionesMedicamento(m)" [class.inactivo]="m.activo === false">
-          <ion-icon slot="start" name="medkit-outline" [color]="m.activo === false ? 'medium' : 'primary'" />
+        <ion-item [button]="puedeEditar()" [detail]="false" (click)="opcionesMedicamento(m)" [class.inactivo]="m.activo === false || terminado(m)">
+          <ion-icon slot="start" name="medkit-outline" [color]="m.activo === false || terminado(m) ? 'medium' : 'primary'" />
           <ion-label class="ion-text-wrap">
             <h2>
               {{ m.nombre }} · {{ m.dosis }}
               @if (m.activo === false) {
                 <ion-badge color="medium">Suspendido</ion-badge>
+              } @else if (terminado(m)) {
+                <ion-badge color="medium">Terminado</ion-badge>
               }
             </h2>
             <p>
-              {{ m.horarios.length ? m.horarios.join(', ') : 'Sin horario' }}
+              {{ m.segunNecesidad ? 'Según necesidad' : (m.horarios.length ? m.horarios.join(', ') : 'Sin horario') }}
               @if (m.notas) {
                 · {{ m.notas }}
               }
             </p>
+            @if (duracionTexto(m); as duracion) {
+              <p>{{ duracion }}</p>
+            }
           </ion-label>
           @if (m.inventario !== null && m.inventario !== undefined) {
             <ion-badge slot="end" [color]="m.inventario <= 5 ? 'danger' : 'light'" class="inventario">

@@ -13,9 +13,13 @@
     "test:rules": "node scripts/con-java.js firebase emulators:exec --project demo-relevo --only firestore \"node --test tests/firestore.rules.test.mjs\"",
     "semilla": "node scripts/semilla.mjs",
     "semilla:real": "node scripts/semilla.mjs --real",
+    "semilla:historial": "node scripts/semilla-historial.mjs",
+    "semilla:historial:real": "node scripts/semilla-historial.mjs --real",
     "deploy:storage": "firebase deploy --only storage",
+    "deploy:functions": "firebase deploy --only functions",
+    "test:functions": "npm --prefix functions test",
     "test:e2e": "node tests/e2e.smoke.mjs",
-    "android:apk": "ng build && npx cap sync android && cd android && gradlew.bat assembleDebug"
+    "android:apk": "ng build && npx cap sync android && cd android && .\\gradlew.bat assembleDebug"
   },
   "prettier": {
     "printWidth": 100,

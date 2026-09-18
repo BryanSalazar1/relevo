@@ -164,7 +164,10 @@ service cloud.firestore {
             && get(/databases/$(database)/documents/personas_cuidadas/$(personaId)).data.creadoPor == request.auth.uid
             && tipoUsuario(request.auth.uid) == 'familiar'
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rol'])
-            && request.resource.data.rol == 'cuidador_principal');
+            && request.resource.data.rol == 'cuidador_principal')
+          // ...o cada quien actualiza solo su propio nombre (al editar su perfil)
+          || (memberId == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nombre']));
         allow delete: if tieneRol(personaId, ['cuidador_principal']);
       }
 
@@ -186,13 +189,36 @@ service cloud.firestore {
           || (tieneRol(personaId, ['cuidador_turno', 'familiar'])
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['inventario']));
 
-        // tomas: responsable, enfermeros y familiares registran (y corrigen) las tomas
+        // tomas: responsable, enfermeros y familiares registran (y corrigen) las tomas, firmadas
+        // por quien escribe; el responsable además puede cambiar solo la nota de cualquier toma.
         match /tomas/{tomaId} {
           allow read: if esMiembro(personaId);
           allow create, update, delete: if tieneRol(personaId, ['cuidador_principal', 'cuidador_turno', 'familiar'])
-            && (request.method == 'delete' || request.resource.data.registradoPor == request.auth.uid);
+            && (request.method == 'delete'
+                || request.resource.data.registradoPor == request.auth.uid
+                || (tieneRol(personaId, ['cuidador_principal'])
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nota'])));
         }
       }
+
+      // tareas (rutina: comidas, baño, ejercicio…): solo el responsable las define;
+      // quienes cuidan registran si se hicieron (firmado por ellos); el médico solo lee.
+      match /tareas/{tareaId} {
+        allow read: if esMiembro(personaId);
+        allow create, update, delete: if tieneRol(personaId, ['cuidador_principal']);
+
+        match /registros/{registroId} {
+          allow read: if esMiembro(personaId);
+          allow create, update, delete: if tieneRol(personaId, ['cuidador_principal', 'cuidador_turno', 'familiar'])
+            && (request.method == 'delete'
+                || request.resource.data.registradoPor == request.auth.uid
+                || (tieneRol(personaId, ['cuidador_principal'])
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nota'])));
+        }
+      }
+
+      // recordatorios/{id}: qué dosis, tareas y avisos previos ya se enviaron. Solo lo escriben las Cloud Functions
+      // (Admin SDK, no pasa por estas reglas); desde la app no hay acceso (denegado por defecto).
 
       // eventos_calendario: familiares y cuidadores coordinan citas y turnos
       match /eventos_calendario/{eventoId} {

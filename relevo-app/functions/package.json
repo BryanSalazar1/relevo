@@ -1,0 +1,26 @@
+{
+  "name": "relevo-functions",
+  "description": "Cloud Functions de Relevo: notificaciones push (móvil) y por correo (web)",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "test": "node --test",
+    "serve": "firebase emulators:start --only functions",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "prettier": {
+    "printWidth": 100,
+    "singleQuote": true
+  },
+  "dependencies": {
+    "@google/genai": "^2.22.0",
+    "firebase-admin": "^14.4.0",
+    "firebase-functions": "^7.3.2",
+    "nodemailer": "^10.0.10"
+  }
+}

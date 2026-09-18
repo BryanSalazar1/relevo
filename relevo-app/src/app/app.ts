@@ -1,8 +1,9 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { IonApp, IonRouterOutlet } from '@ionic/angular';
 import { addIcons } from 'ionicons';
 import {
   add,
+  alarmOutline,
   alertCircleOutline,
   banOutline,
   bookOutline,
@@ -17,6 +18,7 @@ import {
   closeCircleOutline,
   closeOutline,
   ellipseOutline,
+  fitnessOutline,
   pauseCircleOutline,
   playCircleOutline,
   copyOutline,
@@ -48,8 +50,11 @@ import {
   sparklesOutline,
   timeOutline,
   trashOutline,
+  walkOutline,
   warningOutline,
+  waterOutline,
 } from 'ionicons/icons';
+import { NotificacionesService } from './core/services/notificaciones.service';
 
 @Component({
   selector: 'app-root',
@@ -59,9 +64,12 @@ import {
 })
 export class App {
   constructor() {
+    // En el teléfono: pide permiso y registra el dispositivo para recibir avisos push
+    inject(NotificacionesService).iniciar();
     // Los iconos se registran una sola vez y quedan disponibles por nombre en toda la app
     addIcons({
       add,
+      alarmOutline,
       alertCircleOutline,
       banOutline,
       bookOutline,
@@ -76,6 +84,7 @@ export class App {
       closeCircleOutline,
       closeOutline,
       ellipseOutline,
+      fitnessOutline,
       pauseCircleOutline,
       playCircleOutline,
       copyOutline,
@@ -107,7 +116,9 @@ export class App {
       sparklesOutline,
       timeOutline,
       trashOutline,
+      walkOutline,
       warningOutline,
+      waterOutline,
     });
   }
 }

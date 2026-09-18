@@ -39,9 +39,13 @@ import {
   formatearCodigo,
 } from '../../core/services/invitaciones.service';
 import { MiembrosService } from '../../core/services/miembros.service';
-import { edad } from '../../core/utils/fechas';
+import { PersonasService } from '../../core/services/personas.service';
+import { edad, textoTurnos } from '../../core/utils/fechas';
 import { personaActual } from '../../core/utils/persona-actual';
 import { CompartirModal } from './compartir.modal';
+import { DatosAvisos, TurnosModal } from './turnos.modal';
+import { DatosFicha, FichaModal } from './ficha.modal';
+import { DatosPersona, PersonaModal } from '../home/persona.modal';
 
 @Component({
   selector: 'app-equipo',
@@ -77,6 +81,7 @@ export class EquipoPage {
   private readonly auth = inject(AuthService);
   private readonly miembrosSvc = inject(MiembrosService);
   private readonly invitacionesSvc = inject(InvitacionesService);
+  private readonly personasSvc = inject(PersonasService);
   private readonly modalCtrl = inject(ModalController);
   private readonly alertCtrl = inject(AlertController);
   private readonly actionSheetCtrl = inject(ActionSheetController);
@@ -90,6 +95,7 @@ export class EquipoPage {
   readonly ROL_ETIQUETA = ROL_ETIQUETA;
   readonly ROL_COLOR = ROL_COLOR;
   readonly formatearCodigo = formatearCodigo;
+  readonly textoTurnos = textoTurnos;
 
   readonly miembros = toSignal(
     this.ctx.personaId$.pipe(switchMap((id) => this.miembrosSvc.miembros(id))),
@@ -178,6 +184,23 @@ export class EquipoPage {
   }
 
   /** Nuevo código; el anterior deja de funcionar. */
+  /** El responsable corrige nombre, fecha de nacimiento y descripción. */
+  async editarDatos() {
+    const persona = this.persona();
+    if (!persona?.id || !this.esPrincipal()) return;
+    const modal = await this.modalCtrl.create({ component: PersonaModal, componentProps: { persona } });
+    await modal.present();
+    const { data, role } = await modal.onWillDismiss<DatosPersona>();
+    if (role !== 'guardar' || !data) return;
+    try {
+      await this.personasSvc.actualizar(persona.id, data);
+      await this.aviso('Datos actualizados.', 'success');
+    } catch (error) {
+      console.error(error);
+      await this.aviso('No se pudieron guardar los datos.', 'danger');
+    }
+  }
+
   async renovar(inv: Invitacion) {
     const alerta = await this.alertCtrl.create({
       header: '¿Generar un código nuevo?',
@@ -252,11 +275,25 @@ export class EquipoPage {
     }
   }
 
-  /** Opciones sobre un miembro (solo el responsable): hacer/quitar responsable, quitar del equipo. */
+  /** Opciones sobre un miembro (solo el responsable): turnos, hacer/quitar responsable, quitar del equipo. */
   async opcionesMiembro(m: Miembro) {
-    if (!this.esPrincipal() || m.uid === this.uid) return;
+    if (!this.esPrincipal()) return;
+    const buttons: { text: string; icon?: string; role?: string; handler?: () => void }[] = [
+      {
+        text: 'Turnos y alertas',
+        icon: 'time-outline',
+        handler: () => {
+          void this.editarTurnos(m);
+        },
+      },
+    ];
+    if (m.uid === this.uid) {
+      buttons.push({ text: 'Cancelar', role: 'cancel' });
+      const propio = await this.actionSheetCtrl.create({ header: `${m.nombre} (tú)`, buttons });
+      await propio.present();
+      return;
+    }
     const tipo = await this.miembrosSvc.tipoDe(m.uid);
-    const buttons: { text: string; icon?: string; role?: string; handler?: () => void }[] = [];
 
     if (tipo === 'familiar') {
       if (m.rol === 'cuidador_principal') {
@@ -294,6 +331,40 @@ export class EquipoPage {
       buttons,
     });
     await sheet.present();
+  }
+
+  /** El responsable edita la ficha médica (tipo de sangre, alergias, condiciones, médico, contactos…). */
+  async editarFicha() {
+    const persona = this.persona();
+    if (!persona?.id || !this.esPrincipal()) return;
+    const modal = await this.modalCtrl.create({ component: FichaModal, componentProps: { persona } });
+    await modal.present();
+    const { data, role } = await modal.onWillDismiss<DatosFicha>();
+    if (role !== 'guardar' || !data) return;
+    try {
+      await this.personasSvc.actualizar(persona.id, data);
+      await this.aviso('Ficha médica actualizada.', 'success');
+    } catch (error) {
+      console.error(error);
+      await this.aviso('No se pudo guardar la ficha médica.', 'danger');
+    }
+  }
+
+  /** El responsable define cuándo está de guardia cada miembro y si recibe alertas fuera de turno. */
+  async editarTurnos(m: Miembro) {
+    const personaId = this.ctx.personaId();
+    if (!personaId) return;
+    const modal = await this.modalCtrl.create({ component: TurnosModal, componentProps: { miembro: m } });
+    await modal.present();
+    const { data, role } = await modal.onWillDismiss<DatosAvisos>();
+    if (role !== 'guardar' || !data) return;
+    try {
+      await this.miembrosSvc.actualizarAvisos(personaId, m.uid, data);
+      await this.aviso(`Turnos de ${m.nombre} guardados.`, 'success');
+    } catch (error) {
+      console.error(error);
+      await this.aviso('No se pudieron guardar los turnos.', 'danger');
+    }
   }
 
   private async cambiarRol(m: Miembro, rol: Miembro['rol']) {

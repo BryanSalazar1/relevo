@@ -40,6 +40,10 @@ export const routes: Routes = [
           import('./pages/medicamentos/medicamentos.page').then((m) => m.MedicamentosPage),
       },
       {
+        path: 'rutina',
+        loadComponent: () => import('./pages/rutina/rutina.page').then((m) => m.RutinaPage),
+      },
+      {
         path: 'equipo',
         loadComponent: () => import('./pages/equipo/equipo.page').then((m) => m.EquipoPage),
       },

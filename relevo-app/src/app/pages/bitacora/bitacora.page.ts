@@ -28,16 +28,25 @@ import {
 import { switchMap } from 'rxjs';
 import {
   EntradaBitacora,
+  INFO_TAREA_BITACORA,
+  INFO_TOMA,
   PUEDE_ESCRIBIR_BITACORA,
+  TIPO_TAREA_INFO,
+  TipoTarea,
   TIPOS_ENTRADA,
   TIPO_ENTRADA_INFO,
   TipoEntrada,
 } from '../../core/models';
 import { AuthService } from '../../core/services/auth.service';
-import { BitacoraService, DatosEntrada } from '../../core/services/bitacora.service';
+import { BitacoraService, DatosEntrada, ItemBitacora } from '../../core/services/bitacora.service';
+import { TomaRegistrada } from '../../core/services/medicamentos.service';
+import { RegistroReciente } from '../../core/services/tareas.service';
 import { agruparPorDia, etiquetaDia } from '../../core/utils/fechas';
 import { personaActual } from '../../core/utils/persona-actual';
 import { EntradaModal } from './entrada.modal';
+
+/** Qué se muestra: un tipo de entrada, solo tomas de medicamentos, solo tareas, o todo (null). */
+export type FiltroBitacora = TipoEntrada | 'toma' | 'tarea';
 
 @Component({
   selector: 'app-bitacora',
@@ -76,30 +85,64 @@ export class BitacoraPage {
   private readonly ctx = personaActual();
   readonly persona = this.ctx.persona;
   readonly rol = this.ctx.rol;
-  readonly entradas = toSignal(
-    this.ctx.personaId$.pipe(switchMap((id) => this.bitacoraSvc.entradas(id))),
+  /** Entradas escritas + tomas de medicamentos, de lo más reciente a lo más antiguo. */
+  readonly linea = toSignal(
+    this.ctx.personaId$.pipe(switchMap((id) => this.bitacoraSvc.lineaDeTiempo(id))),
   );
 
-  readonly filtro = signal<TipoEntrada | null>(null);
+  readonly filtro = signal<FiltroBitacora | null>(null);
   readonly etiquetaDia = etiquetaDia;
+  readonly infoToma = INFO_TOMA;
+  readonly infoTarea = INFO_TAREA_BITACORA;
 
   readonly grupos = computed(() => {
-    const lista = this.entradas();
+    const lista = this.linea();
     if (!lista) return undefined;
     const f = this.filtro();
-    const filtradas = f ? lista.filter((e) => e.tipo === f) : lista;
-    return agruparPorDia(filtradas, (e) => e.fecha.toDate());
+    const filtradas = !f
+      ? lista
+      : f === 'toma' || f === 'tarea'
+        ? lista.filter((i) => i.clase === f)
+        : lista.filter((i) => i.clase === 'entrada' && i.entrada.tipo === f);
+    return agruparPorDia(filtradas, (i) => i.fecha);
   });
 
-  readonly total = computed(() => this.entradas()?.length ?? 0);
+  readonly total = computed(() => this.linea()?.length ?? 0);
 
   readonly puedeEscribir = computed(() => {
     const r = this.rol();
     return !!r && PUEDE_ESCRIBIR_BITACORA.includes(r);
   });
 
-  info(tipo: TipoEntrada) {
+  info(tipo: FiltroBitacora) {
+    if (tipo === 'toma') return INFO_TOMA;
+    if (tipo === 'tarea') return INFO_TAREA_BITACORA;
     return TIPO_ENTRADA_INFO[tipo];
+  }
+
+  /** Icono y color del tipo de tarea (comida, baño…) para el registro en la bitácora. */
+  infoTipoTarea(tipo: TipoTarea) {
+    return TIPO_TAREA_INFO[tipo] ?? TIPO_TAREA_INFO['otro'];
+  }
+
+  /** Verde si se hizo, rojo si se marcó como no hecha. */
+  colorRegistro(r: RegistroReciente): string {
+    return r.registro.hecha ? 'success' : 'danger';
+  }
+
+  /**
+   * Hora en que ocurrió lo escrito, solo si difiere de cuándo se registró (2 min o más);
+   * la bitácora se ordena por el registro, pero el usuario pudo fechar el hecho un poco antes.
+   */
+  ocurrio(item: ItemBitacora): Date | null {
+    if (item.clase !== 'entrada') return null;
+    const hecho = item.entrada.fecha.toDate();
+    return Math.abs(item.fecha.getTime() - hecho.getTime()) >= 2 * 60_000 ? hecho : null;
+  }
+
+  /** Verde si se tomó, rojo si se marcó como no tomada. */
+  colorToma(t: TomaRegistrada): string {
+    return t.toma.tomado ? 'success' : 'danger';
   }
 
   /** El cuidador principal edita todo; los demás solo lo que escribieron. */
@@ -118,6 +161,20 @@ export class BitacoraPage {
             this.filtro.set(t.valor);
           },
         })),
+        {
+          text: 'Tomas de medicamentos',
+          icon: INFO_TOMA.icono,
+          handler: () => {
+            this.filtro.set('toma');
+          },
+        },
+        {
+          text: 'Tareas de la rutina',
+          icon: INFO_TAREA_BITACORA.icono,
+          handler: () => {
+            this.filtro.set('tarea');
+          },
+        },
         {
           text: 'Todas las entradas',
           icon: 'funnel-outline',

@@ -2,21 +2,37 @@ import { Injectable, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import {
   Auth,
+  EmailAuthProvider,
   User,
   authState,
   createUserWithEmailAndPassword,
+  deleteUser,
+  reauthenticateWithCredential,
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
 } from '@angular/fire/auth';
-import { Firestore, doc, docData, serverTimestamp, setDoc, updateDoc } from '@angular/fire/firestore';
+import {
+  Firestore,
+  collection,
+  doc,
+  docData,
+  getDocs,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+} from '@angular/fire/firestore';
 import { Observable, catchError, of, switchMap } from 'rxjs';
 import { ROL_POR_TIPO, Rol, TipoUsuario, Usuario } from '../models';
+import { NotificacionesService } from './notificaciones.service';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly auth = inject(Auth);
   private readonly db = inject(Firestore);
+  private readonly notificaciones = inject(NotificacionesService);
 
   /** Emite el usuario actual (o null) cada vez que cambia la sesión. */
   readonly user$ = authState(this.auth);
@@ -80,13 +96,48 @@ export class AuthService {
     await updateDoc(doc(this.db, 'usuarios', uid), { tipo });
   }
 
+  /** Cambia el nombre para mostrar en Auth, en el perfil y en cada equipo del que forma parte. */
+  async actualizarNombre(nombre: string): Promise<void> {
+    const user = this.auth.currentUser;
+    const limpio = nombre.trim();
+    if (!user) throw new Error('No hay sesión iniciada');
+    if (!limpio) throw new Error('El nombre no puede estar vacío');
+    await updateProfile(user, { displayName: limpio });
+    await updateDoc(doc(this.db, 'usuarios', user.uid), { nombre: limpio });
+    // Copia desnormalizada en cada equipo (las rules permiten a cada quien cambiar solo su nombre)
+    const equipos = await getDocs(
+      query(collection(this.db, 'personas_cuidadas'), where('miembrosUids', 'array-contains', user.uid)),
+    );
+    await Promise.all(
+      equipos.docs.map((p) =>
+        updateDoc(doc(this.db, `personas_cuidadas/${p.id}/miembros/${user.uid}`), { nombre: limpio }).catch(
+          (e) => console.warn('No se pudo actualizar el nombre en un equipo', p.id, e),
+        ),
+      ),
+    );
+  }
+
+  /**
+   * Elimina la cuenta. Firebase exige sesión reciente, así que se vuelve a validar la contraseña.
+   * La Cloud Function `limpiarUsuarioEliminado` borra el perfil y lo quita de cada equipo.
+   */
+  async eliminarCuenta(password: string): Promise<void> {
+    const user = this.auth.currentUser;
+    if (!user?.email) throw new Error('No hay sesión iniciada');
+    await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, password));
+    await this.notificaciones.quitarDispositivo();
+    await deleteUser(user);
+  }
+
   async iniciarSesion(email: string, password: string): Promise<User> {
     const cred = await signInWithEmailAndPassword(this.auth, email, password);
     return cred.user;
   }
 
-  cerrarSesion(): Promise<void> {
-    return signOut(this.auth);
+  /** Da de baja este teléfono de las notificaciones (requiere sesión) y luego cierra la sesión. */
+  async cerrarSesion(): Promise<void> {
+    await this.notificaciones.quitarDispositivo();
+    await signOut(this.auth);
   }
 
   /** Traduce los códigos de error de Firebase Auth a mensajes para el usuario. */
@@ -107,6 +158,8 @@ export class AuthService {
         return 'Sin conexión. Revisa tu internet.';
       case 'auth/too-many-requests':
         return 'Demasiados intentos. Espera un momento.';
+      case 'auth/requires-recent-login':
+        return 'Por seguridad, cierra sesión, vuelve a entrar e inténtalo de nuevo.';
       case 'auth/operation-not-allowed':
         return 'Falta habilitar Correo/Contraseña en Firebase Console > Authentication.';
       default:
