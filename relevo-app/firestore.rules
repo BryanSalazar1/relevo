@@ -88,6 +88,47 @@ service cloud.firestore {
         && request.resource.data.miembrosUids == resource.data.miembrosUids.concat([request.auth.uid]);
     }
 
+    // ---------- validación de datos (mismos límites que el formulario de medicamento) ----------
+    function soloCambia(campos) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(campos);
+    }
+
+    // Inventario: sin controlar (null) o un entero de 0 en adelante; nunca negativo
+    function inventarioValido(d) {
+      return !('inventario' in d) || d.inventario == null
+        || (d.inventario is int && d.inventario >= 0 && d.inventario <= 99999);
+    }
+
+    // Último resurtido (lo que propone el botón Resurtir): opcional; si viene, un entero de 1 a 9999
+    function resurtidoValido(d) {
+      return !('ultimoResurtido' in d)
+        || (d.ultimoResurtido is int && d.ultimoResurtido >= 1 && d.ultimoResurtido <= 9999);
+    }
+
+    function medicamentoValido(d) {
+      return d.nombre is string && d.nombre.size() > 0 && d.nombre.size() <= 60
+        && d.dosis is string && d.dosis.size() > 0 && d.dosis.size() <= 40
+        && d.horarios is list && d.horarios.size() <= 12
+        && (!('notas' in d) || (d.notas is string && d.notas.size() <= 300))
+        && (!('duracionDias' in d) || d.duracionDias == null
+            || (d.duracionDias is int && d.duracionDias >= 1 && d.duracionDias <= 365))
+        && inventarioValido(d)
+        && resurtidoValido(d);
+    }
+
+    // Registrar o deshacer una toma mueve el inventario de uno en uno
+    // (o deja en 0 un negativo que venga de versiones anteriores de la app)
+    function ajusteDeToma() {
+      return request.resource.data.inventario == resource.data.inventario - 1
+        || request.resource.data.inventario == resource.data.inventario + 1
+        || (resource.data.inventario < 0 && request.resource.data.inventario == 0);
+    }
+
+    function tomaValida(d) {
+      return d.tomado is bool
+        && (!('nota' in d) || (d.nota is string && d.nota.size() <= 200));
+    }
+
     // ---------- usuarios/{uid} ----------
     match /usuarios/{userId} {
       allow read: if autenticado();
@@ -181,13 +222,26 @@ service cloud.firestore {
           || (esMiembro(personaId) && resource.data.autorUid == request.auth.uid);
       }
 
-      // medicamentos: solo el responsable los define; quienes registran tomas solo ajustan el inventario
+      // medicamentos: solo el responsable los define (con datos válidos); quienes registran tomas
+      // solo ajustan el inventario, de uno en uno, y nunca por debajo de 0.
+      // Suspender/reactivar, el ajuste de inventario y el resurtido del responsable (inventario +
+      // ultimoResurtido) no revalidan el resto del documento, para no bloquear medicamentos
+      // guardados antes de que existieran estos límites.
       match /medicamentos/{medicamentoId} {
         allow read: if esMiembro(personaId);
-        allow create, delete: if tieneRol(personaId, ['cuidador_principal']);
-        allow update: if tieneRol(personaId, ['cuidador_principal'])
+        allow create: if tieneRol(personaId, ['cuidador_principal'])
+          && medicamentoValido(request.resource.data);
+        allow delete: if tieneRol(personaId, ['cuidador_principal']);
+        allow update: if (tieneRol(personaId, ['cuidador_principal'])
+              && (soloCambia(['activo'])
+                  || (soloCambia(['inventario', 'ultimoResurtido'])
+                      && inventarioValido(request.resource.data)
+                      && resurtidoValido(request.resource.data))
+                  || medicamentoValido(request.resource.data)))
           || (tieneRol(personaId, ['cuidador_turno', 'familiar'])
-              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['inventario']));
+              && soloCambia(['inventario'])
+              && inventarioValido(request.resource.data)
+              && ajusteDeToma());
 
         // tomas: responsable, enfermeros y familiares registran (y corrigen) las tomas, firmadas
         // por quien escribe; el responsable además puede cambiar solo la nota de cualquier toma.
@@ -195,9 +249,10 @@ service cloud.firestore {
           allow read: if esMiembro(personaId);
           allow create, update, delete: if tieneRol(personaId, ['cuidador_principal', 'cuidador_turno', 'familiar'])
             && (request.method == 'delete'
-                || request.resource.data.registradoPor == request.auth.uid
-                || (tieneRol(personaId, ['cuidador_principal'])
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nota'])));
+                || (tomaValida(request.resource.data)
+                    && (request.resource.data.registradoPor == request.auth.uid
+                        || (tieneRol(personaId, ['cuidador_principal'])
+                            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nota'])))));
         }
       }
 

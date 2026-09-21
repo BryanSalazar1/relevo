@@ -338,6 +338,127 @@ export function dosisVencidas(medicamentos, ahora) {
   return salida;
 }
 
+// ---------------------------------------------------------------------------
+// Inventario bajo (la misma regla vive en la app; deben quedar idénticas)
+// ---------------------------------------------------------------------------
+
+/** Se avisa cuando lo que queda alcanza para estos días o menos. */
+export const DIAS_AVISO_INVENTARIO = 5;
+
+/** Mínimo absoluto de unidades, y umbral de los medicamentos "según necesidad". */
+export const UNIDADES_AVISO_INVENTARIO = 5;
+
+/** Días entre dos fechas ISO yyyy-mm-dd (hasta − desde; sin zona horaria). */
+function diasEntreIso(desde, hasta) {
+  const utc = (iso) => {
+    const [y, m, d] = iso.split('-').map(Number);
+    return Date.UTC(y, m - 1, d);
+  };
+  return Math.round((utc(hasta) - utc(desde)) / 86_400_000);
+}
+
+/**
+ * Cómo va el inventario del medicamento en la fecha local `hoyIso`:
+ * { nivel: 'ok' | 'bajo' | 'agotado', unidades, alDia, dias } (`dias` = para cuántos días alcanza;
+ * null si es según necesidad). Devuelve null si no aplica: no se controla el inventario, está
+ * suspendido o el tratamiento ya terminó.
+ */
+export function estadoInventario(m, hoyIso) {
+  if (typeof m?.inventario !== 'number' || !Number.isFinite(m.inventario)) return null;
+  if (m.activo === false) return null;
+  const duracion = Number(m.duracionDias);
+  const fin = m.inicio && duracion > 0 ? sumarDiasIso(m.inicio, duracion) : null; // exclusivo
+  if (fin && hoyIso >= fin) return null;
+
+  const unidades = Math.max(0, m.inventario); // datos antiguos pudieron quedar en -1
+  const alDia = m.segunNecesidad ? 0 : (m.horarios ?? []).length;
+  const dias = alDia > 0 ? Math.floor(unidades / alDia) : null;
+  const estado = (nivel) => ({ nivel, unidades, alDia, dias });
+
+  // Tratamiento con fin: si lo que hay alcanza para los días que faltan, no hace falta resurtir.
+  // Hoy no se cuenta: parte de sus dosis ya se descontó y aquí no se sabe cuáles (contarlo completo
+  // daba avisos falsos con un surtido exacto, p. ej. 21 pastillas para 7 días de 3 al día).
+  if (fin && alDia > 0) {
+    const desde = hoyIso >= m.inicio ? sumarDiasIso(hoyIso, 1) : m.inicio;
+    const faltanDosis = Math.max(0, diasEntreIso(desde, fin)) * alDia;
+    if (unidades >= faltanDosis) return estado('ok');
+  }
+  const umbral = Math.max(UNIDADES_AVISO_INVENTARIO, alDia * DIAS_AVISO_INVENTARIO);
+  return estado(unidades === 0 ? 'agotado' : unidades <= umbral ? 'bajo' : 'ok');
+}
+
+const GRAVEDAD_INVENTARIO = { bajo: 1, agotado: 2 };
+
+/**
+ * Decide si un cambio en el medicamento amerita aviso de inventario. `antes` / `despues` son los
+ * datos del documento (undefined al crear / al borrar) y `estado` el nivel del último aviso guardado.
+ * Devuelve { avisar, estado }: qué avisar ahora ('bajo' | 'agotado' | null) y el estado a guardar.
+ * Solo se avisa cuando el nivel empeora por una baja real del inventario (una toma o una corrección
+ * hacia abajo). El estado guardado solo mejora al resurtir: deshacer tomas (una o varias) lo
+ * conserva, para que volver a marcarlas no repita el aviso.
+ */
+export function avisoInventario({ antes, despues, estado, hoyIso }) {
+  const e = despues ? estadoInventario(despues, hoyIso) : null;
+  // Borrado, suspendido, terminado o sin control de inventario: no aplica y el aviso se rearma
+  if (!e) return { avisar: null, estado: null };
+  const inv = (x) =>
+    typeof x?.inventario === 'number' && Number.isFinite(x.inventario) ? x.inventario : null;
+  const nivel = GRAVEDAD_INVENTARIO[e.nivel] ? e.nivel : null;
+  const previo = estado ?? null;
+  const gravedad = (n) => GRAVEDAD_INVENTARIO[n] ?? 0;
+  const masGrave = gravedad(nivel) >= gravedad(previo) ? nivel : previo;
+  const a = inv(antes);
+  const d = inv(despues);
+
+  // Alta o empezar a controlar el inventario: quien lo capturó ya sabe cuánto hay
+  if (a === null) return { avisar: null, estado: nivel };
+  // Baja real. Reparar a 0 un negativo antiguo también cuenta: de ese agotado nunca se avisó
+  if (d < a || (a < 0 && d === 0)) {
+    return { avisar: gravedad(nivel) > gravedad(previo) ? nivel : null, estado: masGrave };
+  }
+  // Se editó otra cosa (más horarios, otra duración, reactivar): no se anota el nivel nuevo, para
+  // que la siguiente toma sí avise; si con el cambio mejoró, el aviso se rearma
+  if (d === a) return { avisar: null, estado: gravedad(nivel) < gravedad(previo) ? nivel : previo };
+  // +1 sin resurtido = se deshizo una toma: se conserva lo ya avisado
+  const resurtido = d - a >= 2 || antes.ultimoResurtido !== despues.ultimoResurtido;
+  if (!resurtido) return { avisar: null, estado: masGrave };
+  // Resurtido: el aviso se rearma (o queda en 'bajo' si compraron poco, sin avisar)
+  return { avisar: null, estado: nivel };
+}
+
+/** Aviso de inventario bajo o agotado (`estado` = resultado de estadoInventario). */
+export function mensajeInventario({ personaNombre, medicamento, estado }) {
+  const med = nombreMedicamento(medicamento);
+  if (estado.nivel === 'agotado') {
+    return {
+      titulo: `⚠️ ${personaNombre}: se acabó un medicamento`,
+      cuerpo: `Ya no quedan unidades de ${med}. Actualiza el inventario cuando lo resurtan.`,
+    };
+  }
+  const quedan = `${estado.unidades === 1 ? 'Queda' : 'Quedan'} ${estado.unidades} de ${med}`;
+  const alcance =
+    estado.dias === null
+      ? ' (según necesidad).'
+      : estado.dias === 0
+        ? ': no alcanza para un día completo.'
+        : `: alcanza para ${estado.dias} ${estado.dias === 1 ? 'día' : 'días'}.`;
+  return { titulo: `${personaNombre}: queda poco medicamento`, cuerpo: `${quedan}${alcance}` };
+}
+
+/**
+ * Quién recibe el aviso de inventario: los responsables siempre (son quienes resurten en la app) y
+ * los familiares, salvo que tengan las alertas desactivadas. Enfermeros y médicos no lo reciben.
+ */
+export function destinatariosInventario(miembros) {
+  return miembros
+    .filter(
+      (m) =>
+        m.uid &&
+        (m.rol === 'cuidador_principal' || (m.rol === 'familiar' && m.alertas !== false)),
+    )
+    .map((m) => m.uid);
+}
+
 /** Tokens que FCM rechazó como inválidos, según las respuestas de sendEachForMulticast. */
 export function tokensInvalidos(tokens, respuestas) {
   return tokens.filter((_, i) => {

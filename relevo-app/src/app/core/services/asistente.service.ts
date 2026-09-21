@@ -29,6 +29,7 @@ import {
   Toma,
 } from '../models';
 import { edad, etiquetaRango, sumarDias, textoDias } from '../utils/fechas';
+import { unidadesRestantes } from './medicamentos.service';
 
 export interface MensajeChat {
   rol: 'usuario' | 'asistente';
@@ -215,7 +216,7 @@ export class AsistenteService {
       const tomas = tomasPorMed[i];
       const omitidas = tomas.filter((t) => !t.tomado).length;
       lineas.push(
-        `- ${m.nombre} ${m.dosis}, ${m.segunNecesidad ? 'según necesidad (sin horario fijo)' : `horarios ${m.horarios?.join(', ') || 'sin horario'}`}, inventario ${m.inventario ?? '?'}` +
+        `- ${m.nombre} ${m.dosis}, ${m.segunNecesidad ? 'según necesidad (sin horario fijo)' : `horarios ${m.horarios?.join(', ') || 'sin horario'}`}, inventario ${unidadesRestantes(m) ?? '?'}` +
           `${m.activo === false ? ' (suspendido)' : ''}. Tomas registradas: ${tomas.length}, omitidas: ${omitidas}.`,
       );
       for (const t of tomas) {

@@ -2,13 +2,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  avisoInventario,
   correoHtml,
   deGuardia,
   destinatarios,
   destinatariosAlertas,
+  destinatariosInventario,
   enTurno,
   dosisVencidas,
   elementosAgenda,
+  estadoInventario,
+  mensajeInventario,
   mensajeProximo,
   proximos,
   INSTRUCCIONES_RESUMEN,
@@ -451,4 +455,426 @@ test('INSTRUCCIONES_RESUMEN: pide las secciones del PDF en el orden esperado', (
     assert.ok(i > pos, `falta o está fuera de orden: ${s}`);
     pos = i;
   }
+});
+
+// --- Inventario bajo ---
+
+const HOY = '2026-09-15';
+const losartan = (inventario, extra = {}) => ({
+  nombre: 'Losartán',
+  dosis: '50 mg',
+  horarios: ['08:00'],
+  inventario,
+  ...extra,
+});
+
+test('estadoInventario: umbral de 5 días según las tomas al día', () => {
+  assert.deepEqual(estadoInventario(losartan(5), HOY), {
+    nivel: 'bajo',
+    unidades: 5,
+    alDia: 1,
+    dias: 5,
+  });
+  assert.equal(estadoInventario(losartan(6), HOY).nivel, 'ok');
+  const metformina = (inventario) => ({ horarios: ['08:00', '20:00'], inventario });
+  assert.deepEqual(estadoInventario(metformina(10), HOY), {
+    nivel: 'bajo',
+    unidades: 10,
+    alDia: 2,
+    dias: 5,
+  });
+  assert.equal(estadoInventario(metformina(11), HOY).nivel, 'ok');
+  assert.deepEqual(estadoInventario(losartan(0), HOY), {
+    nivel: 'agotado',
+    unidades: 0,
+    alDia: 1,
+    dias: 0,
+  });
+});
+
+test('estadoInventario: según necesidad usa el mínimo de unidades y no calcula días', () => {
+  const paracetamol = (inventario) => ({ segunNecesidad: true, horarios: [], inventario });
+  assert.deepEqual(estadoInventario(paracetamol(5), HOY), {
+    nivel: 'bajo',
+    unidades: 5,
+    alDia: 0,
+    dias: null,
+  });
+  assert.equal(estadoInventario(paracetamol(6), HOY).nivel, 'ok');
+  // Aunque conserve horarios viejos, según necesidad no cuenta tomas al día
+  assert.equal(estadoInventario({ ...paracetamol(6), horarios: ['08:00', '20:00'] }, HOY).alDia, 0);
+});
+
+test('estadoInventario: null si no se controla, está suspendido o el tratamiento terminó', () => {
+  assert.equal(estadoInventario(losartan(null), HOY), null);
+  assert.equal(estadoInventario(losartan(undefined), HOY), null);
+  assert.equal(estadoInventario(losartan('5'), HOY), null);
+  assert.equal(estadoInventario(losartan(NaN), HOY), null);
+  assert.equal(estadoInventario(undefined, HOY), null);
+  assert.equal(estadoInventario(losartan(3, { activo: false }), HOY), null);
+  const tratamiento = { inicio: '2026-09-08', duracionDias: 7 }; // 8 al 14
+  assert.equal(estadoInventario(losartan(3, tratamiento), '2026-09-14').nivel, 'ok'); // último día
+  assert.equal(estadoInventario(losartan(3, tratamiento), HOY), null);
+});
+
+test('estadoInventario: un inventario negativo de datos antiguos cuenta como agotado', () => {
+  assert.deepEqual(estadoInventario(losartan(-1), HOY), {
+    nivel: 'agotado',
+    unidades: 0,
+    alDia: 1,
+    dias: 0,
+  });
+});
+
+test('estadoInventario: si alcanza para terminar el tratamiento está ok aunque sean pocas', () => {
+  const amoxicilina = (inventario, inicio = HOY) => ({
+    horarios: ['06:00', '14:00', '22:00'],
+    inicio,
+    duracionDias: 7,
+    inventario,
+  });
+  // Empieza hoy: hoy no se cuenta, faltan 6 días × 3 = 18
+  assert.equal(estadoInventario(amoxicilina(21), HOY).nivel, 'ok');
+  assert.equal(estadoInventario(amoxicilina(18), HOY).nivel, 'ok');
+  assert.equal(estadoInventario(amoxicilina(17), HOY).nivel, 'ok'); // no alcanza, pero sobran 15
+  assert.equal(estadoInventario(amoxicilina(15), HOY).nivel, 'bajo');
+  // Penúltimo día (inicio hace 5 días): faltan las 3 dosis de mañana
+  assert.equal(estadoInventario(amoxicilina(3, '2026-09-10'), HOY).nivel, 'ok');
+  assert.deepEqual(estadoInventario(amoxicilina(2, '2026-09-10'), HOY), {
+    nivel: 'bajo',
+    unidades: 2,
+    alDia: 3,
+    dias: 0,
+  });
+  assert.equal(estadoInventario(amoxicilina(0, '2026-09-10'), HOY).nivel, 'agotado');
+  // Último día (inicio hace 6 días): después de hoy no falta nada, así que quedarse en 0 es lo normal
+  assert.equal(estadoInventario(amoxicilina(2, '2026-09-09'), HOY).nivel, 'ok');
+  assert.equal(estadoInventario(amoxicilina(0, '2026-09-09'), HOY).nivel, 'ok');
+  // Todavía no empieza: se cuentan los 7 días completos desde el inicio
+  assert.equal(estadoInventario(amoxicilina(21, '2026-09-20'), HOY).nivel, 'ok');
+  assert.equal(estadoInventario(amoxicilina(12, '2026-09-20'), HOY).nivel, 'bajo');
+  // Cruza el fin de mes: del 2 al 3 de octubre faltan 2 días × 3
+  assert.equal(estadoInventario(amoxicilina(6, '2026-09-27'), '2026-10-01').nivel, 'ok');
+  assert.equal(estadoInventario(amoxicilina(5, '2026-09-27'), '2026-10-01').nivel, 'bajo');
+});
+
+test('avisoInventario: un tratamiento surtido con la cantidad exacta no avisa nunca; si falta un día, sí', () => {
+  const dias = ['2026-09-15', '2026-09-16', '2026-09-17', '2026-09-18', '2026-09-19', '2026-09-20', '2026-09-21'];
+  const curso = (inventario) => ({
+    nombre: 'Amoxicilina',
+    dosis: '500 mg',
+    horarios: ['06:00', '14:00', '22:00'],
+    inicio: dias[0],
+    duracionDias: 7,
+    inventario,
+  });
+  // Registra las 3 tomas de cada día, guardando el estado como lo hace el disparador
+  const seguir = (inicial) => {
+    const avisos = [];
+    let inventario = inicial;
+    let estado = null;
+    for (const hoyIso of dias) {
+      for (let toma = 0; toma < 3 && inventario > 0; toma++) {
+        const r = avisoInventario({ antes: curso(inventario), despues: curso(inventario - 1), estado, hoyIso });
+        if (r.avisar) avisos.push(`${hoyIso} ${r.avisar} (${inventario - 1})`);
+        estado = r.estado;
+        inventario -= 1;
+      }
+    }
+    return avisos;
+  };
+  assert.deepEqual(seguir(21), []);
+  assert.deepEqual(seguir(18), ['2026-09-15 bajo (15)', '2026-09-20 agotado (0)']);
+});
+
+/** Aplica cambios de inventario en cadena, guardando el estado como lo hace el disparador. */
+function seguirInventario(pasos, estado = null) {
+  const avisos = [];
+  for (const [a, d] of pasos) {
+    const r = avisoInventario({
+      antes: a === undefined ? undefined : losartan(a),
+      despues: d === undefined ? undefined : losartan(d),
+      estado,
+      hoyIso: HOY,
+    });
+    avisos.push(r.avisar);
+    estado = r.estado;
+  }
+  return { avisos, estado };
+}
+
+test('avisoInventario: avisa una vez al cruzar a bajo y otra al agotarse', () => {
+  assert.deepEqual(
+    avisoInventario({ antes: losartan(6), despues: losartan(5), estado: null, hoyIso: HOY }),
+    { avisar: 'bajo', estado: 'bajo' },
+  );
+  assert.deepEqual(
+    avisoInventario({ antes: losartan(5), despues: losartan(4), estado: 'bajo', hoyIso: HOY }),
+    { avisar: null, estado: 'bajo' },
+  );
+  assert.deepEqual(
+    avisoInventario({ antes: losartan(1), despues: losartan(0), estado: 'bajo', hoyIso: HOY }),
+    { avisar: 'agotado', estado: 'agotado' },
+  );
+  const r = seguirInventario([
+    [7, 6],
+    [6, 5],
+    [5, 4],
+    [4, 3],
+    [3, 2],
+    [2, 1],
+    [1, 0],
+  ]);
+  assert.deepEqual(r.avisos, [null, 'bajo', null, null, null, null, 'agotado']);
+  assert.equal(r.estado, 'agotado');
+});
+
+test('avisoInventario: deshacer una toma conserva el estado y rehacerla no repite el aviso', () => {
+  assert.deepEqual(
+    avisoInventario({ antes: losartan(5), despues: losartan(6), estado: 'bajo', hoyIso: HOY }),
+    { avisar: null, estado: 'bajo' },
+  );
+  const r = seguirInventario([
+    [6, 5],
+    [5, 6],
+    [6, 5],
+  ]);
+  assert.deepEqual(r.avisos, ['bajo', null, null]);
+  assert.equal(r.estado, 'bajo');
+  // Igual con el agotado: 1→0, deshacer y volver a marcar
+  const agotado = seguirInventario(
+    [
+      [1, 0],
+      [0, 1],
+      [1, 0],
+    ],
+    'bajo',
+  );
+  assert.deepEqual(agotado.avisos, ['agotado', null, null]);
+});
+
+test('avisoInventario: resurtir rearma el aviso y un nuevo cruce vuelve a avisar', () => {
+  assert.deepEqual(
+    avisoInventario({ antes: losartan(3), despues: losartan(33), estado: 'bajo', hoyIso: HOY }),
+    { avisar: null, estado: null },
+  );
+  const r = seguirInventario(
+    [
+      [3, 33],
+      [6, 5],
+    ],
+    'bajo',
+  );
+  assert.deepEqual(r.avisos, [null, 'bajo']);
+});
+
+test('avisoInventario: crear con inventario bajo no avisa pero deja el estado', () => {
+  assert.deepEqual(
+    avisoInventario({ antes: undefined, despues: losartan(4), estado: null, hoyIso: HOY }),
+    { avisar: null, estado: 'bajo' },
+  );
+  assert.deepEqual(
+    avisoInventario({ antes: undefined, despues: losartan(30), estado: null, hoyIso: HOY }),
+    { avisar: null, estado: null },
+  );
+  // Empezar a controlar el inventario de un medicamento que ya existía tampoco avisa
+  assert.deepEqual(
+    avisoInventario({ antes: losartan(null), despues: losartan(4), estado: null, hoyIso: HOY }),
+    { avisar: null, estado: 'bajo' },
+  );
+  // …pero la siguiente toma no repite y agotarlo sí avisa
+  const r = seguirInventario(
+    [
+      [4, 3],
+      [1, 0],
+    ],
+    'bajo',
+  );
+  assert.deepEqual(r.avisos, [null, 'agotado']);
+});
+
+test('avisoInventario: resurtir de 0 a 3 deja bajo sin avisar y al llegar a 0 avisa agotado', () => {
+  assert.deepEqual(
+    avisoInventario({ antes: losartan(0), despues: losartan(3), estado: 'agotado', hoyIso: HOY }),
+    { avisar: null, estado: 'bajo' },
+  );
+  assert.deepEqual(
+    avisoInventario({ antes: losartan(1), despues: losartan(0), estado: 'bajo', hoyIso: HOY }),
+    { avisar: 'agotado', estado: 'agotado' },
+  );
+});
+
+test('avisoInventario: reparar un -1 a 0 avisa del agotado una vez; resurtir desde un negativo no avisa', () => {
+  // De ese agotado nunca se avisó: el negativo viene de antes de que existiera el aviso
+  assert.deepEqual(
+    avisoInventario({ antes: losartan(-1), despues: losartan(0), estado: null, hoyIso: HOY }),
+    { avisar: 'agotado', estado: 'agotado' },
+  );
+  assert.deepEqual(
+    avisoInventario({ antes: losartan(-1), despues: losartan(0), estado: 'agotado', hoyIso: HOY }),
+    { avisar: null, estado: 'agotado' },
+  );
+  assert.deepEqual(
+    avisoInventario({ antes: losartan(-1), despues: losartan(3), estado: null, hoyIso: HOY }),
+    { avisar: null, estado: 'bajo' },
+  );
+  // Editar otra cosa de un medicamento que sigue en negativo no avisa
+  assert.deepEqual(
+    avisoInventario({
+      antes: losartan(-1),
+      despues: losartan(-1, { horarios: ['08:00', '20:00'] }),
+      estado: null,
+      hoyIso: HOY,
+    }),
+    { avisar: null, estado: null },
+  );
+});
+
+test('avisoInventario: deshacer varias tomas y volver a marcarlas no repite ningún aviso', () => {
+  const agotado = seguirInventario(
+    [
+      [1, 0],
+      [0, 1],
+      [1, 2],
+      [2, 1],
+      [1, 0],
+    ],
+    'bajo',
+  );
+  assert.deepEqual(agotado.avisos, ['agotado', null, null, null, null]);
+  assert.equal(agotado.estado, 'agotado');
+  const bajo = seguirInventario([
+    [6, 5],
+    [5, 6],
+    [6, 7],
+    [7, 6],
+    [6, 5],
+  ]);
+  assert.deepEqual(bajo.avisos, ['bajo', null, null, null, null]);
+  assert.equal(bajo.estado, 'bajo');
+});
+
+test('avisoInventario: resurtir una sola unidad también rearma el aviso (cambia ultimoResurtido)', () => {
+  const r = avisoInventario({
+    antes: losartan(0, { ultimoResurtido: 30 }),
+    despues: losartan(1, { ultimoResurtido: 1 }),
+    estado: 'agotado',
+    hoyIso: HOY,
+  });
+  assert.deepEqual(r, { avisar: null, estado: 'bajo' });
+  assert.deepEqual(
+    avisoInventario({
+      antes: losartan(1, { ultimoResurtido: 1 }),
+      despues: losartan(0, { ultimoResurtido: 1 }),
+      estado: r.estado,
+      hoyIso: HOY,
+    }),
+    { avisar: 'agotado', estado: 'agotado' },
+  );
+});
+
+test('avisoInventario: si queda bajo por editar otra cosa, avisa la siguiente toma', () => {
+  // Con 1 al día, 8 unidades están bien; al pasar a 2 al día el umbral sube a 10
+  const dosAlDia = { horarios: ['08:00', '20:00'] };
+  const editar = avisoInventario({
+    antes: losartan(8),
+    despues: losartan(8, dosAlDia),
+    estado: null,
+    hoyIso: HOY,
+  });
+  assert.deepEqual(editar, { avisar: null, estado: null });
+  assert.deepEqual(
+    avisoInventario({
+      antes: losartan(8, dosAlDia),
+      despues: losartan(7, dosAlDia),
+      estado: editar.estado,
+      hoyIso: HOY,
+    }),
+    { avisar: 'bajo', estado: 'bajo' },
+  );
+  // Y si con el cambio deja de estar bajo, el aviso se rearma
+  assert.deepEqual(
+    avisoInventario({
+      antes: losartan(8, dosAlDia),
+      despues: losartan(8),
+      estado: 'bajo',
+      hoyIso: HOY,
+    }),
+    { avisar: null, estado: null },
+  );
+});
+
+test('avisoInventario: borrar, suspender o dejar de controlar limpia el estado', () => {
+  assert.deepEqual(
+    avisoInventario({ antes: losartan(3), despues: undefined, estado: 'bajo', hoyIso: HOY }),
+    { avisar: null, estado: null },
+  );
+  assert.deepEqual(
+    avisoInventario({
+      antes: losartan(3),
+      despues: losartan(3, { activo: false }),
+      estado: 'bajo',
+      hoyIso: HOY,
+    }),
+    { avisar: null, estado: null },
+  );
+  assert.deepEqual(
+    avisoInventario({ antes: losartan(3), despues: losartan(null), estado: 'bajo', hoyIso: HOY }),
+    { avisar: null, estado: null },
+  );
+  // Al reactivarlo con poco inventario no avisa (no fue una baja) ni queda anotado: avisará la siguiente toma
+  assert.deepEqual(
+    avisoInventario({
+      antes: losartan(3, { activo: false }),
+      despues: losartan(3),
+      estado: null,
+      hoyIso: HOY,
+    }),
+    { avisar: null, estado: null },
+  );
+});
+
+test('mensajeInventario: plural, singular, menos de un día, según necesidad y agotado', () => {
+  const mensaje = (m) =>
+    mensajeInventario({
+      personaNombre: 'Lupe',
+      medicamento: m,
+      estado: estadoInventario(m, HOY),
+    });
+  const plural = mensaje(losartan(5));
+  assert.equal(plural.titulo, 'Lupe: queda poco medicamento');
+  assert.equal(plural.cuerpo, 'Quedan 5 de Losartán 50 mg: alcanza para 5 días.');
+  assert.equal(mensaje(losartan(1)).cuerpo, 'Queda 1 de Losartán 50 mg: alcanza para 1 día.');
+  assert.equal(
+    mensaje(losartan(1, { horarios: ['08:00', '20:00'] })).cuerpo,
+    'Queda 1 de Losartán 50 mg: no alcanza para un día completo.',
+  );
+  assert.equal(
+    mensaje(losartan(2, { horarios: ['06:00', '14:00', '22:00'] })).cuerpo,
+    'Quedan 2 de Losartán 50 mg: no alcanza para un día completo.',
+  );
+  assert.equal(
+    mensaje({ nombre: 'Paracetamol', dosis: '500 mg', segunNecesidad: true, inventario: 5 }).cuerpo,
+    'Quedan 5 de Paracetamol 500 mg (según necesidad).',
+  );
+  const agotado = mensaje(losartan(0));
+  assert.equal(agotado.titulo, '⚠️ Lupe: se acabó un medicamento');
+  assert.equal(
+    agotado.cuerpo,
+    'Ya no quedan unidades de Losartán 50 mg. Actualiza el inventario cuando lo resurtan.',
+  );
+});
+
+test('destinatariosInventario: responsables siempre, familiares con alertas; enfermeros y médicos no', () => {
+  const miembros = [
+    { uid: 'resp', rol: 'cuidador_principal', alertas: false },
+    { uid: 'resp2', rol: 'cuidador_principal' },
+    { uid: 'enf', rol: 'cuidador_turno' },
+    { uid: 'fam', rol: 'familiar' },
+    { uid: 'famSin', rol: 'familiar', alertas: false },
+    { uid: 'doc', rol: 'medico' },
+    { rol: 'cuidador_principal' },
+  ];
+  assert.deepEqual(destinatariosInventario(miembros), ['resp', 'resp2', 'fam']);
+  assert.deepEqual(destinatariosInventario([]), []);
 });

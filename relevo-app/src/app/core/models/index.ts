@@ -239,8 +239,10 @@ export interface Medicamento {
   inicio?: string;
   /** Cuántos días dura el tratamiento; null/sin valor = hasta que el médico lo indique */
   duracionDias?: number | null;
-  /** Unidades restantes; null si no se controla */
+  /** Unidades restantes (entero, nunca menor que 0); null si no se controla */
   inventario: number | null;
+  /** Unidades del último resurtido; es la cantidad que propone el botón Resurtir */
+  ultimoResurtido?: number;
   activo: boolean;
   notas?: string;
   creadoEn?: Timestamp;
@@ -256,6 +258,8 @@ export interface Toma {
   registradoNombre?: string;
   /** Toma de un medicamento según necesidad: no había horario, se registró en el momento */
   aDemanda?: boolean;
+  /** La toma no restó del inventario (estaba en 0 o no se controlaba): al deshacerla no se devuelve nada */
+  sinDescuento?: boolean;
   /** Nota de quien registró: motivo ("dolor de cabeza"), observación, etc. */
   nota?: string;
   /** Cuándo se registró; ordena la bitácora. Tomas antiguas no lo tienen (se usa horaReal u horaProgramada) */
