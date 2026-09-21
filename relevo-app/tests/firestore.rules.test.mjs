@@ -565,3 +565,57 @@ test('perfil: cada quien cambia solo su nombre en los equipos; no su rol ni el n
   const m = await getDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/miembros/luis`));
   assert.equal(m.data().nombre, 'Luis P.');
 });
+
+test('medicamentos: el inventario nunca queda negativo y los datos del medicamento se validan', async () => {
+  await anaCreaPersona();
+  await agregarLuisComo('cuidador_turno');
+  const med = (db, id = 'm1') => doc(db, `personas_cuidadas/${PERSONA_ID}/medicamentos/${id}`);
+  const base = { nombre: 'Omega 3', dosis: '1 tableta', horarios: [], segunNecesidad: true, inventario: 1, activo: true };
+
+  // La responsable no puede dar de alta datos inválidos
+  await assertFails(setDoc(med(ana(), 'x1'), { ...base, inventario: -1 }));
+  await assertFails(setDoc(med(ana(), 'x2'), { ...base, inventario: 2.5 }));
+  await assertFails(setDoc(med(ana(), 'x3'), { ...base, nombre: '' }));
+  await assertFails(setDoc(med(ana(), 'x4'), { ...base, dosis: 'x'.repeat(41) }));
+  await assertFails(setDoc(med(ana(), 'x5'), { ...base, duracionDias: 0 }));
+  await assertFails(setDoc(med(ana(), 'x6'), { ...base, duracionDias: 366 }));
+  await assertFails(setDoc(med(ana(), 'x7'), { ...base, horarios: Array.from({ length: 13 }, (_, i) => `${String(i).padStart(2, '0')}:00`) }));
+  await assertSucceeds(setDoc(med(ana()), base));
+  await assertSucceeds(setDoc(med(ana(), 'm2'), { ...base, inventario: null, duracionDias: null, notas: '' }));
+
+  // Mismo batch que MedicamentosService.registrarToma(): la toma + increment(-1)
+  const tomar = (db, tomaId, uid) => {
+    const b = writeBatch(db);
+    b.set(doc(med(db), 'tomas', tomaId), { tomado: true, registradoPor: uid });
+    b.update(med(db), { inventario: increment(-1) });
+    return b.commit();
+  };
+  await assertSucceeds(tomar(luis(), 't1', 'luis')); // 1 -> 0
+  await assertFails(tomar(luis(), 't2', 'luis')); // 0 -> -1: se rechaza el batch completo
+  await assertFails(tomar(ana(), 't3', 'ana')); // tampoco la responsable
+  assert.equal((await getDoc(med(ana()))).data().inventario, 0);
+  // Con 0 unidades la app registra la toma sin tocar el inventario
+  await assertSucceeds(setDoc(doc(med(luis()), 'tomas', 't2'), { tomado: true, registradoPor: 'luis', sinDescuento: true }));
+
+  // Quien registra tomas mueve el inventario de uno en uno; la responsable lo fija al resurtir
+  await assertFails(updateDoc(med(luis()), { inventario: 50 }));
+  await assertSucceeds(updateDoc(med(ana()), { inventario: 50 }));
+  await assertFails(updateDoc(med(ana()), { inventario: -5 }));
+  await assertSucceeds(updateDoc(med(luis()), { inventario: increment(1) }));
+
+  // Mismo update que MedicamentosService.resurtir(): solo la responsable, y con un resurtido válido
+  await assertSucceeds(updateDoc(med(ana()), { inventario: increment(30), ultimoResurtido: 30 }));
+  await assertFails(updateDoc(med(luis()), { inventario: increment(30), ultimoResurtido: 30 }));
+  await assertFails(updateDoc(med(ana()), { inventario: increment(30), ultimoResurtido: 0 }));
+  assert.equal((await getDoc(med(ana()))).data().inventario, 81);
+
+  // Un negativo que venga de versiones anteriores no bloquea: se puede suspender y reparar a 0
+  await env.withSecurityRulesDisabled((ctx) => updateDoc(med(ctx.firestore()), { inventario: -1 }));
+  await assertSucceeds(updateDoc(med(ana()), { activo: false }));
+  await assertFails(updateDoc(med(luis()), { inventario: increment(-1) }));
+  await assertSucceeds(updateDoc(med(luis()), { inventario: 0 }));
+
+  // Tomas: `tomado` es booleano y la nota tiene tope
+  await assertFails(setDoc(doc(med(luis()), 'tomas', 't8'), { tomado: 'si', registradoPor: 'luis' }));
+  await assertFails(setDoc(doc(med(luis()), 'tomas', 't9'), { tomado: true, registradoPor: 'luis', nota: 'x'.repeat(201) }));
+});

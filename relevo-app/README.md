@@ -307,6 +307,7 @@ Cada vez que cambies código web: `ionic build && npx cap sync`.
 | Una tarea de la rutina se marca **no hecha** | Los demás miembros (con la nota, si la hay) |
 | Una dosis pasó de su hora y nadie la registró (revisión cada 10 min, hasta 2 h después, una sola vez) | **Quien está de guardia** (turnos de cada miembro, ver *Equipo*); sin turnos definidos, todos los que registran; nadie de guardia, el responsable |
 | **Se acerca una tarea de la rutina o una toma** (revisión cada 5 min; tareas: minutos que eligió el responsable, medicamentos: `AVISO_MEDICAMENTOS_MIN`, 15 por defecto). Una sola vez y solo si aún no se registró | **Quien está de guardia** (igual que arriba) |
+| **El inventario de un medicamento se está acabando** (alcanza para 5 días o menos) **o se agotó** (20/09/2026). Una vez por nivel; resurtir rearma el aviso | **Responsables** (siempre) y **familiares** (salvo con las alertas apagadas) |
 
 Tocar la notificación abre la pantalla correspondiente (`data.url`). Con la app abierta se muestra
 como aviso dentro de la app.
@@ -333,13 +334,14 @@ como aviso dentro de la app.
   con un enlace a la app. Mientras `CORREO_USUARIO` esté vacío, el correo se omite y solo salen push.
 
 ### Dónde está
-- `functions/index.js` — ocho Cloud Functions (`notificarEntradaBitacora`, `notificarToma`,
-  `notificarRegistroTarea`, `recordarTomasPendientes`, `avisarProximas`, `limpiarUsuarioEliminado`,
-  `preguntarAsistente`, `resumirReporte`) y el envío por FCM / SMTP (nodemailer).
+- `functions/index.js` — nueve Cloud Functions (`notificarEntradaBitacora`, `notificarToma`,
+  `notificarRegistroTarea`, `recordarTomasPendientes`, `avisarProximas`, `avisarInventarioBajo`,
+  `limpiarUsuarioEliminado`, `preguntarAsistente`, `resumirReporte`) y el envío por FCM / SMTP (nodemailer).
 - `functions/logica.js` — lógica pura (mensajes, destinatarios, dosis vencidas, zona horaria) con
   pruebas en `functions/logica.test.mjs` (`npm run test:functions`; también corren antes de cada deploy).
 - `src/app/core/services/notificaciones.service.ts` — registro del teléfono y manejo de la notificación.
-- `functions/.env.example` — parámetros; `recordatorios/` en Firestore guarda qué dosis ya se recordaron.
+- `functions/.env.example` — parámetros; `recordatorios/` en Firestore guarda qué dosis ya se recordaron
+  y el último nivel de inventario avisado de cada medicamento (`inventario-{medicamentoId}`).
 
 ### Pasos para activarlo
 1. **Plan Blaze** en Firebase Console (Cloud Functions y Cloud Scheduler lo requieren; el nivel
@@ -487,6 +489,39 @@ decisión: en la web se avisa por correo.
   *Tomas del día* a la hora en que se dieron (solo se pueden quitar), en la bitácora y en el reporte
   como "N tomas en el periodo" sin porcentaje de adherencia. No generan recordatorios ni avisos
   previos, pero sí avisan al equipo cuando se registran (`notificarToma`).
+- **Inventario nunca negativo y validaciones** (20/09/2026): antes, registrar una toma con el
+  inventario en 0 lo dejaba en **-1** (`increment(-1)` sin tope). Ahora la toma se registra igual
+  (la persona sí se la tomó) pero no descuenta: queda marcada con `sinDescuento: true` para que
+  deshacerla no devuelva una unidad que nunca se restó, y la app avisa que hay que actualizar el
+  inventario. Un negativo guardado por versiones anteriores se muestra como 0 y se repara a 0 en
+  la siguiente toma. El formulario valida con mensajes visibles: nombre (2–60 caracteres, con
+  letras, sin repetir un medicamento vigente con el mismo nombre, dosis y modalidad), dosis (≤ 40),
+  horarios (válidos, sin repetir, ≥ 30 min entre sí, máximo 12), inicio (del año 2000 a un año desde
+  hoy), duración (entero de 1 a 365), inventario (entero de 0 a 9999) y notas (≤ 300); además indica
+  para cuántos días alcanza el inventario. Al confirmar una toma se avisa si la dosis está
+  adelantada más de 1 h, si hay otra toma según necesidad de hace menos de 1 h o si el inventario
+  está en 0. Las rules repiten los límites (`medicamentoValido`, `inventarioValido`), obligan a que
+  enfermero/a y familiar muevan el inventario de uno en uno (`ajusteDeToma`) y validan las tomas
+  (`tomaValida`); suspender/reactivar y el ajuste de inventario no revalidan el resto del
+  documento, para no bloquear medicamentos anteriores a estos límites.
+- **Inventario bajo y «Resurtir»** (20/09/2026): un medicamento está **por acabarse** cuando lo que
+  queda alcanza para 5 días o menos (mínimo 5 unidades; los de según necesidad, 5 unidades) y
+  **agotado** en 0; si lo que hay alcanza para los días que le faltan a un tratamiento con fin, no
+  se avisa (el día de hoy no se cuenta: parte de sus dosis ya se descontó, y contarlo completo daba
+  avisos falsos con un surtido exacto, p. ej. 21 pastillas para 7 días). La regla es
+  `estadoInventario`, idéntica en `medicamentos.service.ts` y en `functions/logica.js` (si cambias
+  una, cambia la otra). En la app: sección **Por resurtir** arriba de *Tomas del día* («Quedan 5:
+  alcanza para 5 días»), el badge de la lista por nivel (rojo agotado, amarillo por acabarse) y un
+  contador en la pestaña **Medicinas**, visibles para todo el equipo. El responsable tiene el botón
+  **Resurtir** (también en el menú del medicamento): propone las unidades del último resurtido
+  (`ultimoResurtido`, 30 la primera vez) y las suma al inventario. Por push/correo avisa la Cloud
+  Function `avisarInventarioBajo` (§8): una vez al pasar a "queda poco" y otra al agotarse; deshacer
+  y volver a marcar tomas no repite el aviso, y resurtir lo rearma. Si el medicamento ya estaba en
+  0, el aviso de "se acabó" sale desde `notificarToma` (esas tomas llevan `sinDescuento` y no
+  cambian el medicamento). Si el envío falla, la anotación se deshace para reintentar en la
+  siguiente baja. Editar un medicamento sin tocar el campo Inventario ya no lo reescribe (antes
+  pisaba las tomas registradas con el formulario abierto), y si las rules rechazan el descuento de
+  una toma (dos teléfonos con la última unidad), la toma se guarda sola, sin descontar.
 - El reporte y el asistente ya leen estos datos (adherencia, tomas omitidas).
 
 ### Rutina (`/personas/:id/rutina`) — 15/09/2026
@@ -597,10 +632,10 @@ decisión: en la web se avisa por correo.
   `NoDefaultCurrentDirectoryInExePath` cmd no encuentra el archivo aunque esté en la carpeta.
 
 ### Pruebas
-- `npm run test:rules` — 20 pruebas de Security Rules contra el emulador.
-- `npm run test:functions` — 25 pruebas de la lógica de notificaciones y del asistente (mensajes, destinatarios,
+- `npm run test:rules` — 21 pruebas de Security Rules contra el emulador.
+- `npm run test:functions` — 43 pruebas de la lógica de notificaciones y del asistente (mensajes, destinatarios,
   turnos de guardia, alertas, dosis vencidas, avisos previos, duración de tratamientos, días de la
-  semana, zona horaria).
+  semana, zona horaria, inventario bajo y su aviso). Corren con Node solo, sin emulador ni Java.
 - `npm run test:e2e` — recorrido completo en Chromium contra la app publicada: login, bitácora,
   invitación con QR, reporte + PDF, unirse con código y limpieza de lo creado.
 

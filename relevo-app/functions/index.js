@@ -18,6 +18,9 @@
  *   - recordarTomasPendientes: cada 10 min, dosis ya pasadas de su hora sin registro → quienes registran tomas.
  *   - avisarProximas: cada 5 min, tareas de la rutina y medicamentos cuya hora se acerca → quienes cuidan.
  *   - notificarRegistroTarea: una tarea de la rutina se marca "no hecha" → los demás (alerta).
+ *   - avisarInventarioBajo: el inventario de un medicamento baja a "queda poco" o se agota → responsables
+ *     y familiares (una vez por nivel; resurtir rearma el aviso). Si ya estaba en 0, el "se acabó" sale
+ *     desde notificarToma, porque esas tomas no cambian el medicamento.
  *   - limpiarUsuarioEliminado: al borrar una cuenta en Auth, borra su perfil y lo quita de cada equipo.
  *   - resumirReporte (invocable): resumen narrativo de un periodo para el reporte PDF, con el mismo contexto.
  *   - preguntarAsistente (invocable): el asistente de IA; recibe el contexto que arma la app y llama a Gemini
@@ -40,15 +43,19 @@ import nodemailer from 'nodemailer';
 import {
   INSTRUCCIONES_ASISTENTE,
   INSTRUCCIONES_RESUMEN,
+  avisoInventario,
   correoHtml,
   correoTexto,
   deGuardia,
   destinatariosAlertas,
+  destinatariosInventario,
   dosisVencidas,
   elementosAgenda,
+  estadoInventario,
   historialGemini,
   horarioDe,
   mensajeEntrada,
+  mensajeInventario,
   mensajeProximo,
   mensajeRecordatorio,
   mensajeTarea,
@@ -265,10 +272,18 @@ export const notificarToma = onDocumentWritten(
     const despues = event.data?.after?.data();
     if (!despues || despues.semilla) return;
     if (antes && antes.tomado === despues.tomado) return;
+    const { personaId, medicamentoId } = event.params;
+    // Toma que no tuvo de dónde descontarse (inventario en 0): el medicamento no cambia, así que
+    // avisarInventarioBajo no se entera; el aviso de "se acabó" sale de aquí, una sola vez
+    if (despues.tomado && despues.sinDescuento) {
+      const agotado = (m) => typeof m?.inventario === 'number' && m.inventario <= 0;
+      await revisarInventario(personaId, medicamentoId, (actual) =>
+        agotado(actual) ? { ...actual, inventario: 1 } : actual,
+      ).catch(() => {}); // ya quedó en el log; que no impida el aviso de la toma
+    }
     // Las tomas según necesidad no tenían horario: avisar que se dio es lo importante
     if (despues.tomado && !despues.aDemanda && !NOTIFICAR_TOMAS_REALIZADAS.value()) return;
 
-    const { personaId, medicamentoId } = event.params;
     const [p, ms, medSnap] = await Promise.all([
       persona(personaId),
       miembros(personaId),
@@ -326,6 +341,96 @@ export const notificarRegistroTarea = onDocumentWritten(
     });
   },
 );
+
+/** Campos del medicamento de los que depende el aviso de inventario. */
+const CAMPOS_INVENTARIO = [
+  'inventario',
+  'horarios',
+  'segunNecesidad',
+  'activo',
+  'inicio',
+  'duracionDias',
+];
+
+/**
+ * El inventario de un medicamento bajó a "queda poco" o se agotó → avisa a responsables y familiares.
+ * Una sola vez por nivel: el último aviso se anota en `recordatorios/inventario-{medicamentoId}` y
+ * se borra al resurtir (o al suspender, terminar o borrar el medicamento) para que vuelva a avisar.
+ */
+export const avisarInventarioBajo = onDocumentWritten(
+  {
+    document: 'personas_cuidadas/{personaId}/medicamentos/{medicamentoId}',
+    ...opciones,
+  },
+  async (event) => {
+    const antes = event.data?.before?.data();
+    const despues = event.data?.after?.data();
+    // Editar el nombre o las notas no cuesta lecturas
+    if (
+      antes &&
+      despues &&
+      CAMPOS_INVENTARIO.every((c) => JSON.stringify(antes[c]) === JSON.stringify(despues[c]))
+    ) {
+      return;
+    }
+
+    const { personaId, medicamentoId } = event.params;
+    await revisarInventario(personaId, medicamentoId, () => antes);
+  },
+);
+
+/**
+ * Decide y envía el aviso de inventario de un medicamento. `antesDe(actual)` da los datos previos al
+ * cambio. Se decide con el documento ACTUAL, no con la foto del evento: los eventos pueden llegar
+ * repetidos o fuera de orden (p. ej. la última toma hecha sin conexión, después del resurtido).
+ */
+async function revisarInventario(personaId, medicamentoId, antesDe) {
+  const hoyIso = partesEnZona(new Date(), ZONA_HORARIA.value()).fecha;
+  const medRef = db().doc(`personas_cuidadas/${personaId}/medicamentos/${medicamentoId}`);
+  const estadoRef = db().doc(
+    `personas_cuidadas/${personaId}/recordatorios/inventario-${medicamentoId}`,
+  );
+  const guardar = (tx, existe, nivel) => {
+    if (nivel === null) {
+      if (existe) tx.delete(estadoRef);
+    } else {
+      tx.set(estadoRef, { medicamentoId, nivel, actualizadoEn: FieldValue.serverTimestamp() });
+    }
+  };
+
+  // En transacción: dos tomas casi simultáneas no deben duplicar el aviso
+  const { avisar, actual, guardado, escrito } = await db().runTransaction(async (tx) => {
+    const [snap, medSnap] = await tx.getAll(estadoRef, medRef);
+    const actual = medSnap.data(); // undefined si ya se borró
+    const guardado = snap.data()?.nivel ?? null;
+    const r = avisoInventario({ antes: antesDe(actual), despues: actual, estado: guardado, hoyIso });
+    if (r.estado !== guardado) guardar(tx, snap.exists, r.estado);
+    return { avisar: r.avisar, actual, guardado, escrito: r.estado };
+  });
+  if (!avisar) return;
+
+  try {
+    const [p, ms] = await Promise.all([persona(personaId), miembros(personaId)]);
+    if (!p) return;
+    await notificar(destinatariosInventario(ms), {
+      ...mensajeInventario({
+        personaNombre: p.nombre,
+        medicamento: actual,
+        estado: estadoInventario(actual, hoyIso),
+      }),
+      url: `/personas/${personaId}/medicamentos`,
+      personaId,
+    });
+  } catch (error) {
+    // El aviso no salió: se deshace la anotación (si nadie la cambió) para que la siguiente baja reintente
+    await db().runTransaction(async (tx) => {
+      const snap = await tx.get(estadoRef);
+      if ((snap.data()?.nivel ?? null) === escrito) guardar(tx, snap.exists, guardado);
+    });
+    logger.error('No se pudo avisar del inventario', { personaId, medicamentoId, error: String(error) });
+    throw error;
+  }
+}
 
 /**
  * Cada 10 minutos revisa las dosis de hoy que ya pasaron de su hora y no tienen registro, y

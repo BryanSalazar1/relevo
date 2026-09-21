@@ -28,16 +28,27 @@ import { Medicamento, PUEDE_EDITAR_MEDICAMENTOS, PUEDE_REGISTRAR_TOMAS, Toma } f
 import {
   DatosMedicamento,
   DosisProgramada,
+  EstadoInventario,
   EstadoToma,
+  LIMITES_MEDICAMENTO,
   MedicamentosService,
+  agotado,
+  estadoInventario,
   finTratamiento,
+  textoInventario,
+  unidadesRestantes,
   vigenteEnDia,
 } from '../../core/services/medicamentos.service';
-import { claveDia, etiquetaDia, haceCuanto, inicioDeDia, sumarDias } from '../../core/utils/fechas';
+import { claveDia, etiquetaDia, haceCuanto, inicioDeDia, sumarDias, textoDuracion } from '../../core/utils/fechas';
 import { formatDate } from '@angular/common';
 import { pedirNota } from '../../core/utils/notas';
 import { personaActual } from '../../core/utils/persona-actual';
 import { MedicamentoModal } from './medicamento.modal';
+
+/** Marcar una dosis con más de estos minutos de anticipación muestra un aviso en la confirmación. */
+const DOSIS_ADELANTADA_MIN = 60;
+/** Una toma según necesidad con otra registrada hace menos de estos minutos avisa de un posible duplicado. */
+const TOMA_RECIENTE_MIN = 60;
 
 @Component({
   selector: 'app-medicamentos',
@@ -110,6 +121,31 @@ export class MedicamentosPage {
     return !!r && PUEDE_REGISTRAR_TOMAS.includes(r);
   });
 
+  /** Unidades restantes que se muestran en la lista (nunca negativas). */
+  readonly restantes = unidadesRestantes;
+  /** Hay un cuadro de "Resurtir" abierto */
+  private resurtiendo = false;
+
+  /** Medicamentos que se están acabando o ya se agotaron: primero los agotados, luego por nombre. */
+  readonly porResurtir = computed(() =>
+    (this.medicamentos() ?? [])
+      .map((m) => ({ m, estado: estadoInventario(m) }))
+      .filter((x): x is { m: Medicamento; estado: EstadoInventario } => !!x.estado && x.estado.nivel !== 'ok')
+      .sort(
+        (a, b) =>
+          Number(b.estado.nivel === 'agotado') - Number(a.estado.nivel === 'agotado') ||
+          a.m.nombre.localeCompare(b.m.nombre),
+      ),
+  );
+  readonly hayAgotados = computed(() => this.porResurtir().some((x) => x.estado.nivel === 'agotado'));
+  readonly textoInventario = textoInventario;
+
+  /** Color del badge de inventario en la lista: agotado, por acabarse o normal. */
+  colorInventario(m: Medicamento): string {
+    const nivel = estadoInventario(m)?.nivel;
+    return nivel === 'agotado' ? 'danger' : nivel === 'bajo' ? 'warning' : 'light';
+  }
+
   /** Ya pasó el último día del tratamiento (se muestra atenuado, como los suspendidos). */
   terminado(m: Medicamento): boolean {
     const fin = finTratamiento(m);
@@ -138,13 +174,30 @@ export class MedicamentosPage {
     return `Última toma: ${haceCuanto((t.horaReal ?? t.horaProgramada).toDate())}${quien}${nota}`;
   }
 
+  /** "El inventario está en 0…" para la confirmación de una toma que ya no tiene de dónde descontarse. */
+  private avisoAgotado(m: Medicamento): string {
+    return agotado(m) ? 'El inventario está en 0: la toma se registra sin descontar.' : '';
+  }
+
+  /** Tras registrar una toma sin unidades: recuerda actualizar el inventario. */
+  private avisarAgotado(m: Medicamento) {
+    const quien = this.puedeEditar() ? 'actualiza el inventario' : 'avisa al responsable para que actualice el inventario';
+    return this.aviso(`Toma registrada. ${m.nombre} está en 0 unidades: ${quien} si ya compraron más.`, 'warning');
+  }
+
   /** Registra una toma "ahora" de un medicamento según necesidad (con confirmación). */
   async registrarAhora(m: Medicamento) {
     const personaId = this.ctx.personaId();
     if (!personaId || !this.puedeRegistrar() || !m.id) return;
+    const ultima = this.ultimas()?.[m.id];
+    const haceMin = ultima ? (Date.now() - (ultima.horaReal ?? ultima.horaProgramada).toDate().getTime()) / 60000 : null;
+    const avisos = [
+      haceMin !== null && haceMin < TOMA_RECIENTE_MIN ? 'Ya hay una toma de hace menos de una hora: revisa que no sea un registro repetido.' : '',
+      this.avisoAgotado(m),
+    ].filter(Boolean);
     const alerta = await this.alertCtrl.create({
       header: `¿Registrar una toma de ${m.nombre}?`,
-      message: `${m.dosis} · ahora. ${this.ultimaTomaTexto(m)}.`,
+      message: [`${m.dosis} · ahora. ${this.ultimaTomaTexto(m)}.`, ...avisos].join(' '),
       inputs: [
         {
           name: 'nota',
@@ -164,7 +217,8 @@ export class MedicamentosPage {
     const nota = data?.values?.nota?.trim() || undefined;
     try {
       await this.medsSvc.registrarToma(personaId, this.medsSvc.dosisAhora(m), 'tomada', nota);
-      await this.aviso(`Toma de ${m.nombre} registrada.`, 'success');
+      if (agotado(m)) await this.avisarAgotado(m);
+      else await this.aviso(`Toma de ${m.nombre} registrada.`, 'success');
     } catch (error) {
       console.error(error);
       await this.aviso('No se pudo registrar la toma.', 'danger');
@@ -194,10 +248,17 @@ export class MedicamentosPage {
     const personaId = this.ctx.personaId();
     if (!personaId || !this.puedeRegistrar()) return;
     let nota: string | undefined;
+    // Se marca tomada (no lo estaba) y ya no quedan unidades: se registra, pero no hay de dónde descontar
+    const sinUnidades = estado === 'tomada' && !d.toma?.tomado && agotado(d.medicamento);
     if (estado !== 'quitar') {
+      const faltanMin = (d.hora.getTime() - Date.now()) / 60000;
+      const avisos = [
+        faltanMin > DOSIS_ADELANTADA_MIN ? `Aún faltan ${textoDuracion(Math.round(faltanMin))} para esta dosis.` : '',
+        sinUnidades ? this.avisoAgotado(d.medicamento) : '',
+      ].filter(Boolean);
       const r = await pedirNota(this.alertCtrl, {
         header: `¿Marcar como ${estado === 'tomada' ? 'tomada' : 'no tomada'}?`,
-        message: `${d.medicamento.nombre} ${d.medicamento.dosis} · dosis de las ${d.horario}`,
+        message: [`${d.medicamento.nombre} ${d.medicamento.dosis} · dosis de las ${d.horario}${avisos.length ? '.' : ''}`, ...avisos].join(' '),
         confirmar: 'Marcar',
       });
       if (!r.ok) return;
@@ -205,6 +266,7 @@ export class MedicamentosPage {
     }
     try {
       await this.medsSvc.registrarToma(personaId, d, estado, nota);
+      if (sinUnidades) await this.avisarAgotado(d.medicamento);
     } catch (error) {
       console.error(error);
       await this.aviso('No se pudo registrar la toma.', 'danger');
@@ -309,7 +371,7 @@ export class MedicamentosPage {
     if (!this.puedeEditar()) return;
     const modal = await this.modalCtrl.create({
       component: MedicamentoModal,
-      componentProps: { medicamento },
+      componentProps: { medicamento, existentes: this.medicamentos() ?? [] },
     });
     await modal.present();
     const { data, role } = await modal.onWillDismiss<DatosMedicamento>();
@@ -318,7 +380,10 @@ export class MedicamentosPage {
     if (!personaId) return;
     try {
       if (medicamento?.id) {
-        await this.medsSvc.actualizar(personaId, medicamento.id, data);
+        // Si no tocó el inventario no se reescribe: pisaría las tomas registradas con el formulario abierto
+        const cambios: Partial<DatosMedicamento> = { ...data };
+        if (data.inventario === (medicamento.inventario ?? null)) delete cambios.inventario;
+        await this.medsSvc.actualizar(personaId, medicamento.id, cambios);
         await this.aviso('Medicamento actualizado.', 'success');
       } else {
         await this.medsSvc.crear(personaId, data);
@@ -345,6 +410,13 @@ export class MedicamentosPage {
           },
         },
         {
+          text: 'Resurtir',
+          icon: 'add',
+          handler: () => {
+            void this.resurtir(m);
+          },
+        },
+        {
           text: m.activo === false ? 'Reactivar' : 'Suspender',
           icon: m.activo === false ? 'play-circle-outline' : 'pause-circle-outline',
           handler: () => {
@@ -363,6 +435,78 @@ export class MedicamentosPage {
       ],
     });
     await sheet.present();
+  }
+
+  /** Por qué no se pueden sumar esas unidades al inventario ('' si sí se puede). */
+  private motivoResurtidoInvalido(m: Medicamento, unidades: number): string {
+    const maximo = LIMITES_MEDICAMENTO.inventario;
+    if (!Number.isInteger(unidades) || unidades < 1) return 'Escribe cuántas unidades compraron: un número entero de 1 en adelante.';
+    if ((this.restantes(m) ?? 0) + unidades > maximo) return `El inventario no puede pasar de ${maximo} unidades.`;
+    return '';
+  }
+
+  /** El responsable suma al inventario las unidades que compraron (propone las del último resurtido, o 30). */
+  async resurtir(m: Medicamento) {
+    const personaId = this.ctx.personaId();
+    if (!personaId || !this.puedeEditar() || !m.id || this.resurtiendo) return;
+    // Un doble toque abriría dos cuadros y sumaría dos veces
+    this.resurtiendo = true;
+    try {
+      await this.pedirResurtido(personaId, m);
+    } finally {
+      this.resurtiendo = false;
+    }
+  }
+
+  private async pedirResurtido(personaId: string, m: Medicamento) {
+    const quedan = this.restantes(m);
+    const alerta = await this.alertCtrl.create({
+      header: `Resurtir ${m.nombre}`,
+      message:
+        quedan === null
+          ? 'Este medicamento no lleva inventario. ¿Con cuántas unidades empieza?'
+          : `${quedan === 0 ? 'Ya no quedan unidades' : quedan === 1 ? 'Queda 1' : `Quedan ${quedan}`}. ¿Cuántas compraron?`,
+      inputs: [
+        {
+          name: 'unidades',
+          type: 'number',
+          min: 1,
+          value: m.ultimoResurtido ?? 30,
+          placeholder: 'Unidades que compraron',
+          attributes: { inputmode: 'numeric' },
+        },
+      ],
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        {
+          text: 'Resurtir',
+          role: 'confirm',
+          handler: (valores: { unidades?: string }) => {
+            const motivo = this.motivoResurtidoInvalido(m, Number(valores?.unidades));
+            if (!motivo) return true;
+            // El cuadro sigue abierto para que corrija la cantidad
+            void this.aviso(motivo, 'danger');
+            return false;
+          },
+        },
+      ],
+    });
+    await alerta.present();
+    const { role, data } = await alerta.onDidDismiss<{ values: { unidades?: string } }>();
+    if (role !== 'confirm') return;
+    const unidades = Number(data?.values?.unidades);
+    // Mientras el cuadro estaba abierto pudo registrarse una toma: se parte del inventario más reciente
+    const actual = this.medicamentos()?.find((x) => x.id === m.id) ?? m;
+    const motivo = this.motivoResurtidoInvalido(actual, unidades);
+    if (motivo) return this.aviso(motivo, 'danger');
+    try {
+      await this.medsSvc.resurtir(personaId, actual, unidades);
+      const total = (this.restantes(actual) ?? 0) + unidades;
+      await this.aviso(`Inventario de ${m.nombre}: ${total} unidades.`, 'success');
+    } catch (error) {
+      console.error(error);
+      await this.aviso('No se pudo actualizar el inventario.', 'danger');
+    }
   }
 
   private async eliminar(m: Medicamento) {
@@ -388,8 +532,8 @@ export class MedicamentosPage {
     }
   }
 
-  private async aviso(message: string, color: 'success' | 'danger') {
-    const t = await this.toast.create({ message, color, duration: 2500, position: 'top' });
+  private async aviso(message: string, color: 'success' | 'warning' | 'danger') {
+    const t = await this.toast.create({ message, color, duration: color === 'warning' ? 5000 : 2500, position: 'top' });
     await t.present();
   }
 }
