@@ -1,7 +1,11 @@
 <ion-header>
   <ion-toolbar color="primary">
     <ion-buttons slot="start">
-      <ion-back-button defaultHref="/home" text="" />
+      @if (enModal) {
+        <ion-button (click)="cerrar()">Cerrar</ion-button>
+      } @else {
+        <ion-back-button defaultHref="/home" text="" />
+      }
     </ion-buttons>
     <ion-title>Asistente</ion-title>
     <ion-buttons slot="end">

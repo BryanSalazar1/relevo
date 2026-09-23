@@ -38,10 +38,12 @@ import { formatDate } from '@angular/common';
 import { pedirNota } from '../../core/utils/notas';
 import { personaActual } from '../../core/utils/persona-actual';
 import { MedicamentoModal } from './medicamento.modal';
+import { FabAsistente } from '../../shared/fab-asistente.component';
 
 @Component({
   selector: 'app-medicamentos',
   imports: [
+    FabAsistente,
     DatePipe,
     IonHeader,
     IonToolbar,

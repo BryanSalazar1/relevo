@@ -35,5 +35,6 @@ import { IonIcon, IonLabel, IonTabBar, IonTabButton, IonTabs } from '@ionic/angu
       </ion-tab-bar>
     </ion-tabs>
   `,
+  styleUrl: './persona.page.scss',
 })
 export class PersonaPage {}

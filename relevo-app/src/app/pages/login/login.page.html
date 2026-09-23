@@ -1,5 +1,14 @@
-<ion-header>
-  <ion-toolbar color="primary">
+<!-- Fondo animado. Va PRIMERO en el DOM a propósito: comparte nivel de
+     apilamiento con ion-content, así que el orden del DOM decide quién pinta
+     encima. Sin z-index negativos, que son frágiles con contain:layout. -->
+<div class="fondo-login" aria-hidden="true">
+  <span class="aurora a1"></span>
+  <span class="aurora a2"></span>
+  <span class="aurora a3"></span>
+</div>
+
+<ion-header class="ion-no-border">
+  <ion-toolbar>
     <ion-title>Relevo</ion-title>
   </ion-toolbar>
 </ion-header>
@@ -7,7 +16,28 @@
 <ion-content class="ion-padding">
   <div class="contenedor">
     <div class="encabezado ion-text-center">
-      <ion-icon name="heart-outline" class="logo" color="primary" />
+      <!-- Mismo logo que el favicon de la pestaña del navegador. -->
+      <svg class="logo" viewBox="0 0 512 512" role="img" aria-label="Relevo">
+        <rect width="512" height="512" rx="112" fill="url(#logoFondo)" />
+        <path
+          d="M256 446 C 150 372 56 298 56 196 A 100 100 0 0 1 256 150 A 100 100 0 0 1 456 196 C 456 298 362 372 256 446 Z"
+          fill="#ffffff"
+        />
+        <polyline
+          points="118,292 198,292 222,238 262,346 292,266 314,292 394,292"
+          fill="none"
+          stroke="#2f63ff"
+          stroke-width="24"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+        <defs>
+          <linearGradient id="logoFondo" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#3f77ff" />
+            <stop offset="100%" stop-color="#1b3a8f" />
+          </linearGradient>
+        </defs>
+      </svg>
       <h1>{{ modo() === 'login' ? 'Iniciar sesión' : 'Crear cuenta' }}</h1>
       <ion-text color="medium"><p>Bitácora compartida de cuidado</p></ion-text>
     </div>

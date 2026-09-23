@@ -1,5 +1,6 @@
+/* El chat va sobre fondo oscuro, no sobre el gris claro de Ionic. */
 ion-content.chat {
-  --background: var(--ion-color-light, #f4f5f8);
+  --background: linear-gradient(175deg, #070c16 0%, #0a1120 60%, #070c16 100%);
 }
 
 .bienvenida {
@@ -56,25 +57,29 @@ ion-content.chat {
   &.usuario {
     align-self: flex-end;
 
+    /* Mis mensajes: el azul de la app, en degradado. */
     .texto {
-      background: var(--ion-color-primary);
-      color: var(--ion-color-primary-contrast);
+      background: linear-gradient(145deg, #2f63ff 0%, #1b3a8f 100%);
+      color: #ffffff;
       border-bottom-right-radius: 4px;
     }
 
     .hora {
-      color: rgba(255, 255, 255, 0.75);
+      color: rgba(255, 255, 255, 0.78);
     }
   }
 
   &.asistente {
     align-self: flex-start;
 
+    /* Los del asistente: superficie translúcida, para distinguirlos del azul. */
     .texto {
-      background: var(--ion-background-color, #fff);
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.1);
       color: var(--ion-text-color);
       border-bottom-left-radius: 4px;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
     }
   }
 
@@ -127,5 +132,34 @@ ion-content.chat {
     --padding-top: 8px;
     --padding-bottom: 8px;
     max-height: 120px;
+  }
+}
+
+/* En escritorio la conversación no debe cruzar toda la pantalla. */
+@media (min-width: 992px) {
+  .mensajes {
+    max-width: 900px;
+    margin-inline: auto;
+    width: 100%;
+    gap: 14px;
+    padding: 20px 20px 28px;
+  }
+
+  .burbuja {
+    max-width: 72%;
+
+    .texto {
+      padding: 13px 16px;
+      font-size: 1rem;
+    }
+  }
+
+  .entrada {
+    max-width: 900px;
+    margin-inline: auto;
+  }
+
+  .bienvenida ion-icon {
+    font-size: 72px;
   }
 }

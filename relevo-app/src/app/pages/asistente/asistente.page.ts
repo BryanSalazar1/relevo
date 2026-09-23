@@ -17,6 +17,7 @@ import {
   IonTextarea,
   IonTitle,
   IonToolbar,
+  ModalController,
 } from '@ionic/angular';
 import { AsistenteService, MensajeChat } from '../../core/services/asistente.service';
 import { personaActual } from '../../core/utils/persona-actual';
@@ -57,12 +58,23 @@ const SUGERENCIAS = [
 export class AsistentePage {
   private readonly asistente = inject(AsistenteService);
   private readonly alertCtrl = inject(AlertController);
+  private readonly modalCtrl = inject(ModalController);
   private readonly contenido = viewChild.required<IonContent>(IonContent);
   private readonly caja = viewChild<ElementRef<HTMLElement>>('caja');
 
   private readonly ctx = personaActual();
   readonly persona = this.ctx.persona;
   readonly rol = this.ctx.rol;
+
+  /*
+   * Cuando el asistente se abre como MODAL, la persona no puede venir de la
+   * ruta: ActivatedRoute dentro del modal es la raíz y no trae el :id. Llega
+   * por componentProps, que ModalController asigna sobre la instancia; por eso
+   * son propiedades planas y no signal inputs (esos son de solo lectura).
+   */
+  personaIdFijo?: string;
+  nombreFijo?: string;
+  enModal = false;
 
   readonly sugerencias = SUGERENCIAS;
   readonly mensajes = signal<MensajeChat[]>([]);
@@ -71,11 +83,14 @@ export class AsistentePage {
   pregunta = '';
 
   /** Nombre corto para los textos ("Carmen") */
-  readonly nombreCorto = computed(() => this.persona()?.nombre.split(' ')[0] ?? 'la persona cuidada');
+  readonly nombreCorto = computed(() => {
+    const nombre = this.persona()?.nombre ?? this.nombreFijo;
+    return nombre?.split(' ')[0] ?? 'la persona cuidada';
+  });
 
   async enviar(texto = this.pregunta) {
     const pregunta = texto.trim();
-    const personaId = this.ctx.personaId();
+    const personaId = this.personaIdFijo ?? this.ctx.personaId();
     if (!pregunta || !personaId || this.pensando()) return;
 
     this.pregunta = '';
@@ -119,6 +134,11 @@ export class AsistentePage {
     await alerta.present();
     const { role } = await alerta.onDidDismiss();
     if (role === 'destructive') this.mensajes.set([]);
+  }
+
+  /** Sólo en modo modal: cierra la ventana. */
+  async cerrar() {
+    await this.modalCtrl.dismiss();
   }
 
   private async bajar() {

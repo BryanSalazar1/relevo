@@ -48,11 +48,13 @@ import {
 import { pedirNota } from '../../core/utils/notas';
 import { personaActual } from '../../core/utils/persona-actual';
 import { TareaModal } from './tarea.modal';
+import { FabAsistente } from '../../shared/fab-asistente.component';
 
 /** Rutina diaria: tareas con horario que define el responsable y marcan quienes cuidan. */
 @Component({
   selector: 'app-rutina',
   imports: [
+    FabAsistente,
     DatePipe,
     IonHeader,
     IonToolbar,

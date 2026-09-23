@@ -1,1 +1,482 @@
-/* You can add global styles to this file, and also import other style files */
+/*
+ * Relevo — estilos globales del rediseño.
+ *
+ * Tres ideas, aplicadas una sola vez aquí en vez de en las 18 plantillas:
+ *   1. El degradado oscuro vive en la página; las superficies se vuelven translúcidas.
+ *   2. Las barras azules planas pasan a degradado vía ::part(), sin tocar los color="primary".
+ *   3. Lo que antes era blanco (tarjetas, listas, items) se convierte en cristal.
+ */
+
+/* ---------------------------------------------------------------
+ * Fondo base
+ * ---------------------------------------------------------------
+ * El degradado se pinta en .ion-page y no sólo en ion-app a propósito:
+ * con ion-content transparente, durante una transición de ruta se verían
+ * las dos pantallas superpuestas. Un fondo por página lo evita.
+ */
+ion-app {
+  background: var(--relevo-fondo);
+}
+
+.ion-page {
+  background: var(--relevo-fondo);
+}
+
+/* El scroller no lleva fondo propio: el degradado queda quieto al hacer scroll. */
+ion-content {
+  --background: transparent;
+}
+
+/* ---------------------------------------------------------------
+ * Barras: de azul plano a degradado oscuro
+ * ---------------------------------------------------------------
+ * Ionic escribe `background: var(--ion-color-base)` dentro del shadow cuando
+ * hay color="primary", así que --background no serviría. Se ataca el shadow part:
+ * en la cascada, el árbol exterior gana al interior sin necesidad de !important.
+ */
+/*
+ * Las cabeceras NO llevan degradado propio: dejan ver el fondo de la página.
+ * El único degradado de barra que queda en la app es el del rail lateral.
+ * (Antes se pintaba aquí, pero cinco páginas apilan dos o tres <ion-toolbar>
+ * en un solo <ion-header> y quedaban bandas repetidas con costuras.)
+ */
+ion-header,
+ion-footer {
+  background: transparent;
+}
+
+ion-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+/*
+ * Separador entre toolbars apiladas. Cinco páginas ponen dos o tres dentro
+ * del mismo header (el título, el selector de periodo, el rango de fechas)
+ * y sin línea se leen como un bloque único.
+ */
+ion-header ion-toolbar + ion-toolbar {
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+ion-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+/*
+ * Y las toolbars se vuelven transparentes para dejar ver ese degradado único.
+ * Hay que ir por ::part(background) y no por --background: con color="primary"
+ * Ionic escribe `background: var(--ion-color-base)` dentro del shadow y la
+ * variable no se consulta. En la cascada, el árbol exterior gana al interior.
+ */
+ion-toolbar::part(background) {
+  background: transparent;
+}
+
+ion-toolbar {
+  --color: #e8eefc;
+  --border-color: transparent;
+}
+
+/* La sombra dura de Material corta el degradado. */
+ion-header.header-md::after,
+ion-header.header-ios::after,
+ion-footer.footer-md::before,
+ion-footer.footer-ios::before {
+  display: none;
+}
+
+/* ---------------------------------------------------------------
+ * Superficies: de blanco a cristal
+ * --------------------------------------------------------------- */
+
+/* ion-card pinta en su propio host, que está en el árbol exterior. */
+ion-card {
+  background: var(--relevo-superficie);
+  backdrop-filter: var(--relevo-desenfoque);
+  -webkit-backdrop-filter: var(--relevo-desenfoque);
+  border: 1px solid var(--relevo-borde);
+  border-radius: 16px;
+  box-shadow: none;
+  color: var(--ion-card-color);
+}
+
+/* .card-native hace `background: inherit` y doblaría el color. */
+ion-card::part(native) {
+  background: transparent;
+}
+
+/* ion-list NO es shadow DOM y no expone --background.
+   `.list-md` tiene especificidad (0,1,0), así que `ion-list` pelado perdería. */
+ion-list.list-md,
+ion-list.list-ios {
+  background: transparent;
+}
+
+/* Las listas `inset` son la superficie principal de home: se tratan como tarjeta. */
+ion-list.list-inset {
+  background: var(--relevo-superficie);
+  backdrop-filter: var(--relevo-desenfoque);
+  -webkit-backdrop-filter: var(--relevo-desenfoque);
+  border: 1px solid var(--relevo-borde);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+ion-item {
+  --background: transparent;
+  --background-hover: rgba(255, 255, 255, 0.06);
+  --background-activated: rgba(255, 255, 255, 0.1);
+  --border-color: var(--ion-item-border-color);
+  --color: var(--ion-text-color);
+}
+
+/* Modales y popovers: opacos con degradado, para que el contenido de atrás no distraiga. */
+ion-modal {
+  --background: var(--relevo-fondo);
+}
+
+/* Dentro de un modal el fondo lo pinta el propio ion-modal: si la .ion-page
+   interior repitiera el degradado se vería una costura. */
+ion-modal .ion-page {
+  background: transparent;
+}
+
+/*
+ * En escritorio el modal deja de ser pantalla completa y pasa a tarjeta
+ * centrada. No hace falta posicionarlo: el :host de ion-modal ya es
+ * `display:flex; align-items:center; justify-content:center`, así que en
+ * cuanto deja de medir 100% x 100% se centra solo.
+ */
+@media (min-width: 768px) {
+  ion-modal {
+    --width: min(820px, 92vw);
+    --height: min(880px, 88vh);
+    --border-radius: 20px;
+    --border-width: 1px;
+    --border-style: solid;
+    --border-color: var(--relevo-borde);
+    --box-shadow: 0 32px 90px rgba(0, 0, 0, 0.6);
+    --backdrop-opacity: 0.65;
+  }
+}
+
+ion-popover {
+  --backdrop-opacity: 0.6;
+}
+
+/* ---------------------------------------------------------------
+ * Overlays: NO son transparentes
+ * ---------------------------------------------------------------
+ * El fondo de todos ellos lo fija --ion-overlay-background-color en
+ * variables.css. Aquí sólo quedan los ajustes propios de cada uno.
+ */
+ion-action-sheet {
+  --button-background: transparent;
+  --button-background-selected: rgba(255, 255, 255, 0.1);
+  --button-color: var(--ion-text-color);
+  --color: rgba(232, 238, 252, 0.6);
+  --backdrop-opacity: 0.6;
+}
+
+ion-alert {
+  --backdrop-opacity: 0.6;
+}
+
+ion-toast {
+  --background: #1b2744;
+  --color: var(--ion-text-color);
+  --border-radius: 12px;
+}
+
+ion-loading {
+  --spinner-color: #7aa2ff;
+}
+
+/* ---------------------------------------------------------------
+ * Acentos
+ * ---------------------------------------------------------------
+ * El FAB y los botones primarios son acciones: necesitan resaltar.
+ * Llevan degradado, pero luminoso, no oscuro — si se fundieran con el fondo
+ * dejarían de leerse como algo pulsable.
+ */
+ion-fab-button {
+  --background: linear-gradient(145deg, #2f63ff 0%, #1b3a8f 100%);
+  --background-activated: linear-gradient(145deg, #1b3a8f 0%, #2f63ff 100%);
+  --color: #ffffff;
+  --box-shadow: 0 8px 24px rgba(47, 99, 255, 0.35);
+}
+
+ion-button[expand="block"] {
+  --background: linear-gradient(145deg, #2f63ff 0%, #1b3a8f 100%);
+  --background-activated: linear-gradient(145deg, #1b3a8f 0%, #2f63ff 100%);
+  --color: #ffffff;
+  --border-radius: 12px;
+}
+
+/* ---------------------------------------------------------------
+ * Barra de pestañas (móvil)
+ * ---------------------------------------------------------------
+ * ion-tab-bar no expone ningún ::part(), así que se pinta en el host.
+ * El comportamiento de la barra inferior no se toca: sigue abajo, con
+ * su safe-area y su ocultado con el teclado.
+ */
+ion-tab-bar {
+  --background: var(--relevo-rail);
+  --color: rgba(255, 255, 255, 0.62);
+  --color-selected: #7aa2ff;
+  --border: 1px solid var(--ion-tab-bar-border-color);
+}
+
+/* ---------------------------------------------------------------
+ * Escala tipográfica
+ * ---------------------------------------------------------------
+ * Antes los tamaños los ponía cada página por su cuenta. Aquí queda una
+ * escala única para que un h2 signifique lo mismo en bitácora y en equipo.
+ */
+ion-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+ion-item ion-label h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.35;
+  margin-bottom: 2px;
+}
+
+ion-item ion-label h3 {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+ion-item ion-label p {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: rgba(232, 238, 252, 0.6);
+}
+
+ion-card-title {
+  font-size: 1.0625rem;
+  font-weight: 700;
+}
+
+ion-card-subtitle {
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  color: rgba(232, 238, 252, 0.55);
+}
+
+ion-note {
+  font-size: 0.8125rem;
+  color: rgba(232, 238, 252, 0.55);
+}
+
+ion-list-header ion-label {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(232, 238, 252, 0.5);
+}
+
+/* ---------------------------------------------------------------
+ * Ancho de lectura en pantallas anchas
+ * ---------------------------------------------------------------
+ * A 1900px una lista a sangre obliga a barrer la pantalla entera con la
+ * vista para leer una fila. Se limita el ancho de la columna, no el del
+ * fondo: el degradado sigue cubriendo todo.
+ */
+/*
+ * En escritorio todo crece. La app está dimensionada para el pulgar en un
+ * teléfono; a 1900px esos mismos tamaños se leen diminutos. No se toca el
+ * font-size del html porque Ionic dimensiona sus componentes en px y no
+ * escalaría con él: hay que subir cada pieza explícitamente.
+ */
+@media (min-width: 992px) {
+  ion-content::part(scroll) {
+    max-width: 1200px;
+    margin-inline: auto;
+  }
+
+  /*
+   * El header ocupa todo el ancho pero el contenido va centrado en 1200px.
+   * Sin esto el título queda pegado al borde izquierdo mientras las tarjetas
+   * empiezan mucho más adentro, y se lee como si no pertenecieran a la misma
+   * pantalla. Se alinea la caja interna de la toolbar con esa columna.
+   */
+  ion-toolbar {
+    --min-height: 68px;
+    --padding-start: 0;
+    --padding-end: 0;
+  }
+
+  ion-toolbar::part(container) {
+    max-width: 1200px;
+    margin-inline: auto;
+    padding-inline: 4px;
+  }
+
+  ion-title {
+    font-size: 1.625rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    padding-inline: 12px;
+  }
+
+  /* El rango de fechas es subtítulo, no título: no debe competir con el h1. */
+  ion-title[size='small'] {
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    color: rgba(232, 238, 252, 0.72);
+  }
+
+  /*
+   * El FAB se ancla al borde del viewport, pero el contenido está centrado:
+   * quedaba flotando lejos de la columna. Se alinea con ella y se despega
+   * más de la orilla.
+   */
+  ion-fab[horizontal='end'] {
+    inset-inline-end: max(32px, calc((100% - 1200px) / 2 + 32px));
+  }
+
+  ion-fab[vertical='bottom'] {
+    inset-block-end: 36px;
+  }
+
+  ion-item {
+    --min-height: 68px;
+    --padding-start: 20px;
+    --inner-padding-end: 20px;
+    font-size: 1rem;
+  }
+
+  ion-item ion-label h2 {
+    font-size: 1.125rem;
+  }
+
+  ion-item ion-label h3 {
+    font-size: 1.0625rem;
+  }
+
+  ion-item ion-label p {
+    font-size: 0.9375rem;
+  }
+
+  ion-item ion-icon[slot='start'],
+  ion-item ion-icon[slot='end'] {
+    font-size: 26px;
+  }
+
+  ion-card-title {
+    font-size: 1.375rem;
+  }
+
+  ion-card-subtitle {
+    font-size: 0.875rem;
+  }
+
+  ion-card-content {
+    font-size: 1rem;
+    line-height: 1.55;
+  }
+
+  ion-note {
+    font-size: 0.9375rem;
+  }
+
+  ion-badge {
+    font-size: 0.8125rem;
+    padding: 6px 10px;
+  }
+
+  ion-button {
+    --min-height: 46px;
+    font-size: 0.9375rem;
+  }
+
+  ion-list-header ion-label {
+    font-size: 0.9375rem;
+  }
+
+  ion-segment-button {
+    --min-height: 46px;
+    font-size: 0.9375rem;
+  }
+
+  ion-input,
+  ion-textarea,
+  ion-select {
+    font-size: 1rem;
+  }
+
+  ion-fab-button {
+    --size: 64px;
+  }
+}
+
+/* ---------------------------------------------------------------
+ * Movimiento
+ * ---------------------------------------------------------------
+ * Sólo transform y opacity, que el compositor resuelve sin repintar.
+ */
+@keyframes relevo-entrada {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+ion-card,
+ion-list.list-inset {
+  animation: relevo-entrada 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+ion-item {
+  transition: --background 160ms ease;
+}
+
+ion-item[button]::part(native),
+ion-item[button] {
+  transition: transform 160ms ease;
+}
+
+ion-item[button]:active {
+  transform: scale(0.995);
+}
+
+ion-fab-button {
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 200ms ease;
+}
+
+ion-fab-button:hover {
+  transform: scale(1.06);
+}
+
+ion-button {
+  transition: transform 160ms ease;
+}
+
+ion-button:active {
+  transform: scale(0.98);
+}
+
+/* Quien pidió menos movimiento recibe la interfaz quieta, no sin diseño. */
+@media (prefers-reduced-motion: reduce) {
+  ion-card,
+  ion-list.list-inset {
+    animation: none;
+  }
+
+  ion-item[button]:active,
+  ion-fab-button:hover,
+  ion-button:active {
+    transform: none;
+  }
+}

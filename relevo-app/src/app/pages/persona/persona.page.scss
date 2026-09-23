@@ -1,0 +1,110 @@
+/*
+ * Menú responsivo: barra inferior en móvil, rail lateral en escritorio.
+ *
+ * Por qué esto funciona con CSS puro: en @ionic/angular v9, <ion-tabs> NO es el
+ * web component de Stencil sino un componente Angular con encapsulación emulada,
+ * o sea light DOM. El contenedor flex que hay que voltear es DOM normal, y el
+ * <ion-tab-bar> es hijo real (no un nodo asignado a un slot), así que `order` aplica.
+ *
+ * Con esto el routing de las 6 pestañas queda intacto: no se mueve un solo nodo
+ * ni se reimplementa IonTabs.select(), que trae gratis el historial por pestaña.
+ */
+
+// Las media queries no aceptan custom properties, así que el breakpoint es SCSS.
+$bp-rail: 992px;
+
+/* ---- Móvil / app nativa: no se escribe NADA. ----
+   El comportamiento por defecto de Ionic (barra abajo, safe-area, ocultado
+   con el teclado) queda tal cual lo pediste. */
+
+@media (min-width: $bp-rail) {
+  // El contenedor pasa de columna a fila. Gana por especificidad (0,1,1) vs (0,1,0).
+  ion-tabs {
+    flex-direction: row;
+  }
+
+  // La barra se va a la izquierda sin tocar el atributo slot="bottom".
+  ion-tab-bar {
+    order: -1;
+
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: stretch;
+    gap: 4px;
+
+    // contain:strict incluye contain:size, así que la barra no se mide por su
+    // contenido: hay que darle ancho y alto explícitos o quedaría de 0px.
+    width: 260px;
+    // box-sizing:content-box es !important dentro del shadow y no se puede vencer
+    // desde fuera, así que el padding vertical se resta a mano.
+    height: calc(100% - 24px);
+    padding-top: 12px;
+    padding-bottom: 12px;
+    padding-inline: 12px;
+
+    // Se relaja contain para permitir scroll si la ventana es baja.
+    contain: layout style;
+    overflow-y: auto;
+
+    border-top: 0;
+    border-inline-end: 1px solid var(--ion-tab-bar-border-color);
+  }
+
+  // Cada botón pasa a fila. .button-native hereda flex-direction del host,
+  // así que no hace falta tocar el shadow DOM.
+  ion-tab-bar ion-tab-button {
+    flex: 0 0 auto;   // anula flex:1
+    height: 54px;     // anula height:100%
+    max-width: none;  // anula max-width:168px
+
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+
+    --padding-start: 18px;
+    --padding-end: 18px;
+    font-size: 15px;
+  }
+
+  ion-tab-bar ion-tab-button::part(native) {
+    border-radius: 12px;
+    transition: background 180ms ease, transform 180ms ease;
+  }
+
+  // El degradado queda en el recuadro general del rail; la pestaña activa
+  // se marca con un rectángulo blanco translúcido sobre él.
+  ion-tab-bar ion-tab-button:hover::part(native) {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  // El icono y la etiqueta viven en el light DOM del botón: selector directo.
+  ion-tab-bar ion-tab-button ion-icon {
+    margin: 0 14px 0 0;
+    font-size: 24px;
+  }
+
+  ion-tab-bar ion-tab-button ion-label {
+    margin: 0;
+    text-align: start;
+    font-weight: 600;
+    font-size: 15px;
+  }
+
+  // .tab-selected la pone Stencil en el HOST, no en el shadow: es seleccionable.
+  ion-tab-bar ion-tab-button.tab-selected::part(native) {
+    background: rgba(255, 255, 255, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  }
+
+  ion-tab-bar ion-tab-button.tab-selected ion-label,
+  ion-tab-bar ion-tab-button.tab-selected ion-icon {
+    color: #ffffff;
+  }
+}
+
+// En pantallas muy anchas el rail no necesita crecer más.
+@media (min-width: 1600px) {
+  ion-tab-bar {
+    width: 284px;
+  }
+}

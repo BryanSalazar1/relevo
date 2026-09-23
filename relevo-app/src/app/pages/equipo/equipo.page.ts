@@ -46,10 +46,12 @@ import { CompartirModal } from './compartir.modal';
 import { DatosAvisos, TurnosModal } from './turnos.modal';
 import { DatosFicha, FichaModal } from './ficha.modal';
 import { DatosPersona, PersonaModal } from '../home/persona.modal';
+import { FabAsistente } from '../../shared/fab-asistente.component';
 
 @Component({
   selector: 'app-equipo',
   imports: [
+    FabAsistente,
     DatePipe,
     IonHeader,
     IonToolbar,

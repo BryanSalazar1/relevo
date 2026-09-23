@@ -40,13 +40,17 @@ import {
   sumarDias,
 } from '../../core/utils/fechas';
 import { personaActual } from '../../core/utils/persona-actual';
+import { GraficasReporte } from './graficas.component';
+import { FabAsistente } from '../../shared/fab-asistente.component';
 
 type Periodo = 'semana' | 'mes';
 
 @Component({
   selector: 'app-reporte',
   imports: [
+    FabAsistente,
     DatePipe,
+    GraficasReporte,
     IonHeader,
     IonToolbar,
     IonButtons,
