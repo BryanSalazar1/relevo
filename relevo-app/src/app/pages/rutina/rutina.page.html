@@ -4,13 +4,16 @@
       <ion-back-button defaultHref="/home" text="" />
     </ion-buttons>
     <ion-title>Rutina</ion-title>
-    @if (puedeEditar()) {
-      <ion-buttons slot="end">
+    <ion-buttons slot="end">
+      <ion-button routerLink="../semaforo" aria-label="Abrir el semáforo">
+        <ion-icon slot="icon-only" name="semaforo" />
+      </ion-button>
+      @if (puedeEditar()) {
         <ion-button (click)="nueva()" aria-label="Nueva tarea">
           <ion-icon slot="icon-only" name="add" />
         </ion-button>
-      </ion-buttons>
-    }
+      }
+    </ion-buttons>
   </ion-toolbar>
   <ion-toolbar class="dia">
     <ion-buttons slot="start">

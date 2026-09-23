@@ -1,0 +1,318 @@
+// Colores de fondo con contraste suficiente para leer de lejos (texto claro; oscuro sobre amarillo)
+ion-content {
+  --fondo: #1f2933;
+  --texto: #ffffff;
+  --tenue: rgba(255, 255, 255, 0.78);
+  --linea: rgba(255, 255, 255, 0.28);
+  --background: var(--fondo);
+  // ion-content pinta su texto con --color (dentro de su shadow DOM), no con `color`
+  --color: var(--texto);
+  transition: background-color 0.6s ease;
+
+  &[data-color='verde'] {
+    --fondo: #1b7a3d;
+  }
+  &[data-color='amarillo'] {
+    --fondo: #f6c343;
+    --texto: #231a00;
+    --tenue: rgba(35, 26, 0, 0.78);
+    --linea: rgba(35, 26, 0, 0.3);
+  }
+  &[data-color='rojo'] {
+    --fondo: #b3261e;
+  }
+}
+
+.pantalla {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: calc(var(--ion-safe-area-top, 0px) + 8px) 16px
+    calc(var(--ion-safe-area-bottom, 0px) + 16px);
+  box-sizing: border-box;
+}
+
+.barra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.1rem;
+
+  ion-button {
+    margin-inline-start: -8px;
+  }
+  .quien {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+  }
+  .reloj {
+    font-size: 1.5rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.cuerpo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 16px 0;
+
+  &.centro ion-spinner {
+    width: 48px;
+    height: 48px;
+  }
+}
+
+// El semáforo: carcasa oscura con tres luces; solo la del estado actual está encendida
+.luces {
+  display: flex;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.72);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+}
+
+.luz {
+  --tam: clamp(44px, 13vmin, 84px);
+  width: var(--tam);
+  height: var(--tam);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  transition:
+    background-color 0.4s ease,
+    box-shadow 0.4s ease;
+
+  &.encendida.rojo {
+    background: #ff5449;
+    box-shadow: 0 0 28px 6px rgba(255, 84, 73, 0.75);
+  }
+  &.encendida.amarillo {
+    background: #ffd54a;
+    box-shadow: 0 0 28px 6px rgba(255, 213, 74, 0.8);
+  }
+  &.encendida.verde {
+    background: #4ade80;
+    box-shadow: 0 0 28px 6px rgba(74, 222, 128, 0.75);
+  }
+}
+
+.mensaje {
+  width: 100%;
+  max-width: 640px;
+  text-align: center;
+
+  p {
+    margin: 0;
+  }
+  .estado {
+    font-size: clamp(1.6rem, 7vmin, 3rem);
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .sigue {
+    margin-top: 18px;
+    font-size: 1.05rem;
+    color: var(--tenue);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  h1 {
+    margin: 10px 0 6px;
+    font-size: clamp(2rem, 9vmin, 3.8rem);
+    font-weight: 700;
+    line-height: 1.1;
+    overflow-wrap: anywhere;
+
+    ion-icon {
+      font-size: 0.8em;
+      vertical-align: -0.08em;
+    }
+  }
+  .detalle {
+    font-size: clamp(1.1rem, 4.2vmin, 1.6rem);
+    color: var(--tenue);
+  }
+  .cuando {
+    margin-top: 10px;
+    font-size: clamp(1.3rem, 5.5vmin, 2.1rem);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    // Si no cabe en un renglón, que se reparta parejo en vez de dejar "min" solo
+    text-wrap: balance;
+  }
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 24px;
+
+  ion-button {
+    flex: 1 1 200px;
+    max-width: 300px;
+    min-height: 60px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    text-transform: none;
+  }
+}
+
+.pie {
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  border-top: 1px solid var(--linea);
+  padding-top: 12px;
+
+  p {
+    margin: 0;
+  }
+  .pie-titulo {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--tenue);
+  }
+  ul {
+    list-style: none;
+    margin: 6px 0 0;
+    padding: 0;
+  }
+  li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    font-size: 1.15rem;
+  }
+  .hora {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .nombre {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .fase {
+    padding: 2px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--linea);
+    font-size: 0.85rem;
+    font-weight: 600;
+
+    &[data-fase='atrasado'] {
+      background: rgba(0, 0, 0, 0.28);
+    }
+  }
+  .mas,
+  .avance {
+    margin-top: 6px;
+    font-size: 0.95rem;
+    color: var(--tenue);
+  }
+}
+
+// Vistazo (por defecto): solo el semáforo y lo que toca, lo más grande posible para verlo de lejos.
+// Al tocar la pantalla se quita esta clase y aparecen los botones y la lista.
+.cuerpo {
+  cursor: pointer;
+}
+
+.vistazo {
+  .luces {
+    flex-direction: column;
+    padding: 18px 16px;
+    gap: 16px;
+  }
+  .luz {
+    --tam: clamp(72px, 24vmin, 150px);
+  }
+  .mensaje {
+    .estado {
+      font-size: clamp(2rem, 9vmin, 3.6rem);
+    }
+    h1 {
+      font-size: clamp(2.4rem, 11vmin, 4.6rem);
+    }
+    .cuando {
+      font-size: clamp(1.4rem, 6vmin, 2.6rem);
+    }
+  }
+}
+
+.pista {
+  align-self: center;
+  margin: 0;
+  padding: 10px 18px;
+  border: 1px solid var(--linea);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--tenue);
+  font: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 3px solid var(--texto);
+    outline-offset: 2px;
+  }
+}
+
+// Acostado (teléfono en una base): el semáforo a la izquierda y el mensaje a la derecha
+@media (orientation: landscape) and (max-height: 560px) {
+  .cuerpo {
+    flex-direction: row;
+    gap: 32px;
+  }
+  .luces {
+    flex-direction: column;
+  }
+  .vistazo .luz {
+    --tam: clamp(48px, 16vmin, 96px);
+  }
+  .vistazo .luces {
+    padding: 12px;
+    gap: 10px;
+  }
+  .cuerpo {
+    padding: 4px 0;
+  }
+  .mensaje {
+    text-align: start;
+  }
+  .acciones {
+    justify-content: flex-start;
+    margin-top: 14px;
+  }
+  .pie ul {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 24px;
+
+    li {
+      flex: 1 1 40%;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ion-content,
+  .luz {
+    transition: none;
+  }
+}

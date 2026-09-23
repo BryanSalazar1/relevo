@@ -22,8 +22,10 @@ import {
   DIAS_SEMANA,
   OPCIONES_AVISO_MIN,
   OPCIONES_DURACION_MIN,
+  TIPOS_SIGNO,
   TIPOS_TAREA,
   Tarea,
+  TipoSigno,
   TipoTarea,
 } from '../../core/models';
 import { DatosTarea } from '../../core/services/tareas.service';
@@ -68,7 +70,7 @@ import { rangoHorario, textoDias, textoDuracion } from '../../core/utils/fechas'
       <ion-note>Tipo de tarea</ion-note>
       <div class="tipos">
         @for (t of tipos; track t.valor) {
-          <ion-chip [outline]="tipo() !== t.valor" [color]="t.color" (click)="tipo.set(t.valor)">
+          <ion-chip [outline]="tipo() !== t.valor" [color]="t.color" (click)="elegirTipo(t.valor)">
             <ion-icon [name]="t.icono" />
             <ion-label>{{ t.etiqueta }}</ion-label>
           </ion-chip>
@@ -85,6 +87,24 @@ import { rangoHorario, textoDias, textoDuracion } from '../../core/utils/fechas'
         autocapitalize="sentences"
         class="ion-margin-bottom"
       />
+
+      @if (tipo() === 'signos') {
+        <ion-note>Qué se mide</ion-note>
+        <div class="tipos">
+          @for (s of tiposSigno; track s.valor) {
+            <ion-chip
+              [outline]="!signos().includes(s.valor)"
+              color="danger"
+              (click)="alternarSigno(s.valor)"
+            >
+              <ion-label>{{ s.etiqueta }}</ion-label>
+            </ion-chip>
+          }
+        </div>
+        <ion-note color="medium" class="ayuda-dias">
+          Al marcar la tarea como hecha se piden estas mediciones y se guardan para el reporte.
+        </ion-note>
+      }
 
       <ion-note>Días de la semana</ion-note>
       <div class="dias">
@@ -216,6 +236,7 @@ export class TareaModal implements OnInit {
   tarea: Tarea | null = null;
 
   readonly tipos = TIPOS_TAREA;
+  readonly tiposSigno = TIPOS_SIGNO;
   readonly diasSemana = DIAS_SEMANA;
   readonly textoDias = textoDias;
   readonly opcionesAviso = OPCIONES_AVISO_MIN;
@@ -227,6 +248,8 @@ export class TareaModal implements OnInit {
   readonly dias = signal<number[]>(DIAS_SEMANA.map((d) => d.valor));
   readonly tipo = signal<TipoTarea>('comida');
   readonly horarios = signal<string[]>([]);
+  /** Solo en tareas de signos vitales: qué se mide (por defecto, lo más común en casa) */
+  readonly signos = signal<TipoSigno[]>(['presion', 'glucosa']);
   nombre = '';
   nuevaHora = '';
   avisarMin = AVISO_MIN_POR_DEFECTO;
@@ -240,12 +263,26 @@ export class TareaModal implements OnInit {
       if (this.tarea.dias?.length) this.dias.set([...this.tarea.dias]);
       this.avisarMin = this.tarea.avisarMin ?? AVISO_MIN_POR_DEFECTO;
       this.duracionMin = this.tarea.duracionMin ?? 0;
+      if (this.tarea.signos?.length) this.signos.set([...this.tarea.signos]);
       this.notas = this.tarea.notas ?? '';
     }
   }
 
   valido(): boolean {
-    return !!this.nombre.trim() && this.horarios().length > 0 && this.dias().length > 0;
+    const conSignos = this.tipo() !== 'signos' || this.signos().length > 0;
+    return (
+      !!this.nombre.trim() && this.horarios().length > 0 && this.dias().length > 0 && conSignos
+    );
+  }
+
+  /** Al elegir "Signos vitales" en una tarea sin nombre se propone el que casi siempre llevará. */
+  elegirTipo(valor: TipoTarea) {
+    this.tipo.set(valor);
+    if (valor === 'signos' && !this.nombre.trim()) this.nombre = 'Revisar signos vitales';
+  }
+
+  alternarSigno(valor: TipoSigno) {
+    this.signos.update((s) => (s.includes(valor) ? s.filter((x) => x !== valor) : [...s, valor]));
   }
 
   alternarDia(valor: number) {
@@ -277,6 +314,11 @@ export class TareaModal implements OnInit {
       avisarMin: Number(this.avisarMin) || AVISO_MIN_POR_DEFECTO,
       dias: [...this.dias()].sort((a, b) => a - b),
       duracionMin: Number(this.duracionMin) || 0,
+      // En el orden en que se capturan; las demás tareas no llevan signos
+      signos:
+        this.tipo() === 'signos'
+          ? TIPOS_SIGNO.map((s) => s.valor).filter((v) => this.signos().includes(v))
+          : [],
       notas: this.notas.trim(),
     };
     void this.modalCtrl.dismiss(datos, 'guardar');

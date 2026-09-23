@@ -44,7 +44,8 @@ import { edad, textoTurnos } from '../../core/utils/fechas';
 import { personaActual } from '../../core/utils/persona-actual';
 import { CompartirModal } from './compartir.modal';
 import { DatosAvisos, TurnosModal } from './turnos.modal';
-import { DatosFicha, FichaModal } from './ficha.modal';
+import { DatosFicha } from './ficha-campos.component';
+import { FichaModal } from './ficha.modal';
 import { DatosPersona, PersonaModal } from '../home/persona.modal';
 
 @Component({

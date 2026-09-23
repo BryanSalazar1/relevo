@@ -1,6 +1,7 @@
 import { DatePipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { RouterLink } from '@angular/router';
 import {
   ActionSheetController,
   AlertController,
@@ -47,6 +48,7 @@ import {
 } from '../../core/utils/fechas';
 import { pedirNota } from '../../core/utils/notas';
 import { personaActual } from '../../core/utils/persona-actual';
+import { MarcarTareaService } from './marcar-tarea.service';
 import { TareaModal } from './tarea.modal';
 
 /** Rutina diaria: tareas con horario que define el responsable y marcan quienes cuidan. */
@@ -54,6 +56,7 @@ import { TareaModal } from './tarea.modal';
   selector: 'app-rutina',
   imports: [
     DatePipe,
+    RouterLink,
     IonHeader,
     IonToolbar,
     IonButtons,
@@ -76,6 +79,7 @@ import { TareaModal } from './tarea.modal';
 })
 export class RutinaPage {
   private readonly tareasSvc = inject(TareasService);
+  private readonly marcarSvc = inject(MarcarTareaService);
   private readonly modalCtrl = inject(ModalController);
   private readonly actionSheetCtrl = inject(ActionSheetController);
   private readonly alertCtrl = inject(AlertController);
@@ -140,22 +144,15 @@ export class RutinaPage {
     return p.registro.hecha ? 'success' : 'danger';
   }
 
-  /** Marca una tarea; para hecha / no hecha pide confirmación con nota opcional. */
+  /**
+   * Marca una tarea; para hecha / no hecha pide confirmación con nota opcional, y si es de signos
+   * vitales y se hizo, las mediciones.
+   */
   async marcar(p: TareaProgramada, estado: EstadoRegistro) {
     const personaId = this.ctx.personaId();
     if (!personaId || !this.puedeRegistrar()) return;
-    let nota: string | undefined;
-    if (estado !== 'quitar') {
-      const r = await pedirNota(this.alertCtrl, {
-        header: `¿Marcar como ${estado === 'hecha' ? 'hecha' : 'no hecha'}?`,
-        message: `${p.tarea.nombre} · ${p.horario}`,
-        confirmar: 'Marcar',
-      });
-      if (!r.ok) return;
-      nota = r.nota;
-    }
     try {
-      await this.tareasSvc.registrar(personaId, p, estado, nota);
+      await this.marcarSvc.marcar(personaId, p, estado);
     } catch (error) {
       console.error(error);
       await this.aviso('No se pudo registrar la tarea.', 'danger');

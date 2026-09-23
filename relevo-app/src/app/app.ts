@@ -56,6 +56,12 @@ import {
 } from 'ionicons/icons';
 import { NotificacionesService } from './core/services/notificaciones.service';
 
+/** Ionicons no trae un semáforo: carcasa con tres luces caladas (hereda el color del texto). */
+const ICONO_SEMAFORO =
+  "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' class='ionicon' viewBox='0 0 512 512'>" +
+  "<path fill-rule='evenodd' d='M192 24h128a64 64 0 0 1 64 64v336a64 64 0 0 1-64 64H192a64 64 0 0 1-64-64V88a64 64 0 0 1 64-64z" +
+  "M256 68a50 50 0 1 0 0 100 50 50 0 1 0 0-100zM256 206a50 50 0 1 0 0 100 50 50 0 1 0 0-100zM256 344a50 50 0 1 0 0 100 50 50 0 1 0 0-100z'/></svg>";
+
 @Component({
   selector: 'app-root',
   imports: [IonApp, IonRouterOutlet],
@@ -119,6 +125,7 @@ export class App {
       walkOutline,
       warningOutline,
       waterOutline,
+      semaforo: ICONO_SEMAFORO,
     });
   }
 }

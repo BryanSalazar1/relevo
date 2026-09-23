@@ -269,7 +269,7 @@ export interface Toma {
 // ---------------------------------------------------------------------------
 // Rutina: tareas diarias con horario (comidas, baño, ejercicio…) que define el responsable
 // ---------------------------------------------------------------------------
-export type TipoTarea = 'comida' | 'bano' | 'ejercicio' | 'terapia' | 'cita' | 'otro';
+export type TipoTarea = 'comida' | 'bano' | 'ejercicio' | 'terapia' | 'signos' | 'cita' | 'otro';
 
 export interface TipoTareaInfo {
   valor: TipoTarea;
@@ -283,6 +283,8 @@ export const TIPOS_TAREA: TipoTareaInfo[] = [
   { valor: 'bano', etiqueta: 'Baño', icono: 'water-outline', color: 'tertiary' },
   { valor: 'ejercicio', etiqueta: 'Ejercicio', icono: 'walk-outline', color: 'warning' },
   { valor: 'terapia', etiqueta: 'Terapia', icono: 'fitness-outline', color: 'secondary' },
+  // Al marcarla como hecha se capturan las mediciones (pages/rutina/signos.modal.ts)
+  { valor: 'signos', etiqueta: 'Signos vitales', icono: 'pulse-outline', color: 'danger' },
   { valor: 'cita', etiqueta: 'Cita', icono: 'calendar-outline', color: 'primary' },
   { valor: 'otro', etiqueta: 'Otra', icono: 'checkmark-circle-outline', color: 'medium' },
 ];
@@ -333,6 +335,8 @@ export interface Tarea {
   duracionMin?: number;
   /** Días de la semana en que aplica (0 = domingo … 6 = sábado). Vacío o sin valor = todos los días */
   dias?: number[];
+  /** Solo tipo 'signos': qué se mide en esta tarea (p. ej. glucosa en ayunas). Vacío o sin valor = todos */
+  signos?: TipoSigno[];
   notas?: string;
   activo: boolean;
   creadoEn?: Timestamp;
@@ -365,14 +369,42 @@ export interface EventoCalendario {
   notas?: string;
 }
 
-export type TipoSigno = 'presion' | 'glucosa' | 'temperatura' | 'peso';
+export type TipoSigno = 'presion' | 'glucosa' | 'temperatura' | 'oxigenacion' | 'pulso' | 'peso';
 
 export const TIPO_SIGNO_ETIQUETA: Record<TipoSigno, string> = {
   presion: 'Presión arterial',
   glucosa: 'Glucosa',
   temperatura: 'Temperatura',
+  oxigenacion: 'Oxigenación',
+  pulso: 'Pulso',
   peso: 'Peso',
 };
+
+export interface TipoSignoInfo {
+  valor: TipoSigno;
+  etiqueta: string;
+  /** Para resumir en una nota: "Presión 130/85 mmHg" */
+  corto: string;
+  unidad: string;
+  /** Límites de lo que se acepta al capturar: fuera de ellos es un error de dedo, no una medición */
+  min: number;
+  max: number;
+  decimales: number;
+  ejemplo: string;
+}
+
+/** Signos que se pueden medir, en el orden en que se capturan. firestore.rules valida los mismos tipos. */
+export const TIPOS_SIGNO: TipoSignoInfo[] = [
+  { valor: 'presion', etiqueta: 'Presión arterial', corto: 'Presión', unidad: 'mmHg', min: 50, max: 260, decimales: 0, ejemplo: '120' },
+  { valor: 'glucosa', etiqueta: 'Glucosa', corto: 'Glucosa', unidad: 'mg/dL', min: 20, max: 600, decimales: 0, ejemplo: '110' },
+  { valor: 'temperatura', etiqueta: 'Temperatura', corto: 'Temp.', unidad: '°C', min: 30, max: 43, decimales: 1, ejemplo: '36.5' },
+  { valor: 'oxigenacion', etiqueta: 'Oxigenación', corto: 'Oxigenación', unidad: '%', min: 50, max: 100, decimales: 0, ejemplo: '96' },
+  { valor: 'pulso', etiqueta: 'Pulso', corto: 'Pulso', unidad: 'lpm', min: 25, max: 220, decimales: 0, ejemplo: '72' },
+  { valor: 'peso', etiqueta: 'Peso', corto: 'Peso', unidad: 'kg', min: 20, max: 300, decimales: 1, ejemplo: '68.5' },
+];
+
+/** Presión diastólica (el segundo número): sus propios límites. */
+export const LIMITES_DIASTOLICA = { min: 30, max: 160 };
 
 /** personas_cuidadas/{id}/signos_vitales/{id} */
 export interface SignoVital {
@@ -384,4 +416,6 @@ export interface SignoVital {
   unidad: string;
   fecha: Timestamp;
   autorUid: string;
+  /** Si se midió al marcar una tarea de la rutina: de cuál (su id es `{tareaId}-{idRegistro}-{tipo}`) */
+  tareaId?: string;
 }

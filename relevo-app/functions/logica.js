@@ -17,6 +17,7 @@ export const TIPO_TAREA_ETIQUETA = {
   bano: 'Baño',
   ejercicio: 'Ejercicio',
   terapia: 'Terapia',
+  signos: 'Signos vitales',
   cita: 'Cita',
   otro: 'Tarea',
 };

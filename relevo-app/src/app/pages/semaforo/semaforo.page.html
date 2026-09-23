@@ -1,0 +1,96 @@
+<ion-content [fullscreen]="true" [attr.data-color]="cargando() ? 'apagado' : estado().color">
+  <div class="pantalla" [class.vistazo]="!detalles()">
+    <header class="barra">
+      <ion-button fill="clear" [color]="colorBoton()" (click)="salir()" aria-label="Salir del semáforo">
+        <ion-icon slot="icon-only" name="close-outline" />
+      </ion-button>
+      <span class="quien">{{ persona()?.nombre }}</span>
+      <span class="reloj">{{ ahora() | date: 'HH:mm' }}</span>
+    </header>
+
+    @if (cargando()) {
+      <div class="cuerpo centro"><ion-spinner name="crescent" color="light" /></div>
+    } @else {
+      @let e = estado();
+      <div class="cuerpo" (click)="alternarDetalles()">
+        <div class="luces" aria-hidden="true">
+          <span class="luz rojo" [class.encendida]="e.color === 'rojo'"></span>
+          <span class="luz amarillo" [class.encendida]="e.color === 'amarillo'"></span>
+          <span class="luz verde" [class.encendida]="e.color === 'verde'"></span>
+        </div>
+
+        <main class="mensaje" aria-live="polite">
+          <p class="estado">{{ titulo() }}</p>
+          @if (e.principal; as p) {
+            @if (e.fase === 'despues') {
+              <p class="sigue">Sigue</p>
+            }
+            <h1><ion-icon [name]="p.icono" aria-hidden="true" /> {{ p.titulo }}</h1>
+            @if (p.detalle) {
+              <p class="detalle">{{ p.detalle }}</p>
+            }
+            <p class="cuando">{{ cuando() }}</p>
+
+            @if (detalles() && e.fase !== 'despues' && puedeMarcar(p)) {
+              <div class="acciones" (click)="$event.stopPropagation()">
+                <ion-button
+                  size="large"
+                  [color]="colorBoton()"
+                  [disabled]="guardando()"
+                  (click)="marcar(p, true)"
+                >
+                  <ion-icon slot="start" name="checkmark-circle-outline" />
+                  {{ textoSi(p) }}
+                </ion-button>
+                <ion-button
+                  size="large"
+                  fill="outline"
+                  [color]="colorBoton()"
+                  [disabled]="guardando()"
+                  (click)="marcar(p, false)"
+                >
+                  <ion-icon slot="start" name="close-circle-outline" />
+                  {{ textoNo(p) }}
+                </ion-button>
+              </div>
+            }
+          } @else {
+            <h1>No queda nada pendiente por hoy</h1>
+          }
+        </main>
+      </div>
+
+      @if (!detalles()) {
+        @if (pista()) {
+          <button type="button" class="pista" (click)="alternarDetalles()">{{ pista() }}</button>
+        }
+      } @else {
+      <footer class="pie">
+        @if (despues().length > 0) {
+          <p class="pie-titulo">Después</p>
+          <ul>
+            @for (x of despues(); track x.pendiente.clave) {
+              <li>
+                <span class="hora">{{ x.pendiente.hora | date: 'HH:mm' }}</span>
+                <ion-icon [name]="x.pendiente.icono" aria-hidden="true" />
+                <span class="nombre">{{ x.pendiente.titulo }}</span>
+                @if (etiquetaFase[x.fase]) {
+                  <span class="fase" [attr.data-fase]="x.fase">{{ etiquetaFase[x.fase] }}</span>
+                }
+              </li>
+            }
+          </ul>
+          @if (masDespues() > 0) {
+            <p class="mas">y {{ masDespues() }} más</p>
+          }
+        }
+        @if (avance().total > 0) {
+          <p class="avance">Hoy: {{ avance().registradas }} de {{ avance().total }} registradas</p>
+        } @else {
+          <p class="avance">No hay tomas ni tareas programadas para hoy.</p>
+        }
+      </footer>
+      }
+    }
+  </div>
+</ion-content>

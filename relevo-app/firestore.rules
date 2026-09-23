@@ -124,6 +124,14 @@ service cloud.firestore {
         || (resource.data.inventario < 0 && request.resource.data.inventario == 0);
     }
 
+    // Una medición: tipo conocido y números con sentido (la presión lleva la diastólica en valorSecundario)
+    function signoValido(d) {
+      return d.tipo in ['presion', 'glucosa', 'temperatura', 'oxigenacion', 'pulso', 'peso']
+        && d.valor is number && d.valor > 0 && d.valor <= 1000
+        && (!('valorSecundario' in d) || d.valorSecundario == null
+            || (d.valorSecundario is number && d.valorSecundario > 0 && d.valorSecundario <= 1000));
+    }
+
     function tomaValida(d) {
       return d.tomado is bool
         && (!('nota' in d) || (d.nota is string && d.nota.size() <= 200));
@@ -281,12 +289,15 @@ service cloud.firestore {
         allow write: if tieneRol(personaId, ['familiar', 'cuidador_principal', 'cuidador_turno']);
       }
 
-      // signos_vitales: cuidadores registran; el médico solo lee
+      // signos_vitales: los registran (firmados) quienes marcan tareas de la rutina, porque se
+      // capturan al marcar como hecha una tarea de signos vitales; corregir el registro reescribe o
+      // borra sus mediciones. El médico solo lee. Tipos y límites: los de TIPOS_SIGNO en la app.
       match /signos_vitales/{signoId} {
         allow read: if esMiembro(personaId);
-        allow create: if tieneRol(personaId, ['cuidador_principal', 'cuidador_turno'])
-          && request.resource.data.autorUid == request.auth.uid;
-        allow update, delete: if tieneRol(personaId, ['cuidador_principal']);
+        allow create, update: if tieneRol(personaId, ['cuidador_principal', 'cuidador_turno', 'familiar'])
+          && request.resource.data.autorUid == request.auth.uid
+          && signoValido(request.resource.data);
+        allow delete: if tieneRol(personaId, ['cuidador_principal', 'cuidador_turno', 'familiar']);
       }
     }
   }

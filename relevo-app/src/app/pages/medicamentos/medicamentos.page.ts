@@ -1,6 +1,7 @@
 import { DatePipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { RouterLink } from '@angular/router';
 import {
   ActionSheetController,
   AlertController,
@@ -54,6 +55,7 @@ const TOMA_RECIENTE_MIN = 60;
   selector: 'app-medicamentos',
   imports: [
     DatePipe,
+    RouterLink,
     IonHeader,
     IonToolbar,
     IonButtons,

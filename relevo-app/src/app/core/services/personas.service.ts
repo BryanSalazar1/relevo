@@ -50,11 +50,6 @@ export class PersonasService {
   }
 
   /**
-   * Da de alta a una persona cuidada. Solo lo permiten las rules a cuentas de tipo familiar,
-   * que quedan como responsables (cuidador_principal). Persona + miembro + perfil van en un
-   * batch para que queden consistentes.
-   */
-  /**
    * Actualiza datos básicos o de la ficha médica (solo el responsable, según las rules). Un valor
    * `undefined` borra el campo, para poder quitar la fecha, la descripción, el seguro, etc.
    */
@@ -69,6 +64,11 @@ export class PersonasService {
     await updateDoc(doc(this.db, 'personas_cuidadas', id), cambios);
   }
 
+  /**
+   * Da de alta a una persona cuidada (datos básicos y, si se capturó, su ficha médica). Solo lo
+   * permiten las rules a cuentas de tipo familiar, que quedan como responsables
+   * (cuidador_principal). Persona + miembro + perfil van en un batch para que queden consistentes.
+   */
   async crearPersona(datos: Pick<PersonaCuidada, 'nombre'> & Partial<PersonaCuidada>): Promise<string> {
     const uid = this.authSvc.uid;
     if (!uid) throw new Error('No hay sesión iniciada');
@@ -78,12 +78,14 @@ export class PersonasService {
 
     const personaRef = doc(collection(this.db, 'personas_cuidadas'));
     const batch = writeBatch(this.db);
+    // Los campos opcionales sin llenar llegan como undefined, y Firestore no los acepta
+    const capturado = Object.fromEntries(Object.entries(datos).filter(([, v]) => v !== undefined));
 
     batch.set(personaRef, {
       alergias: [],
       condiciones: [],
       contactosEmergencia: [],
-      ...datos,
+      ...capturado,
       miembrosUids: [uid],
       creadoPor: uid,
       creadoEn: serverTimestamp(),

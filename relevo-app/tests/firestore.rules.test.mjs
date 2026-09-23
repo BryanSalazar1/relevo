@@ -348,6 +348,32 @@ test('roles: el familiar coordina el calendario, escribe en la bitácora y regis
   );
 });
 
+test('signos vitales: los registra quien marca tareas (también el familiar), firmados y con valores válidos; el médico solo lee', async () => {
+  await anaCreaPersona();
+  const signo = (db, id) => doc(db, `personas_cuidadas/${PERSONA_ID}/signos_vitales/${id}`);
+  const presion = { tipo: 'presion', valor: 130, valorSecundario: 85, unidad: 'mmHg', autorUid: 'luis', tareaId: 't1' };
+
+  await agregarLuisComo('familiar');
+  await assertSucceeds(setDoc(signo(luis(), 't1-20260921-0800-presion'), presion));
+  // corregir el registro reescribe la misma medición
+  await assertSucceeds(setDoc(signo(luis(), 't1-20260921-0800-presion'), { ...presion, valor: 128 }));
+  await assertSucceeds(setDoc(signo(luis(), 't1-20260921-0800-temperatura'), { tipo: 'temperatura', valor: 36.5, valorSecundario: null, autorUid: 'luis' }));
+  // no a nombre de otro, ni tipos inventados, ni valores sin sentido
+  await assertFails(setDoc(signo(luis(), 's2'), { ...presion, autorUid: 'ana' }));
+  await assertFails(setDoc(signo(luis(), 's3'), { ...presion, tipo: 'colesterol' }));
+  await assertFails(setDoc(signo(luis(), 's4'), { ...presion, valor: 'alta' }));
+  await assertFails(setDoc(signo(luis(), 's5'), { ...presion, valor: -5 }));
+  await assertFails(setDoc(signo(luis(), 's6'), { ...presion, valorSecundario: 99999 }));
+  // quitar el registro borra sus mediciones, existan o no (van en un mismo batch)
+  await assertSucceeds(deleteDoc(signo(luis(), 't1-20260921-0800-presion')));
+  await assertSucceeds(deleteDoc(signo(luis(), 't1-20260921-0800-glucosa')));
+
+  await agregarLuisComo('medico');
+  await assertSucceeds(getDoc(signo(luis(), 't1-20260921-0800-temperatura')));
+  await assertFails(setDoc(signo(luis(), 's7'), presion));
+  await assertFails(deleteDoc(signo(luis(), 't1-20260921-0800-temperatura')));
+});
+
 // ---------------------------------------------------------------------------
 // Invitaciones (compartir por código / QR): el rol lo decide el tipo de cuenta de quien entra
 // ---------------------------------------------------------------------------

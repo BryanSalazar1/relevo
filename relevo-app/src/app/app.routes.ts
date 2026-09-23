@@ -25,6 +25,12 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/unirse/unirse.page').then((m) => m.UnirsePage),
   },
   {
+    // Pantalla completa, fuera de las pestañas: va antes de personas/:id
+    path: 'personas/:id/semaforo',
+    canActivate: [authGuard],
+    loadComponent: () => import('./pages/semaforo/semaforo.page').then((m) => m.SemaforoPage),
+  },
+  {
     path: 'personas/:id',
     canActivate: [authGuard],
     loadComponent: () => import('./pages/persona/persona.page').then((m) => m.PersonaPage),

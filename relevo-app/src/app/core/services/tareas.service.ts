@@ -19,7 +19,7 @@ import {
   writeBatch,
 } from '@angular/fire/firestore';
 import { Observable, catchError, combineLatest, map, of, switchMap } from 'rxjs';
-import { RegistroTarea, Tarea, TipoTarea } from '../models';
+import { RegistroTarea, Tarea, TipoSigno, TipoTarea } from '../models';
 import { inicioDeDia, sumarDias, tareaEnDia } from '../utils/fechas';
 import { AuthService } from './auth.service';
 import { fechaDe, idToma } from './medicamentos.service';
@@ -33,6 +33,8 @@ export interface DatosTarea {
   dias?: number[];
   /** Duración de cada horario en minutos; 0 = solo hora de inicio */
   duracionMin?: number;
+  /** Solo tipo 'signos': qué se mide; vacío = todos */
+  signos?: TipoSigno[];
   notas?: string;
 }
 
@@ -251,6 +253,7 @@ export class TareasService {
     if (datos.dias !== undefined) salida['dias'] = [...new Set(datos.dias)].sort((a, b) => a - b);
     if (datos.duracionMin !== undefined)
       salida['duracionMin'] = Math.max(0, Math.round(datos.duracionMin));
+    if (datos.signos !== undefined) salida['signos'] = [...new Set(datos.signos)];
     if (datos.notas !== undefined) salida['notas'] = datos.notas.trim();
     return salida;
   }

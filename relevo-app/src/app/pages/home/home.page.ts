@@ -111,6 +111,7 @@ export class HomePage {
         nombre,
         ...(data.fechaNacimiento ? { fechaNacimiento: data.fechaNacimiento } : {}),
         ...(data.descripcion ? { descripcion: data.descripcion } : {}),
+        ...data.ficha,
       });
       await this.mostrar(`"${nombre}" se creó. Ya puedes registrar su bitácora.`, 'success');
       await this.router.navigate(['/personas', id]);

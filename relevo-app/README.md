@@ -92,6 +92,7 @@ relevo-app/
             ├── home/            # lista "mis personas" + "Unirme con código o QR"
             ├── persona/         # pestañas de una persona: Bitácora · Medicinas · Rutina · Equipo · Reporte · Asistente
             ├── bitacora/        # feed agrupado por día, filtro por tipo, modal de registro
+            ├── semaforo/        # lo que sigue hoy en pantalla completa y un solo color (fuera de las pestañas)
             ├── equipo/          # perfil, miembros, invitaciones y modal con QR
             ├── unirse/          # escribir código o escanear QR con la cámara
             └── reporte/         # reporte en pantalla + "Exportar PDF para el médico"
@@ -432,6 +433,11 @@ decisión: en la web se avisa por correo.
   (`TIPOS_SANGRE` para el selector). Las reglas ya permitían al responsable actualizar la persona.
 - La ficha entra en el reporte (pantalla y tabla "Datos de la persona" del PDF) y en el contexto del
   asistente, para que pueda responder "¿a quién llamo en una emergencia?" o "¿qué alergias tiene?".
+- Los campos viven en un componente compartido, `pages/equipo/ficha-campos.component.ts`
+  (`<app-ficha-campos>` + `datos()`), que usan el alta (`persona.modal.ts`) y `FichaModal`. Lo escrito
+  en "Nueva condición" / "Nueva alergia" sin tocar **Agregar** también se guarda. Corregido el
+  21/09/2026: un contacto sin "relación" mandaba `relacion: undefined` dentro de la lista y Firestore
+  rechazaba toda la ficha ("No se pudo guardar la ficha médica").
 
 ### Personas cuidadas: alta y datos — 15/09/2026
 - **+** en *Mis personas* (solo cuentas de familiar) abre un formulario completo: nombre, fecha de
@@ -441,6 +447,11 @@ decisión: en la web se avisa por correo.
   que recibe el asistente.
 - El responsable corrige esos datos desde *Equipo → Editar datos* (`PersonasService.actualizar`;
   las rules ya permitían al responsable actualizar la persona).
+- **La ficha médica es parte del alta (21/09/2026):** debajo de los datos básicos, el mismo
+  formulario captura tipo de sangre, condiciones, alergias, médico tratante, seguro, hospital, notas
+  médicas y contactos de emergencia. Todo es opcional y se guarda junto con la persona, en el mismo
+  batch (`crearPersona` descarta los campos sin llenar). Al **editar** datos básicos la ficha no
+  aparece: se sigue editando aparte, con *Editar ficha médica*.
 
 ### Bitácora (`/personas/:id/bitacora`)
 - Feed en **tiempo real** agrupado por día (Hoy / Ayer / fecha), con 5 tipos: síntoma, ánimo,
@@ -546,6 +557,48 @@ decisión: en la web se avisa por correo.
   médico solo lee. Probado en `tests/firestore.rules.test.mjs`.
 - Los registros de tareas (hechas y no hechas, con su nota) aparecen en la **bitácora**, con el
   filtro "Tareas de la rutina". Pendiente: incluirlos en el reporte PDF.
+
+### Tarea "Signos vitales" y captura de mediciones — 21/09/2026
+- Nuevo tipo de tarea en la rutina: **Signos vitales** (propone el nombre "Revisar signos vitales").
+  El responsable elige **qué se mide** en esa tarea: presión arterial, glucosa, temperatura,
+  oxigenación, pulso y peso (`Tarea.signos`; por defecto presión y glucosa). Así "Glucosa en ayunas
+  07:30" solo pide la glucosa. Avisa y aparece en el semáforo como cualquier otra tarea.
+- Al marcarla como **hecha** (desde Rutina o desde el Semáforo) se abre la captura
+  (`pages/rutina/signos.modal.ts`): solo los signos de esa tarea, todos opcionales, con límites que
+  atajan errores de dedo (p. ej. glucosa 20–600, la presión pide sus dos números y la baja menor que
+  la alta) y nota opcional. Es la **primera pantalla de la app que captura signos vitales**: antes
+  el reporte y el asistente solo tenían los de la semilla.
+- Se guarda en dos lugares (`pages/rutina/marcar-tarea.service.ts`, compartido por Rutina y Semáforo):
+  - el registro de la tarea, con las mediciones resumidas en la nota («Presión 130/85 mmHg · Glucosa
+    110 mg/dL — En ayunas»), así que se ven en la rutina y en la bitácora sin cambios;
+  - una medición por signo en `personas_cuidadas/{id}/signos_vitales`, que ya leen el **reporte**
+    (mín., máx., promedio, última) y el **asistente**. Su id es `{tareaId}-{idRegistro}-{tipo}`:
+    corregir el registro reemplaza las mediciones, y marcarla "no hecha" o quitar el registro las borra.
+- Rules (`signos_vitales`): crean y corrigen (firmado) responsable, enfermero/a y **familiar** —los
+  mismos que marcan tareas—, con tipo conocido y valores numéricos válidos; el médico solo lee.
+  Probado en `tests/firestore.rules.test.mjs` (22 pruebas). Etiqueta en los avisos: `functions/logica.js`.
+
+### Semáforo (`/personas/:id/semaforo`) — 21/09/2026
+- Pantalla completa para dejar el teléfono apoyado y entender de lejos qué sigue, sin abrir cada
+  pestaña. Se entra con el icono de semáforo del encabezado de **Bitácora**, **Medicinas** y **Rutina**.
+- Junta las tomas con horario y las tareas de la rutina de **hoy** que aún no tienen registro:
+  - **Verde — "Todo al día"**: nada urgente; muestra lo que sigue y cuánto falta.
+  - **Amarillo — "Ya casi" / "Es hora"**: algo entra en su aviso (los minutos de la tarea; 15 en los
+    medicamentos) o ya es su hora. Una tarea con rango ("de 10:00 a 11:00") sigue en amarillo mientras dura.
+  - **Rojo — "Atrasado"**: pasaron 15 min de la hora (o del fin del rango) sin registro. Manda el más
+    antiguo y no baja hasta que se marca hecho o no hecho.
+- Por defecto es **solo un vistazo**: el semáforo grande, el estado, qué toca y a qué hora. La idea es
+  mirarlo de lejos y tomar el teléfono solo para marcar.
+- **Al tocar la pantalla** aparecen los botones grandes **Tomada / No tomada** o **Hecha / No hecha**
+  (misma confirmación con nota opcional y mismos permisos que en las pestañas; el médico solo mira),
+  los siguientes 4 pendientes y el avance del día («Hoy: 5 de 9 registradas»). Se esconden solos a
+  los 30 s, o con otro toque; si quedan más atrasados se pueden marcar seguidos.
+- El color nunca va solo: siempre hay texto y la luz encendida cambia de posición (daltonismo).
+- Mantiene la **pantalla encendida** mientras está abierto (`@capacitor-community/keep-awake`: en
+  Android nativo; en la web usa Screen Wake Lock si el navegador lo permite). Se recalcula cada 15 s
+  y a medianoche pasa a la agenda del día siguiente.
+- La regla de colores es una función pura en `core/utils/semaforo.ts`, con 12 pruebas en
+  `semaforo.spec.ts` (`npx ng test --watch=false --browsers=ChromeHeadless`).
 
 ### Compartir por código y QR (`Equipo` → *Crear invitación*)
 - Al entrar a la persona → **Equipo**, el **responsable** ve de inmediato la tarjeta "Código de
