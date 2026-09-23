@@ -1,0 +1,245 @@
+/*
+ * Gráficas del reporte.
+ *
+ * El texto lleva SIEMPRE tokens de tinta, nunca el color de la serie: el color
+ * lo carga la marca (la barra, el punto de la leyenda) que va al lado. Un
+ * número pintado del color de su serie se vuelve ilegible en cuanto la serie
+ * es oscura, y además duplica una información que la marca ya da.
+ */
+.viz-root {
+  --viz-superficie: rgba(255, 255, 255, 0.05);
+  --viz-borde: rgba(255, 255, 255, 0.1);
+  --viz-tinta: #e8eefc;
+  --viz-tinta-2: rgba(232, 238, 252, 0.62);
+  --viz-rejilla: rgba(255, 255, 255, 0.08);
+  --viz-pista: rgba(255, 255, 255, 0.07);
+
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 16px;
+}
+
+.grafica {
+  margin: 0;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--viz-superficie);
+  border: 1px solid var(--viz-borde);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+
+  figcaption {
+    margin-bottom: 14px;
+
+    h3 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--viz-tinta);
+    }
+
+    p {
+      margin: 2px 0 0;
+      font-size: 0.8125rem;
+      color: var(--viz-tinta-2);
+    }
+  }
+}
+
+/* ---------- columnas: actividad por día ---------- */
+
+.lienzo {
+  display: block;
+  width: 100%;
+  height: 160px;
+  overflow: visible;
+}
+
+.rejilla {
+  stroke: var(--viz-rejilla);
+  stroke-width: 1;
+}
+
+.barra {
+  transition: opacity 140ms ease;
+}
+
+.columnas:hover .barra {
+  opacity: 0.45;
+}
+
+.columnas .barra:hover {
+  opacity: 1;
+}
+
+.eje-x {
+  position: relative;
+  height: 18px;
+  margin-top: 6px;
+
+  span {
+    position: absolute;
+    transform: translateX(-50%);
+    font-size: 0.6875rem;
+    color: var(--viz-tinta-2);
+    white-space: nowrap;
+  }
+}
+
+/* ---------- barras horizontales ---------- */
+
+.barras-h {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fila {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.nombre {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.8125rem;
+  color: var(--viz-tinta);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* La marca de identidad: el color vive aquí, no en el texto. */
+.punto {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+}
+
+.pista {
+  display: block;
+  height: 12px;
+  border-radius: 6px;
+  background: var(--viz-pista);
+  overflow: hidden;
+}
+
+/* Extremo redondeado de 4px, anclado al origen de la pista. */
+.relleno {
+  display: block;
+  height: 100%;
+  border-radius: 6px;
+  min-width: 4px;
+  transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.valor {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--viz-tinta);
+  font-variant-numeric: tabular-nums;
+  min-width: 3.5rem;
+  text-align: right;
+}
+
+.adherencia .valor {
+  min-width: 6.5rem;
+}
+
+/* ---------- tarjetas de signos vitales ---------- */
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.tile {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--viz-borde);
+}
+
+.tile-etiqueta {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--viz-tinta-2);
+}
+
+.tile-valor {
+  display: block;
+  margin: 4px 0 2px;
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: var(--viz-tinta);
+  font-variant-numeric: tabular-nums;
+}
+
+.tile-detalle {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--viz-tinta-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- escritorio ---------- */
+
+@media (min-width: 992px) {
+  .viz-root {
+    gap: 18px;
+    margin: 20px 16px;
+  }
+
+  .grafica {
+    padding: 20px 22px;
+
+    figcaption h3 {
+      font-size: 1.125rem;
+    }
+
+    figcaption p {
+      font-size: 0.875rem;
+    }
+  }
+
+  .lienzo {
+    height: 200px;
+  }
+
+  .fila {
+    grid-template-columns: 10rem 1fr auto;
+  }
+
+  .nombre,
+  .valor {
+    font-size: 0.9375rem;
+  }
+
+  .pista {
+    height: 14px;
+  }
+
+  .tile-valor {
+    font-size: 1.5rem;
+  }
+}
+
+/* Las barras no crecen animadas para quien pidió menos movimiento. */
+@media (prefers-reduced-motion: reduce) {
+  .relleno {
+    transition: none;
+  }
+
+  .barra {
+    transition: none;
+  }
+}

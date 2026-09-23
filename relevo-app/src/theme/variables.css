@@ -1,10 +1,86 @@
 /**
- * Ionic Dark Theme
+ * Relevo — tema oscuro con degradados
  * -----------------------------------------------------
- * For more info, please see:
- * https://ionicframework.com/docs/theming/dark-mode
+ * Se fuerza el tema oscuro SIEMPRE (dark.always) en vez de seguir al sistema.
+ * Motivo: el diseño se basa en degradados oscuros y superficies translúcidas.
+ * Si el SO estuviera en claro, Ionic pintaría tarjetas y listas blancas encima
+ * de esos degradados y el texto quedaría ilegible.
  */
+@import "@ionic/angular/css/palettes/dark.always.css";
 
-/* @import "@ionic/angular/css/palettes/dark.always.css"; */
-/* @import "@ionic/angular/css/palettes/dark.class.css"; */
-@import "@ionic/angular/css/palettes/dark.system.css";
+:root {
+  /* ---- Degradados de marca ---- */
+  --relevo-fondo: linear-gradient(170deg, #0b1220 0%, #101a2e 45%, #080d18 100%);
+  --relevo-barra: linear-gradient(160deg, #0b1b3a 0%, #13284f 55%, #0d1e3d 100%);
+  --relevo-rail: linear-gradient(180deg, #0b1220 0%, #101a2e 55%, #0b1220 100%);
+
+  /* ---- Superficies translúcidas (antes blancas) ---- */
+  --relevo-superficie: rgba(255, 255, 255, 0.06);
+  --relevo-superficie-alta: rgba(255, 255, 255, 0.09);
+  --relevo-borde: rgba(255, 255, 255, 0.12);
+  --relevo-desenfoque: blur(14px);
+}
+
+/*
+ * dark.always.css define los tokens de superficie bajo `:root.md` / `:root.ios`,
+ * que tienen especificidad (0,2,0). Un `:root {}` pelado es (0,1,0) y PIERDE
+ * aunque venga después. Por eso los overrides van con el mismo selector.
+ */
+:root.md,
+:root.ios {
+  /*
+   * OJO: este token es el ÚLTIMO fallback de --ion-item-background,
+   * --ion-card-background, --ion-toolbar-background Y del
+   * `body { background: var(--ion-background-color) }` de core.css.
+   * Si se pone `transparent`, el body se queda sin fondo y cualquier hueco
+   * no cubierto sale blanco del navegador. Tiene que ser un color real.
+   */
+  --ion-background-color: #080d18;
+  --ion-background-color-rgb: 8, 13, 24;
+
+  /*
+   * CLAVE: todos los overlays de Ionic (action-sheet, alert, toast, loading,
+   * popover, picker) resuelven su fondo como
+   *   var(--ion-overlay-background-color, var(--ion-background-color, #fff))
+   * Sin este token heredarían el `transparent` de arriba y quedarían
+   * ilegibles flotando sobre el contenido. Un solo token los cubre todos.
+   */
+  --ion-overlay-background-color: #16203a;
+  --ion-item-background: transparent;
+  --ion-card-background: transparent;
+  --ion-toolbar-background: transparent;
+  --ion-tab-bar-background: transparent;
+
+  /* Bordes: el gris por defecto (#363636) desaparece sobre el degradado. */
+  --ion-border-color: rgba(255, 255, 255, 0.12);
+  --ion-item-border-color: rgba(255, 255, 255, 0.12);
+  --ion-toolbar-border-color: rgba(255, 255, 255, 0.1);
+  --ion-tab-bar-border-color: rgba(255, 255, 255, 0.08);
+
+  /* Texto sobre superficies oscuras. */
+  --ion-text-color: #e8eefc;
+  --ion-text-color-rgb: 232, 238, 252;
+  --ion-card-color: #e8eefc;
+
+  /*
+   * Trampa de contraste: la paleta oscura invierte --ion-color-primary-contrast
+   * de #fff a #000. Como ion-toolbar[color=primary] hace `color: var(--ion-color-contrast)`,
+   * el título quedaría NEGRO sobre el degradado oscuro.
+   */
+  --ion-color-primary-contrast: #ffffff;
+  --ion-color-primary-contrast-rgb: 255, 255, 255;
+}
+
+/*
+ * dark.always.css trae `:root.ios ion-modal { --ion-toolbar-background: ... }`
+ * con especificidad (0,2,1) APLICADA SOBRE el elemento ion-modal, así que
+ * hereda a todo su interior y gana a nuestro :root.md/:root.ios (0,2,0).
+ * Sin esto, las toolbars de los modales salen gris opaco en iOS.
+ * Empatamos en (0,2,1) y ganamos por orden: variables.css carga el último.
+ */
+:root.md ion-modal,
+:root.ios ion-modal {
+  --ion-background-color: #0a1120;
+  --ion-toolbar-background: transparent;
+  --ion-toolbar-border-color: rgba(255, 255, 255, 0.12);
+}

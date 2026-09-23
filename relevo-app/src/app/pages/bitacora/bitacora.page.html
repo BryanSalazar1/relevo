@@ -11,6 +11,11 @@
       <ion-button (click)="abrirFiltro()" aria-label="Filtrar por tipo">
         <ion-icon slot="icon-only" [name]="filtro() ? 'funnel' : 'funnel-outline'" />
       </ion-button>
+      @if (puedeEscribir()) {
+        <ion-button (click)="nueva()" aria-label="Nuevo registro">
+          <ion-icon slot="icon-only" name="add" />
+        </ion-button>
+      }
     </ion-buttons>
   </ion-toolbar>
   @if (filtro(); as f) {
@@ -142,11 +147,5 @@
     </div>
   }
 
-  @if (puedeEscribir()) {
-    <ion-fab slot="fixed" vertical="bottom" horizontal="end">
-      <ion-fab-button (click)="nueva()" aria-label="Nuevo registro">
-        <ion-icon name="add" />
-      </ion-fab-button>
-    </ion-fab>
-  }
+  <app-fab-asistente />
 </ion-content>

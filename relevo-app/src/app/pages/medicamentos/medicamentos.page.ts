@@ -45,6 +45,7 @@ import { formatDate } from '@angular/common';
 import { pedirNota } from '../../core/utils/notas';
 import { personaActual } from '../../core/utils/persona-actual';
 import { MedicamentoModal } from './medicamento.modal';
+import { FabAsistente } from '../../shared/fab-asistente.component';
 
 /** Marcar una dosis con más de estos minutos de anticipación muestra un aviso en la confirmación. */
 const DOSIS_ADELANTADA_MIN = 60;
@@ -54,6 +55,7 @@ const TOMA_RECIENTE_MIN = 60;
 @Component({
   selector: 'app-medicamentos',
   imports: [
+    FabAsistente,
     DatePipe,
     RouterLink,
     IonHeader,

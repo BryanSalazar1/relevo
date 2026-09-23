@@ -46,6 +46,7 @@ import { personaActual } from '../../core/utils/persona-actual';
       </ion-tab-bar>
     </ion-tabs>
   `,
+  styleUrl: './persona.page.scss',
 })
 export class PersonaPage {
   private readonly medsSvc = inject(MedicamentosService);

@@ -11,8 +11,6 @@ import {
   IonButtons,
   IonChip,
   IonContent,
-  IonFab,
-  IonFabButton,
   IonHeader,
   IonIcon,
   IonItem,
@@ -45,6 +43,7 @@ import { RegistroReciente } from '../../core/services/tareas.service';
 import { agruparPorDia, etiquetaDia } from '../../core/utils/fechas';
 import { personaActual } from '../../core/utils/persona-actual';
 import { EntradaModal } from './entrada.modal';
+import { FabAsistente } from '../../shared/fab-asistente.component';
 
 /** Qué se muestra: un tipo de entrada, solo tomas de medicamentos, solo tareas, o todo (null). */
 export type FiltroBitacora = TipoEntrada | 'toma' | 'tarea';
@@ -52,6 +51,7 @@ export type FiltroBitacora = TipoEntrada | 'toma' | 'tarea';
 @Component({
   selector: 'app-bitacora',
   imports: [
+    FabAsistente,
     DatePipe,
     RouterLink,
     IonHeader,
@@ -68,8 +68,6 @@ export type FiltroBitacora = TipoEntrada | 'toma' | 'tarea';
     IonItemDivider,
     IonLabel,
     IonAvatar,
-    IonFab,
-    IonFabButton,
     IonSpinner,
     IonText,
   ],

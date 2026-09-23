@@ -1,3 +1,130 @@
+/*
+ * Login con fondo animado "aurora".
+ *
+ * Sólo se animan transform y opacity: las dos propiedades que el compositor
+ * resuelve sin volver a rasterizar. Coste por frame en el hilo principal: cero.
+ * Es CSS puro, sin estado en el componente y sin listeners que limpiar.
+ */
+
+:host {
+  // El host del componente ES el .ion-page, y éste es flex column con
+  // contain:layout, así que sirve de bloque contenedor del fondo absoluto.
+  ion-toolbar::part(background) {
+    background: transparent;
+  }
+
+  ion-toolbar {
+    --color: #e8eefc;
+  }
+}
+
+.fondo-login {
+  // Obligatoriamente absolute: .ion-page es flex column y un div normal
+  // se volvería item flex y empujaría el layout.
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  contain: layout paint; // acota el área que el compositor tiene que rehacer
+  pointer-events: none;
+
+  background:
+    radial-gradient(140% 90% at 50% -10%, #14284a 0%, transparent 58%),
+    linear-gradient(165deg, #0b1526 0%, #05080f 55%, #03050a 100%);
+
+  // Viñeta estática: enfoca la vista en el formulario. No anima.
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(120% 78% at 50% 42%, transparent 30%, rgba(0, 0, 0, 0.55) 100%);
+  }
+}
+
+.aurora {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 56vmax;
+  height: 56vmax;
+  margin: -28vmax 0 0 -28vmax;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+}
+
+// Gradientes elípticos: el rotate se nota, y el corte a 0 da el borde suave
+// sin pagar un filter: blur(), que sí obligaría a repintar.
+.a1 {
+  background: radial-gradient(ellipse 50% 34% at 50% 50%, rgba(77, 141, 255, 0.5), rgba(77, 141, 255, 0) 70%);
+  animation:
+    deriva-1 32s ease-in-out infinite alternate,
+    latido 17s ease-in-out 0s infinite alternate;
+}
+
+.a2 {
+  background: radial-gradient(ellipse 44% 30% at 50% 50%, rgba(132, 130, 251, 0.42), rgba(132, 130, 251, 0) 70%);
+  animation:
+    deriva-2 41s ease-in-out infinite alternate,
+    latido 23s ease-in-out -6s infinite alternate;
+}
+
+.a3 {
+  background: radial-gradient(ellipse 56% 26% at 50% 50%, rgba(70, 177, 255, 0.32), rgba(70, 177, 255, 0) 72%);
+  animation:
+    deriva-3 47s ease-in-out infinite alternate,
+    latido 29s ease-in-out -11s infinite alternate;
+}
+
+@keyframes deriva-1 {
+  0%   { transform: translate3d(-22vw, -18vh, 0) rotate(-14deg); }
+  100% { transform: translate3d(14vw, 10vh, 0) rotate(26deg); }
+}
+
+@keyframes deriva-2 {
+  0%   { transform: translate3d(20vw, 16vh, 0) rotate(38deg); }
+  100% { transform: translate3d(-16vw, -10vh, 0) rotate(-22deg); }
+}
+
+@keyframes deriva-3 {
+  0%   { transform: translate3d(-4vw, 26vh, 0) rotate(8deg); }
+  100% { transform: translate3d(8vw, -22vh, 0) rotate(-30deg); }
+}
+
+@keyframes latido {
+  0%   { opacity: 0.3; }
+  100% { opacity: 0.7; }
+}
+
+// Pantallas chicas: dos manchas en vez de tres, menos memoria de GPU.
+@media (max-width: 480px) {
+  .a3 {
+    display: none;
+  }
+
+  .aurora {
+    width: 70vmax;
+    height: 70vmax;
+    margin: -35vmax 0 0 -35vmax;
+  }
+}
+
+// Reducir movimiento no significa pantalla plana: se congela la composición
+// en una posición elegida, no se borra. will-change vuelve a auto para no
+// gastar memoria de GPU en una capa que ya no se mueve.
+@media (prefers-reduced-motion: reduce) {
+  .aurora {
+    animation: none !important;
+    will-change: auto;
+    opacity: 0.45;
+  }
+
+  .a1 { transform: translate3d(-14vw, -12vh, 0) rotate(-8deg); }
+  .a2 { transform: translate3d(16vw, 12vh, 0) rotate(30deg); }
+  .a3 { transform: translate3d(0, 18vh, 0) rotate(6deg); }
+}
+
+/* ---------------- estilos originales del formulario ---------------- */
+
 .contenedor {
   max-width: 420px;
   margin: 0 auto;
@@ -8,7 +135,11 @@
   margin-bottom: 1.5rem;
 
   .logo {
-    font-size: 56px;
+    width: 84px;
+    height: 84px;
+    display: inline-block;
+    border-radius: 22px;
+    box-shadow: 0 14px 38px rgba(47, 99, 255, 0.35);
   }
 
   h1 {

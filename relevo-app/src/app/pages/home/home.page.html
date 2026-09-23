@@ -2,6 +2,11 @@
   <ion-toolbar color="primary">
     <ion-title>Mis personas</ion-title>
     <ion-buttons slot="end">
+      @if (esFamiliar()) {
+        <ion-button (click)="nuevaPersona()" aria-label="Nueva persona">
+          <ion-icon slot="icon-only" name="add" />
+        </ion-button>
+      }
       <ion-button (click)="salir()" aria-label="Cerrar sesión">
         <ion-icon slot="icon-only" name="log-out-outline" />
       </ion-button>
@@ -69,11 +74,4 @@
     </div>
   }
 
-  @if (esFamiliar()) {
-    <ion-fab slot="fixed" vertical="bottom" horizontal="end">
-      <ion-fab-button (click)="nuevaPersona()" aria-label="Nueva persona">
-        <ion-icon name="add" />
-      </ion-fab-button>
-    </ion-fab>
-  }
 </ion-content>
