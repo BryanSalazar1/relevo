@@ -1,7 +1,7 @@
 import { DatePipe } from '@angular/common';
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import {
   IonBackButton,
   IonBadge,
@@ -22,13 +22,15 @@ import {
   IonToolbar,
   ToastController,
 } from '@ionic/angular';
-import { combineLatest, switchMap } from 'rxjs';
+import { combineLatest, map, of, switchMap } from 'rxjs';
 import {
   Medicamento,
   PUEDE_EDITAR_MEDICAMENTOS,
   PUEDE_REGISTRAR_TAREAS,
   PUEDE_REGISTRAR_TOMAS,
 } from '../../core/models';
+import { AuthService } from '../../core/services/auth.service';
+import { BitacoraService } from '../../core/services/bitacora.service';
 import {
   EstadoInventario,
   MedicamentosService,
@@ -36,6 +38,8 @@ import {
   textoInventario,
   vigenteEnDia,
 } from '../../core/services/medicamentos.service';
+import { MiembrosService } from '../../core/services/miembros.service';
+import { SignosService } from '../../core/services/signos.service';
 import { TareasService } from '../../core/services/tareas.service';
 import {
   DIAS_ATRAS_MAX,
@@ -46,10 +50,18 @@ import {
   textoCuando,
   tituloEstado,
 } from '../../core/utils/agenda-dia';
+import {
+  MAX_LINEAS_ENTREGA,
+  Novedad,
+  inicioEntrega,
+  novedadesEntrega,
+  textoDesde,
+} from '../../core/utils/entrega-turno';
 import { claveDia, etiquetaDia, inicioDeDia, sumarDias } from '../../core/utils/fechas';
 import { personaActual } from '../../core/utils/persona-actual';
 import { estadoSemaforo } from '../../core/utils/semaforo';
 import { FabAsistente } from '../../shared/fab-asistente.component';
+import { FiltroBitacora } from '../bitacora/bitacora.page';
 import { MarcarTomaService } from '../medicamentos/marcar-toma.service';
 import { ResurtirService } from '../medicamentos/resurtir.service';
 import { MarcarTareaService } from '../rutina/marcar-tarea.service';
@@ -57,10 +69,31 @@ import { MarcarTareaService } from '../rutina/marcar-tarea.service';
 /** Cada cuánto se vuelve a calcular el estado del día (ms). */
 const REFRESCO_MS = 30_000;
 
+/** Última vez que este usuario abrió Hoy de esa persona en este dispositivo (para la Entrega de turno). */
+function claveVisita(personaId: string) {
+  return `relevo.visita.${personaId}`;
+}
+function leerVisita(personaId: string): Date | null {
+  try {
+    const v = localStorage.getItem(claveVisita(personaId));
+    const d = v ? new Date(v) : null;
+    return d && !isNaN(d.getTime()) ? d : null;
+  } catch {
+    return null;
+  }
+}
+function guardarVisita(personaId: string, fecha: Date) {
+  try {
+    localStorage.setItem(claveVisita(personaId), fecha.toISOString());
+  } catch {
+    // Sin almacenamiento (modo privado, cuota): la entrega usa el turno o las últimas 8 h
+  }
+}
+
 /**
  * Hoy: lo que toca en el día, en una sola lista cronológica (tomas de medicamentos y tareas de la
- * rutina) con botones para marcar, el estado del semáforo arriba, las tomas según necesidad y el
- * aviso de inventario por resurtir. Es la primera pestaña de cada persona.
+ * rutina) con botones para marcar, la Entrega de turno y el estado del semáforo arriba, las tomas
+ * según necesidad y el aviso de inventario por resurtir. Es la primera pestaña de cada persona.
  */
 @Component({
   selector: 'app-hoy',
@@ -92,10 +125,15 @@ const REFRESCO_MS = 30_000;
 export class HoyPage {
   private readonly medsSvc = inject(MedicamentosService);
   private readonly tareasSvc = inject(TareasService);
+  private readonly bitacoraSvc = inject(BitacoraService);
+  private readonly signosSvc = inject(SignosService);
+  private readonly miembrosSvc = inject(MiembrosService);
+  private readonly auth = inject(AuthService);
   private readonly marcarToma = inject(MarcarTomaService);
   private readonly marcarTarea = inject(MarcarTareaService);
   private readonly resurtirSvc = inject(ResurtirService);
   private readonly toast = inject(ToastController);
+  private readonly router = inject(Router);
 
   private readonly ctx = personaActual();
   readonly persona = this.ctx.persona;
@@ -141,6 +179,68 @@ export class HoyPage {
   readonly estado = computed(() => estadoSemaforo(pendientesDelDia(this.filas()), this.ahora()));
   readonly titulo = computed(() => tituloEstado(this.estado()));
   readonly cuando = computed(() => textoCuando(this.estado(), this.ahora()));
+
+  // ---------------------------------------------------------------- Entrega de turno
+  /** Momento en que se abrió Hoy: la ventana de la entrega se fija aquí, no se mueve con el reloj */
+  private readonly entradaEn = signal(new Date());
+  /** Última visita anterior a esta (localStorage); null la primera vez o sin almacenamiento */
+  private readonly visitaAnterior = signal<Date | null>(null);
+  private readonly membresia = toSignal(
+    this.ctx.personaId$.pipe(switchMap((id) => this.miembrosSvc.miMembresia(id))),
+  );
+  /** Desde cuándo se resume: fin del turno anterior, últimas 8 h o la última visita */
+  readonly desdeEntrega = computed(() =>
+    inicioEntrega({
+      turnos: this.membresia()?.turnos,
+      ahora: this.entradaEn(),
+      ultimaVisita: this.visitaAnterior(),
+    }),
+  );
+  /** Días anteriores a hoy que cubre la ventana (como mucho 3) */
+  private readonly diasAnteriores = computed(() => {
+    const dias: Date[] = [];
+    const hoy = claveDia(this.entradaEn());
+    for (let d = inicioDeDia(this.desdeEntrega()); claveDia(d) < hoy; d = sumarDias(d, 1)) dias.push(d);
+    return dias;
+  });
+  private readonly filasAnteriores = toSignal(
+    combineLatest([this.ctx.personaId$, toObservable(this.diasAnteriores)]).pipe(
+      switchMap(([id, dias]) =>
+        dias.length
+          ? combineLatest(
+              dias.map((d) =>
+                combineLatest([this.medsSvc.agendaDelDia(id, d), this.tareasSvc.agendaDelDia(id, d)]).pipe(
+                  map(([ds, ts]) => filasDelDia(ds, ts)),
+                ),
+              ),
+            ).pipe(map((listas) => listas.flat()))
+          : of([] as FilaDia[]),
+      ),
+    ),
+  );
+  private readonly entradasRecientes = toSignal(
+    this.ctx.personaId$.pipe(switchMap((id) => this.bitacoraSvc.entradas(id, 100))),
+  );
+  private readonly signosRecientes = toSignal(
+    combineLatest([this.ctx.personaId$, toObservable(this.desdeEntrega)]).pipe(
+      switchMap(([id, desde]) => this.signosSvc.recientes(id, desde)),
+    ),
+  );
+  /** Lo relevante desde el último turno (solo cuando se ve hoy y ya cargó todo) */
+  readonly entrega = computed<Novedad[] | null>(() => {
+    if (!this.esHoy() || this.cargando() || this.filasAnteriores() === undefined) return null;
+    return novedadesEntrega({
+      desde: this.desdeEntrega(),
+      ahora: this.ahora(),
+      filas: [...(this.filasAnteriores() ?? []), ...this.filas()],
+      entradas: this.entradasRecientes() ?? [],
+      signos: this.signosRecientes() ?? [],
+      miUid: this.auth.uid,
+    });
+  });
+  readonly lineasEntrega = computed(() => (this.entrega() ?? []).slice(0, MAX_LINEAS_ENTREGA));
+  readonly masEntrega = computed(() => Math.max(0, (this.entrega()?.length ?? 0) - MAX_LINEAS_ENTREGA));
+  readonly textoDesdeEntrega = computed(() => textoDesde(this.desdeEntrega(), this.ahora()));
 
   /** Medicamentos sin horario fijo (solo hoy: se registran en el momento). */
   readonly segunNecesidad = computed(() =>
@@ -188,7 +288,15 @@ export class HoyPage {
   }
 
   ionViewWillEnter() {
-    this.ahora.set(new Date());
+    const ahora = new Date();
+    this.ahora.set(ahora);
+    this.entradaEn.set(ahora);
+    // La entrega resume desde la visita anterior; esta visita queda guardada para la próxima
+    const id = this.ctx.personaId();
+    if (id) {
+      this.visitaAnterior.set(leerVisita(id));
+      guardarVisita(id, ahora);
+    }
   }
 
   cambiarDia(delta: number) {
@@ -197,6 +305,27 @@ export class HoyPage {
 
   hoy() {
     this.dia.set(inicioDeDia(new Date()));
+  }
+
+  /** "08:00" si fue hoy; "ayer 22:10" o "10 oct 16:00" si no. */
+  horaNovedad(n: Novedad): string {
+    const hoy = claveDia(this.ahora());
+    if (claveDia(n.hora) === hoy) return this.hhmm(n.hora);
+    if (claveDia(n.hora) === claveDia(sumarDias(this.ahora(), -1))) return `ayer ${this.hhmm(n.hora)}`;
+    return `${n.hora.getDate()}/${n.hora.getMonth() + 1} ${this.hhmm(n.hora)}`;
+  }
+
+  private hhmm(d: Date): string {
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  }
+
+  /** "Ver más" de la entrega: la bitácora filtrada por lo más delicado que haya. */
+  verEntregaCompleta() {
+    const id = this.ctx.personaId();
+    if (!id) return;
+    const tipos = new Set((this.entrega() ?? []).map((n) => n.tipo));
+    const filtro: FiltroBitacora | null = tipos.has('incidente') ? 'incidente' : tipos.has('sintoma') ? 'sintoma' : null;
+    void this.router.navigate(['/personas', id, 'bitacora'], { queryParams: filtro ? { filtro } : {} });
   }
 
   puedeMarcar(f: FilaDia): boolean {

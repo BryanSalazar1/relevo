@@ -1,7 +1,7 @@
 import { DatePipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import {
   ActionSheetController,
   AlertController,
@@ -48,6 +48,13 @@ import { FabAsistente } from '../../shared/fab-asistente.component';
 /** Qué se muestra: un tipo de entrada, solo tomas de medicamentos, solo tareas, o todo (null). */
 export type FiltroBitacora = TipoEntrada | 'toma' | 'tarea';
 
+/** El filtro pedido en la URL (?filtro=...), solo si es uno conocido. */
+function filtroDeRuta(route: ActivatedRoute): FiltroBitacora | null {
+  const f = route.snapshot.queryParamMap.get('filtro');
+  const validos: string[] = ['toma', 'tarea', ...TIPOS_ENTRADA.map((t) => t.valor)];
+  return f && validos.includes(f) ? (f as FiltroBitacora) : null;
+}
+
 @Component({
   selector: 'app-bitacora',
   imports: [
@@ -90,7 +97,8 @@ export class BitacoraPage {
     this.ctx.personaId$.pipe(switchMap((id) => this.bitacoraSvc.lineaDeTiempo(id))),
   );
 
-  readonly filtro = signal<FiltroBitacora | null>(null);
+  /** Filtro por tipo; se puede abrir ya filtrada con ?filtro=incidente (p. ej. desde la Entrega de turno) */
+  readonly filtro = signal<FiltroBitacora | null>(filtroDeRuta(inject(ActivatedRoute)));
   readonly etiquetaDia = etiquetaDia;
   readonly infoToma = INFO_TOMA;
   readonly infoTarea = INFO_TAREA_BITACORA;

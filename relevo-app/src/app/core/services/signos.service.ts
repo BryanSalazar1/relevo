@@ -1,6 +1,18 @@
 import { Injectable, inject } from '@angular/core';
-import { Firestore, Timestamp, doc, writeBatch } from '@angular/fire/firestore';
-import { TIPOS_SIGNO, TipoSigno } from '../models';
+import {
+  Firestore,
+  Timestamp,
+  collection,
+  collectionData,
+  doc,
+  limit,
+  orderBy,
+  query,
+  where,
+  writeBatch,
+} from '@angular/fire/firestore';
+import { Observable, catchError, of } from 'rxjs';
+import { SignoVital, TIPOS_SIGNO, TipoSigno } from '../models';
 import { AuthService } from './auth.service';
 
 /** Una medición capturada; en la presión, `valor` es la sistólica y `valorSecundario` la diastólica. */
@@ -29,6 +41,19 @@ export class SignosService {
 
   private ref(personaId: string, id: string) {
     return doc(this.db, `personas_cuidadas/${personaId}/signos_vitales/${id}`);
+  }
+
+  /** Mediciones desde una fecha, de la más reciente a la más antigua (para la Entrega de turno). */
+  recientes(personaId: string, desde: Date, maximo = 100): Observable<SignoVital[]> {
+    const q = query(
+      collection(this.db, `personas_cuidadas/${personaId}/signos_vitales`),
+      where('fecha', '>=', Timestamp.fromDate(desde)),
+      orderBy('fecha', 'desc'),
+      limit(maximo),
+    );
+    return (collectionData(q, { idField: 'id' }) as Observable<SignoVital[]>).pipe(
+      catchError(() => of([] as SignoVital[])),
+    );
   }
 
   /**

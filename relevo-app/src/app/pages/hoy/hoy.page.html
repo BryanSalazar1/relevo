@@ -29,6 +29,43 @@
   @if (cargando()) {
     <div class="ion-text-center ion-padding"><ion-spinner name="crescent" /></div>
   } @else {
+    @if (esHoy() && entrega(); as novedades) {
+      <ion-card class="entrega">
+        <div class="cabecera">
+          <div class="icono" aria-hidden="true"><ion-icon name="swap-horizontal-outline" /></div>
+          <div>
+            <p class="titulo">Desde tu último turno</p>
+            <p class="sub">{{ textoDesdeEntrega() }}</p>
+          </div>
+        </div>
+        @if (novedades.length === 0) {
+          <p class="nada">Sin novedades desde tu último turno.</p>
+        } @else {
+          <ul>
+            @for (n of lineasEntrega(); track n.tipo + '-' + n.hora.getTime() + '-' + n.texto) {
+              <li>
+                <ion-icon [name]="n.icono" [color]="n.color" aria-hidden="true" />
+                <span class="hora">{{ horaNovedad(n) }}</span>
+                <span class="texto">
+                  {{ n.texto }}
+                  @if (n.quien) {
+                    <span class="quien">· {{ n.quien }}</span>
+                  }
+                </span>
+              </li>
+            }
+          </ul>
+          <ion-button fill="clear" size="small" class="ver-mas" (click)="verEntregaCompleta()">
+            @if (masEntrega() > 0) {
+              y {{ masEntrega() }} más ·
+            }
+            Ver en la bitácora
+            <ion-icon slot="end" name="chevron-forward-outline" />
+          </ion-button>
+        }
+      </ion-card>
+    }
+
     @if (esHoy()) {
       @let e = estado();
       <ion-card class="estado" [attr.data-color]="e.color" button routerLink="../semaforo">

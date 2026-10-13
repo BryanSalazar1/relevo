@@ -459,6 +459,29 @@ export const TIPOS_SIGNO: TipoSignoInfo[] = [
 /** Presión diastólica (el segundo número): sus propios límites. */
 export const LIMITES_DIASTOLICA = { min: 30, max: 160 };
 
+export interface RangoSigno {
+  min: number;
+  max: number;
+  /** Solo presión: límites de la diastólica */
+  minSecundario?: number;
+  maxSecundario?: number;
+}
+
+/**
+ * Rangos ORIENTATIVOS para resaltar en la Entrega de turno una medición fuera de lo habitual en un
+ * adulto en reposo. No son un diagnóstico ni sustituyen los valores que indique el médico para cada
+ * persona: solo sirven para que quien entra al turno se fije en ellos y lo comente. El peso no tiene
+ * rango (depende de cada quien). Fuentes generales: presión 90–140 / 60–90 mmHg, glucosa 70–180 mg/dL,
+ * temperatura 36–37.5 °C, oxigenación 92–100 %, pulso 50–100 lpm.
+ */
+export const RANGOS_SIGNO: Partial<Record<TipoSigno, RangoSigno>> = {
+  presion: { min: 90, max: 140, minSecundario: 60, maxSecundario: 90 },
+  glucosa: { min: 70, max: 180 },
+  temperatura: { min: 36, max: 37.5 },
+  oxigenacion: { min: 92, max: 100 },
+  pulso: { min: 50, max: 100 },
+};
+
 /** personas_cuidadas/{id}/signos_vitales/{id} */
 export interface SignoVital {
   id?: string;

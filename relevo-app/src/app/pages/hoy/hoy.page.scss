@@ -7,6 +7,97 @@ ion-list-header ion-badge {
   margin-right: 16px;
 }
 
+// Entrega de turno: qué pasó desde el último turno, en pocas líneas
+ion-card.entrega {
+  margin: 12px 16px 4px;
+  padding: 14px 16px 6px;
+
+  .cabecera {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    p {
+      margin: 0;
+    }
+  }
+
+  .icono {
+    flex: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 22px;
+    color: var(--ion-color-primary);
+    background: var(--relevo-primario-suave);
+  }
+
+  .titulo {
+    font-size: 1rem;
+    font-weight: 700;
+  }
+
+  .sub {
+    font-size: 0.82rem;
+    color: var(--relevo-texto-3);
+  }
+
+  .nada {
+    margin: 10px 0 8px;
+    font-size: 0.92rem;
+    color: var(--relevo-texto-2);
+  }
+
+  ul {
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0;
+  }
+
+  li {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 6px 0;
+    font-size: 0.9rem;
+    line-height: 1.35;
+
+    & + li {
+      border-top: 1px solid var(--relevo-linea);
+    }
+
+    ion-icon {
+      flex: none;
+      font-size: 18px;
+      margin-top: 1px;
+    }
+
+    .hora {
+      flex: none;
+      min-width: 44px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: var(--relevo-texto-2);
+    }
+
+    .texto {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .quien {
+      color: var(--relevo-texto-3);
+    }
+  }
+
+  .ver-mas {
+    margin: 4px 0 0 -8px;
+    --padding-start: 8px;
+  }
+}
+
 // Estado del semáforo: una tarjeta con la luz del color que toca y qué sigue
 ion-card.estado {
   --tono: var(--ion-color-medium);

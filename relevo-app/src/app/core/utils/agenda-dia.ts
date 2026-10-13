@@ -36,6 +36,14 @@ interface BaseFila extends PendienteSemaforo {
   quien?: string;
   nota?: string;
   horaReal?: Date;
+  /** Cuándo se registró (una "no tomada" de las 08:00 puede registrarse a las 20:55) */
+  registradoEn?: Date;
+}
+
+/** Fecha de un Timestamp de Firestore; undefined si no viene o aún no lo asignó el servidor. */
+function fechaDe(valor: unknown): Date | undefined {
+  const t = valor as { toDate?: () => Date } | null | undefined;
+  return t && typeof t.toDate === 'function' ? t.toDate() : undefined;
 }
 
 /** Una fila de la agenda del día. */
@@ -67,7 +75,8 @@ function filaDeDosis(d: DosisProgramada): FilaDia {
     aDemanda: d.aDemanda === true,
     quien: d.toma?.registradoNombre,
     nota: d.toma?.nota,
-    horaReal: d.toma?.horaReal?.toDate(),
+    horaReal: fechaDe(d.toma?.horaReal),
+    registradoEn: fechaDe(d.toma?.registradoEn),
   };
 }
 
@@ -90,7 +99,8 @@ function filaDeTarea(t: TareaProgramada): FilaDia {
     aDemanda: false,
     quien: t.registro?.registradoNombre,
     nota: t.registro?.nota,
-    horaReal: t.registro?.horaReal?.toDate(),
+    horaReal: fechaDe(t.registro?.horaReal),
+    registradoEn: fechaDe(t.registro?.registradoEn),
     duracionMin: dura,
     avisarMin: t.tarea.avisarMin,
   };
