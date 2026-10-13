@@ -24,12 +24,12 @@
           @if (duracionTexto(m); as duracion) {
             <p>{{ duracion }}</p>
           }
+          @if (textoStock(m); as stock) {
+            <p class="inventario" [style.color]="'var(--ion-color-' + colorInventario(m) + ')'">
+              {{ stock }}
+            </p>
+          }
         </ion-label>
-        @if (restantes(m) !== null) {
-          <ion-badge slot="end" [color]="colorInventario(m)" class="inventario">
-            {{ restantes(m) }} rest.
-          </ion-badge>
-        }
       </ion-item>
     } @empty {
       <ion-item lines="none">

@@ -46,9 +46,10 @@ type Permiso = 'granted' | 'denied' | 'prompt' | 'prompt-with-rationale' | 'desc
 
 /**
  * Centro de notificaciones: por cada persona cuidada, qué avisos del equipo recibe el usuario
- * (todos, solo los importantes o ninguno), si recibe los recordatorios de su guardia y si quiere
- * que los avisos lleguen solo durante sus turnos. Las preferencias viven en su documento de
- * miembro y las aplican las Cloud Functions (functions/logica.js).
+ * (todos, solo los importantes o ninguno) y, bajo "Avanzado", si recibe los recordatorios de su
+ * guardia y si quiere que los avisos lleguen solo durante sus turnos. Las preferencias viven en su
+ * documento de miembro y las aplican las Cloud Functions (functions/logica.js). Un miembro nuevo
+ * entra con AVISOS_POR_DEFECTO según su rol.
  */
 @Component({
   selector: 'app-notificaciones',
@@ -157,6 +158,20 @@ type Permiso = 'granted' | 'denied' | 'prompt' | 'prompt-with-rationale' | 'desc
               <ion-note class="ayuda">{{ descripcion(prefs.avisos) }}</ion-note>
 
               @if (m && m.rol !== 'medico') {
+                <ion-button
+                  fill="clear"
+                  size="small"
+                  class="avanzado"
+                  (click)="alternarAvanzado(p.id!)"
+                  [attr.aria-expanded]="avanzadoAbierto(p.id!)"
+                >
+                  Avanzado
+                  <ion-icon
+                    slot="end"
+                    [name]="avanzadoAbierto(p.id!) ? 'chevron-up-outline' : 'chevron-down-outline'"
+                  />
+                </ion-button>
+                @if (avanzadoAbierto(p.id!)) {
                 <ion-toggle
                   [checked]="prefs.recordatorios"
                   [disabled]="guardando() === p.id"
@@ -191,6 +206,7 @@ type Permiso = 'granted' | 'denied' | 'prompt' | 'prompt-with-rationale' | 'desc
                   <ion-icon name="time-outline" aria-hidden="true" />
                   {{ textoTurnos(m.turnos) }}
                 </p>
+                }
               } @else if (m) {
                 <ion-note class="ayuda">Como médico recibes avisos del equipo, nunca recordatorios de rutina.</ion-note>
               }
@@ -272,6 +288,14 @@ type Permiso = 'granted' | 'denied' | 'prompt' | 'prompt-with-rationale' | 'desc
         line-height: 1.4;
       }
 
+      ion-button.avanzado {
+        margin: 8px 0 0;
+        --padding-start: 4px;
+        --padding-end: 4px;
+        font-size: 0.85rem;
+        text-transform: none;
+      }
+
       ion-toggle {
         margin-top: 14px;
         padding: 12px 14px;
@@ -332,6 +356,8 @@ export class NotificacionesPage implements OnInit {
   readonly permiso = signal<Permiso>('desconocido');
   /** Id de la persona cuyas preferencias se están guardando */
   readonly guardando = signal<string | null>(null);
+  /** Personas con el apartado "Avanzado" (recordatorios de guardia, solo en turno) desplegado */
+  private readonly avanzado = signal(new Set<string>());
 
   readonly personas = toSignal(this.personasSvc.misPersonas());
   private readonly membresias = toSignal(
@@ -360,6 +386,19 @@ export class NotificacionesPage implements OnInit {
 
   tieneTurnos(m: Miembro | null): boolean {
     return !!m?.turnos?.length;
+  }
+
+  avanzadoAbierto(personaId: string): boolean {
+    return this.avanzado().has(personaId);
+  }
+
+  alternarAvanzado(personaId: string) {
+    this.avanzado.update((abiertos) => {
+      const nuevos = new Set(abiertos);
+      if (nuevos.has(personaId)) nuevos.delete(personaId);
+      else nuevos.add(personaId);
+      return nuevos;
+    });
   }
 
   descripcion(modo: ModoAvisos): string {

@@ -68,7 +68,7 @@ async function perfil(db, uid, tipo) {
 }
 
 /** Mismo batch que PersonasService.crearPersona(), ejecutado como `ana` (familiar). */
-async function anaCreaPersona() {
+async function anaCreaPersona(extraMiembro = {}) {
   const db = ana();
   await perfil(db, 'ana', 'familiar');
   const personaRef = doc(db, 'personas_cuidadas', PERSONA_ID);
@@ -87,6 +87,7 @@ async function anaCreaPersona() {
     rol: 'cuidador_principal',
     nombre: 'Ana',
     agregadoEn: serverTimestamp(),
+    ...extraMiembro,
   });
   batch.update(doc(db, 'usuarios/ana'), { personas: arrayUnion(PERSONA_ID) });
   return batch.commit();
@@ -301,7 +302,7 @@ test('roles: el responsable puede hacer responsable a otro familiar, pero no a u
   );
 });
 
-test('roles: quien dio de alta a la persona (familiar) puede recuperar el rol de responsable; un invitado no', async () => {
+test('roles: nadie se hace responsable a sí mismo, ni quien dio de alta a la persona (la recuperación de versiones viejas se retiró el 13/10/2026)', async () => {
   await anaCreaPersona();
   await perfil(pedro(), 'pedro', 'familiar');
   // Simula datos de la versión anterior: la creadora quedó como "familiar" y hay otro familiar invitado
@@ -318,11 +319,38 @@ test('roles: quien dio de alta a la persona (familiar) puede recuperar el rol de
   await assertFails(
     updateDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/miembros/ana`), { rol: 'cuidador_principal', nombre: 'Otra' }),
   );
-  await assertSucceeds(
+  await assertFails(
     updateDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/miembros/ana`), { rol: 'cuidador_principal' }),
   );
   const ana2 = await getDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/miembros/ana`));
-  assert.equal(ana2.data().rol, 'cuidador_principal');
+  assert.equal(ana2.data().rol, 'familiar');
+});
+
+test('miembros: al crearse pueden traer sus avisos por defecto, solo con valores válidos', async () => {
+  await assertSucceeds(anaCreaPersona({ avisos: 'importantes' }));
+  const m = await getDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/miembros/ana`));
+  assert.equal(m.data().avisos, 'importantes');
+  await env.clearFirestore();
+  await assertFails(anaCreaPersona({ avisos: 'raro' }));
+});
+
+test('indicaciones: solo el médico escribe y edita indicaciones médicas, y no escribe otros tipos; el responsable las borra pero no las edita', async () => {
+  await anaCreaPersona();
+  await agregarComo('luis', 'medico');
+  await agregarComo('pedro', 'familiar');
+  const entrada = (db, id) => doc(db, `personas_cuidadas/${PERSONA_ID}/entradas_bitacora/${id}`);
+  await assertSucceeds(setDoc(entrada(luis(), 'i1'), { tipo: 'indicacion', texto: 'Subir Losartán a 100 mg', autorUid: 'luis' }));
+  await assertFails(setDoc(entrada(luis(), 'n1'), { tipo: 'nota', texto: 'Hola', autorUid: 'luis' }));
+  await assertFails(setDoc(entrada(pedro(), 'i2'), { tipo: 'indicacion', texto: 'Yo no soy médico', autorUid: 'pedro' }));
+  await assertFails(setDoc(entrada(ana(), 'i3'), { tipo: 'indicacion', texto: 'Ni la responsable', autorUid: 'ana' }));
+  // Nadie convierte una nota en indicación
+  await assertSucceeds(setDoc(entrada(pedro(), 'n2'), { tipo: 'nota', texto: 'Comió bien', autorUid: 'pedro' }));
+  await assertFails(updateDoc(entrada(pedro(), 'n2'), { tipo: 'indicacion' }));
+  // El médico edita la suya; la responsable no la edita pero sí la borra; todos la leen
+  await assertSucceeds(updateDoc(entrada(luis(), 'i1'), { texto: 'Subir Losartán a 100 mg si sigue alta' }));
+  await assertFails(updateDoc(entrada(ana(), 'i1'), { texto: 'Cambiada por la responsable' }));
+  await assertSucceeds(getDoc(entrada(pedro(), 'i1')));
+  await assertSucceeds(deleteDoc(entrada(ana(), 'i1')));
 });
 
 test('roles: el familiar coordina el calendario, escribe en la bitácora y registra tomas, pero no define medicamentos', async () => {

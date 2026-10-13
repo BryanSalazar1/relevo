@@ -14,7 +14,7 @@ import {
   writeBatch,
 } from '@angular/fire/firestore';
 import { Observable, catchError, map, of, switchMap } from 'rxjs';
-import { PersonaCuidada } from '../models';
+import { AVISOS_POR_DEFECTO, PersonaCuidada } from '../models';
 import { AuthService } from './auth.service';
 
 @Injectable({ providedIn: 'root' })
@@ -94,6 +94,7 @@ export class PersonasService {
       uid,
       rol: 'cuidador_principal',
       nombre: this.authSvc.nombreActual,
+      avisos: AVISOS_POR_DEFECTO.cuidador_principal,
       agregadoEn: serverTimestamp(),
     });
     batch.update(doc(this.db, 'usuarios', uid), { personas: arrayUnion(personaRef.id) });

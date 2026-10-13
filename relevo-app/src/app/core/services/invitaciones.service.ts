@@ -18,7 +18,7 @@ import {
 } from '@angular/fire/firestore';
 import { Observable, catchError, map, of } from 'rxjs';
 import { appUrl } from '../../../environments/firebase.config';
-import { Invitacion, PersonaCuidada } from '../models';
+import { AVISOS_POR_DEFECTO, Invitacion, PersonaCuidada } from '../models';
 import { AuthService } from './auth.service';
 
 /** Sin 0/O/1/I para que el código se pueda dictar por teléfono sin confusiones. */
@@ -193,6 +193,8 @@ export class InvitacionesService {
       uid,
       rol,
       nombre: this.authSvc.nombreActual,
+      // Avisos del equipo con los que entra (puede cambiarlos en Notificaciones)
+      avisos: AVISOS_POR_DEFECTO[rol],
       agregadoEn: serverTimestamp(),
       invitacionCodigo: inv.codigo,
     });

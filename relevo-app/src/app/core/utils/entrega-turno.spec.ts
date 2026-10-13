@@ -160,6 +160,23 @@ describe('entrega de turno', () => {
       expect(lista[0].texto).toBe('Losartán 08:00: no tomada');
     });
 
+    it('una indicación médica dentro de la ventana va primero, con quién la escribió', () => {
+      const lista = novedadesEntrega({
+        desde: a('06:00'),
+        ahora: a('12:00'),
+        filas: [],
+        entradas: [
+          entrada('indicacion', '08:00', 'otro', 'Subir Losartán a 100 mg'),
+          entrada('incidente', '11:00', 'otro', 'Se cayó'),
+        ],
+        signos: [],
+        miUid: 'yo',
+      });
+      expect(lista.map((n) => n.tipo)).toEqual(['indicacion', 'incidente']);
+      expect(lista[0].texto).toBe('Indicación médica: Subir Losartán a 100 mg');
+      expect(lista[0].quien).toBe('Marta');
+    });
+
     it('una dosis pendiente dentro de la gracia no cuenta como vencida', () => {
       const filas = filasDelDia([dosis('13:50')], []);
       expect(novedadesEntrega({ desde: a('06:00'), ahora: a('14:00'), filas, entradas: [], signos: [], miUid: 'yo' })).toEqual([]);

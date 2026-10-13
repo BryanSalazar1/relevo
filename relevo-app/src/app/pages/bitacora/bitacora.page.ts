@@ -31,6 +31,7 @@ import {
   INFO_TAREA_BITACORA,
   INFO_TOMA,
   PUEDE_ESCRIBIR_BITACORA,
+  PUEDE_ESCRIBIR_INDICACION,
   PUEDE_REGISTRAR_TAREAS,
   SignoVital,
   TIPO_TAREA_INFO,
@@ -123,9 +124,10 @@ export class BitacoraPage {
 
   readonly total = computed(() => this.linea()?.length ?? 0);
 
+  /** Quien escribe registros, y el médico (solo indicaciones médicas; el formulario lo acota) */
   readonly puedeEscribir = computed(() => {
     const r = this.rol();
-    return !!r && PUEDE_ESCRIBIR_BITACORA.includes(r);
+    return !!r && (PUEDE_ESCRIBIR_BITACORA.includes(r) || PUEDE_ESCRIBIR_INDICACION.includes(r));
   });
   /** Quienes marcan tareas también registran signos sueltos (mismos roles en firestore.rules) */
   readonly puedeRegistrarSignos = computed(() => {
@@ -179,8 +181,10 @@ export class BitacoraPage {
   }
 
   /** El cuidador principal edita todo; los demás solo lo que escribieron. */
+  /** El autor edita lo suyo; el responsable, todo menos las indicaciones del médico (igual en firestore.rules). */
   puedeEditar(e: EntradaBitacora): boolean {
-    return this.rol() === 'cuidador_principal' || e.autorUid === this.auth.uid;
+    if (e.autorUid === this.auth.uid) return true;
+    return this.rol() === 'cuidador_principal' && e.tipo !== 'indicacion';
   }
 
   async abrirFiltro() {
@@ -235,7 +239,7 @@ export class BitacoraPage {
   async editar(entrada: EntradaBitacora | null) {
     const modal = await this.modalCtrl.create({
       component: EntradaModal,
-      componentProps: { entrada, personaNombre: this.persona()?.nombre ?? '' },
+      componentProps: { entrada, personaNombre: this.persona()?.nombre ?? '', rol: this.rol() },
     });
     await modal.present();
     const { data, role } = await modal.onWillDismiss<DatosEntrada>();

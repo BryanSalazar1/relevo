@@ -27,6 +27,15 @@ ion-item.toma .texto {
   font-size: 0.95rem;
 }
 
+// Las indicaciones del médico se destacan sobre el resto
+ion-item.indicacion {
+  --background: var(--relevo-primario-suave);
+
+  .texto {
+    font-weight: 500;
+  }
+}
+
 ion-item-divider {
   --background: var(--ion-color-light);
   font-weight: 600;

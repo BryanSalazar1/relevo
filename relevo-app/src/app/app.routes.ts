@@ -78,11 +78,8 @@ export const routes: Routes = [
         path: 'reporte',
         loadComponent: () => import('./pages/reporte/reporte.page').then((m) => m.ReportePage),
       },
-      {
-        path: 'asistente',
-        loadComponent: () =>
-          import('./pages/asistente/asistente.page').then((m) => m.AsistentePage),
-      },
+      // El asistente ya no es pestaña: se abre con el botón flotante (shared/fab-asistente)
+      { path: 'asistente', redirectTo: 'hoy' },
       { path: '', redirectTo: 'hoy', pathMatch: 'full' },
     ],
   },

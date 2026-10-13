@@ -2,9 +2,9 @@ ion-item.inactivo ion-label {
   opacity: 0.6;
 }
 
-ion-badge.inventario {
-  --padding-start: 8px;
-  --padding-end: 8px;
+// "Quedan 42: alcanza para 14 días", en el color del nivel (agotado, bajo, normal)
+p.inventario {
+  font-weight: 600;
 }
 
 h2 ion-note {

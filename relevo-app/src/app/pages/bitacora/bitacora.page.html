@@ -58,7 +58,12 @@
           @for (item of g.items; track item.id) {
             @if (item.clase === 'entrada') {
               @let e = item.entrada;
-              <ion-item [button]="puedeEditar(e)" [detail]="false" (click)="opciones(e)">
+              <ion-item
+                [button]="puedeEditar(e)"
+                [detail]="false"
+                (click)="opciones(e)"
+                [class.indicacion]="e.tipo === 'indicacion'"
+              >
                 <ion-avatar
                   slot="start"
                   class="tipo"

@@ -333,7 +333,7 @@ async function main() {
       const quien = guardia(cuando);
       porAutor[quien].push([
         doc(personaRef, 'entradas_bitacora', `sem-${cd}-${n}`),
-        { tipo, texto: elegir(ENTRADAS[tipo]), fotos: [], notaVozUrl: null, autorUid: uids[quien], autorNombre: nombre(quien), fecha: ts(cuando), creadoEn: ts(new Date(cuando.getTime() + entre(1, 15) * 60000)), semilla: true },
+        { tipo, texto: elegir(ENTRADAS[tipo]), autorUid: uids[quien], autorNombre: nombre(quien), fecha: ts(cuando), creadoEn: ts(new Date(cuando.getTime() + entre(1, 15) * 60000)), semilla: true },
       ]);
     }
     // Signos vitales (solo responsable y enfermera pueden registrarlos)

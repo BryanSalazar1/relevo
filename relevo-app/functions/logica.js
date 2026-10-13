@@ -10,6 +10,7 @@ export const TIPO_ENTRADA_ETIQUETA = {
   sueno: 'Sueño',
   incidente: 'Incidente',
   nota: 'Nota',
+  indicacion: 'Indicación médica',
 };
 
 export const TIPO_TAREA_ETIQUETA = {
@@ -240,9 +241,9 @@ export function modoAvisos(m) {
   return m?.alertas === false ? 'ninguno' : 'todos';
 }
 
-/** Lo "importante" (delicado) de una entrada de bitácora: incidentes y síntomas. */
+/** Lo "importante" (delicado) de una entrada de bitácora: incidentes, síntomas e indicaciones del médico. */
 export function entradaImportante(entrada) {
-  return entrada?.tipo === 'incidente' || entrada?.tipo === 'sintoma';
+  return entrada?.tipo === 'incidente' || entrada?.tipo === 'sintoma' || entrada?.tipo === 'indicacion';
 }
 
 /**

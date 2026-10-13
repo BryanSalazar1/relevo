@@ -941,9 +941,10 @@ test('destinatariosAlertas: respeta "importantes" y "solo en turno" de cada miem
   );
 });
 
-test('entradaImportante: incidentes y síntomas sí; notas, ánimo y sueño no', () => {
+test('entradaImportante: incidentes, síntomas e indicaciones médicas sí; notas, ánimo y sueño no', () => {
   assert.equal(entradaImportante({ tipo: 'incidente' }), true);
   assert.equal(entradaImportante({ tipo: 'sintoma' }), true);
+  assert.equal(entradaImportante({ tipo: 'indicacion' }), true);
   assert.equal(entradaImportante({ tipo: 'nota' }), false);
   assert.equal(entradaImportante({ tipo: 'animo' }), false);
   assert.equal(entradaImportante(undefined), false);

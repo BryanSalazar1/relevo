@@ -5,7 +5,10 @@ import { switchMap } from 'rxjs';
 import { MedicamentosService, estadoInventario } from '../../core/services/medicamentos.service';
 import { personaActual } from '../../core/utils/persona-actual';
 
-/** Contenedor con pestañas de una persona cuidada: hoy, bitácora, plan (medicinas y rutina), equipo, reporte y asistente. */
+/**
+ * Contenedor con pestañas de una persona cuidada: hoy, bitácora, plan (medicinas, rutina y citas),
+ * equipo y reporte. El asistente se abre con el botón flotante de cada pantalla (shared/fab-asistente).
+ */
 @Component({
   selector: 'app-persona',
   imports: [IonTabs, IonTabBar, IonTabButton, IonIcon, IonLabel, IonBadge],
@@ -38,10 +41,6 @@ import { personaActual } from '../../core/utils/persona-actual';
         <ion-tab-button tab="reporte">
           <ion-icon name="document-text-outline" />
           <ion-label>Reporte</ion-label>
-        </ion-tab-button>
-        <ion-tab-button tab="asistente">
-          <ion-icon name="sparkles-outline" />
-          <ion-label>Asistente</ion-label>
         </ion-tab-button>
       </ion-tab-bar>
     </ion-tabs>

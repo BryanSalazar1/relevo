@@ -96,6 +96,20 @@
       </ion-card>
     }
 
+    @if (esHoy() && indicacion(); as ind) {
+      <ion-card class="indicacion" button (click)="verIndicaciones()">
+        <div class="cabecera">
+          <div class="icono" aria-hidden="true"><ion-icon name="document-text-outline" /></div>
+          <div>
+            <p class="titulo">Indicación médica</p>
+            <p class="sub">{{ ind.autorNombre }} · {{ cuandoIndicacion(ind) }}</p>
+          </div>
+          <ion-icon name="chevron-forward-outline" class="flecha" aria-hidden="true" />
+        </div>
+        <p class="texto">{{ ind.texto }}</p>
+      </ion-card>
+    }
+
     @if (porResurtir().length > 0) {
       <ion-list inset class="por-resurtir">
         <ion-list-header>

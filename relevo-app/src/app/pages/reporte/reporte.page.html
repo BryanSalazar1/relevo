@@ -179,34 +179,16 @@
       }
     </ion-list>
 
-    <ion-list inset>
-      <ion-list-header>
-        <ion-label>Bitácora del periodo</ion-label>
-        <ion-badge>{{ r.entradas.length }}</ion-badge>
-      </ion-list-header>
-      @for (g of grupos(); track g.clave) {
-        <ion-item-divider>
-          <ion-label>{{ etiquetaDia(g.dia) }}</ion-label>
-        </ion-item-divider>
-        @for (e of g.items; track e.id) {
-          <ion-item>
-            <ion-icon slot="start" [name]="info(e.tipo).icono" [color]="info(e.tipo).color" />
-            <ion-label class="ion-text-wrap">
-              <p>{{ e.fecha.toDate() | date: 'HH:mm' }} · {{ info(e.tipo).etiqueta }} · {{ e.autorNombre }}</p>
-              <h3>{{ e.texto }}</h3>
-            </ion-label>
-          </ion-item>
-        }
-      } @empty {
-        <ion-item lines="none"><ion-label color="medium">Sin registros.</ion-label></ion-item>
-      }
-    </ion-list>
-
     <div class="ion-padding">
       <ion-button expand="block" (click)="exportar()" [disabled]="exportando()">
         <ion-icon slot="start" name="document-text-outline" />
         Exportar PDF para el médico
       </ion-button>
+      <ion-text color="medium">
+        <p class="ion-text-center">
+          <small>El PDF incluye la bitácora completa del periodo; en la app está en <strong>Bitácora</strong>.</small>
+        </p>
+      </ion-text>
       <ion-text color="medium">
         <p class="ion-text-center">
           <small>Generado por {{ r.generadoPor }} · {{ r.generadoEn | date: 'd MMM y, HH:mm' }}</small>

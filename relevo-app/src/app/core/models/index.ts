@@ -73,6 +73,8 @@ export const ROL_COLOR: Record<Rol, string> = {
 
 /** Roles que pueden crear entradas en la bitácora (coincide con firestore.rules). */
 export const PUEDE_ESCRIBIR_BITACORA: Rol[] = ['cuidador_principal', 'cuidador_turno', 'familiar'];
+/** Solo el médico escribe indicaciones médicas (tipo 'indicacion'), y no escribe otros tipos */
+export const PUEDE_ESCRIBIR_INDICACION: Rol[] = ['medico'];
 /** Roles que registran tomas de medicamentos (coincide con firestore.rules). */
 export const PUEDE_REGISTRAR_TOMAS: Rol[] = ['cuidador_principal', 'cuidador_turno', 'familiar'];
 /** Roles que dan de alta / editan medicamentos (coincide con firestore.rules). */
@@ -213,6 +215,18 @@ export function preferenciasDe(m?: Partial<Miembro> | null): PreferenciasAvisos 
 }
 
 /**
+ * Avisos del equipo con los que entra un miembro nuevo (se guardan en su documento al crearlo):
+ * responsable y familiares, solo lo importante; enfermeros, todo (están de guardia); el médico, lo
+ * importante. A quien ya era miembro no se le cambia nada (sin valor sigue siendo "todos").
+ */
+export const AVISOS_POR_DEFECTO: Record<Rol, ModoAvisos> = {
+  cuidador_principal: 'importantes',
+  familiar: 'importantes',
+  cuidador_turno: 'todos',
+  medico: 'importantes',
+};
+
+/**
  * invitaciones/{codigo} — colección raíz para poder buscar por código.
  * La crea el responsable; quien la canjea se agrega a sí mismo como miembro con el rol
  * que corresponde a su tipo de cuenta (ROL_POR_TIPO, validado en firestore.rules).
@@ -229,7 +243,14 @@ export interface Invitacion {
   usosMax: number;
 }
 
-export type TipoEntrada = 'sintoma' | 'animo' | 'comida' | 'sueno' | 'incidente' | 'nota';
+export type TipoEntrada =
+  | 'sintoma'
+  | 'animo'
+  | 'comida'
+  | 'sueno'
+  | 'incidente'
+  | 'nota'
+  | 'indicacion';
 
 export interface TipoEntradaInfo {
   valor: TipoEntrada;
@@ -249,10 +270,18 @@ export const TIPOS_ENTRADA_TODOS: TipoEntradaInfo[] = [
   { valor: 'sueno', etiqueta: 'Sueño', icono: 'moon-outline', color: 'tertiary' },
   { valor: 'incidente', etiqueta: 'Incidente', icono: 'warning-outline', color: 'danger' },
   { valor: 'nota', etiqueta: 'Nota', icono: 'chatbox-ellipses-outline', color: 'medium' },
+  // Solo la escribe el médico (PUEDE_ESCRIBIR_INDICACION); se destaca en Hoy y en la Entrega de turno
+  { valor: 'indicacion', etiqueta: 'Indicación médica', icono: 'document-text-outline', color: 'primary' },
 ];
 
-/** Tipos que se pueden elegir al escribir en la bitácora (y por los que se filtra). */
+/** Tipos vigentes: por los que se filtra la bitácora (qué puede escribir cada rol: tiposEntradaPara). */
 export const TIPOS_ENTRADA: TipoEntradaInfo[] = TIPOS_ENTRADA_TODOS.filter((t) => t.valor !== 'comida');
+
+/** Tipos que puede elegir cada rol al escribir: el médico solo indicaciones; los demás, todo menos eso. */
+export function tiposEntradaPara(rol: Rol | null | undefined): TipoEntradaInfo[] {
+  const indicacion = !!rol && PUEDE_ESCRIBIR_INDICACION.includes(rol);
+  return TIPOS_ENTRADA.filter((t) => (t.valor === 'indicacion') === indicacion);
+}
 
 export const TIPO_ENTRADA_INFO: Record<TipoEntrada, TipoEntradaInfo> = Object.fromEntries(
   TIPOS_ENTRADA_TODOS.map((t) => [t.valor, t]),
@@ -270,11 +299,13 @@ export interface EntradaBitacora {
   id?: string;
   tipo: TipoEntrada;
   texto: string;
-  fotos: string[]; // URLs de Storage
+  /** Obsoleto (13/10/2026): la foto nunca se implementó; los registros antiguos traen []. Ya no se escribe. */
+  fotos?: string[];
+  /** Obsoleto (13/10/2026): la nota de voz no se implementó (el teclado dicta). Ya no se escribe. */
   notaVozUrl?: string | null;
   autorUid: string;
   autorNombre: string;
-  /** Cuándo ocurrió (lo elige quien escribe, hasta 1 h atrás) */
+  /** Cuándo ocurrió (lo elige quien escribe, hasta 12 h atrás, aunque caiga en el día anterior) */
   fecha: Timestamp;
   /** Cuándo se registró; ordena la bitácora. Entradas antiguas no lo tienen (se usa `fecha`) */
   creadoEn?: Timestamp;

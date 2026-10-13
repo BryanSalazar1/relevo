@@ -101,8 +101,14 @@ service cloud.firestore {
 
     // Una entrada de bitácora: tipo conocido y texto con algo escrito (la app limita a 2000 caracteres)
     function entradaValida(d) {
-      return d.tipo in ['sintoma', 'animo', 'comida', 'sueno', 'incidente', 'nota']
+      return d.tipo in ['sintoma', 'animo', 'comida', 'sueno', 'incidente', 'nota', 'indicacion']
         && d.texto is string && d.texto.size() > 0 && d.texto.size() <= 2000;
+    }
+
+    // Las indicaciones médicas son solo del médico, y el médico solo escribe indicaciones
+    // (PUEDE_ESCRIBIR_INDICACION en la app)
+    function tipoPermitido(personaId, d) {
+      return (d.tipo == 'indicacion') == tieneRol(personaId, ['medico']);
     }
 
     // Una tarea de la rutina: tipo conocido, nombre y hasta 12 horarios
@@ -236,7 +242,8 @@ service cloud.firestore {
       // miembros/{uid}: quién tiene acceso y con qué rol
       match /miembros/{memberId} {
         allow read: if esMiembro(personaId);
-        allow create: if
+        // Un miembro nuevo puede traer sus avisos por defecto (AVISOS_POR_DEFECTO en la app), válidos
+        allow create: if preferenciasValidas(request.resource.data) && (
           // el responsable agrega a alguien con un rol acorde a su tipo de cuenta
           (tieneRol(personaId, ['cuidador_principal'])
             && rolCompatible(tipoUsuario(memberId), request.resource.data.rol))
@@ -251,17 +258,11 @@ service cloud.firestore {
                 // (b) o canjea una invitación válida con el rol que corresponde a su cuenta
                 || (invitacionValida(request.resource.data.invitacionCodigo, personaId)
                     && request.resource.data.rol == rolPorTipo(tipoUsuario(request.auth.uid)))
-              ));
+              )));
         // El responsable cambia roles (p. ej. hacer responsable a otro familiar), siempre acordes al tipo
         allow update: if (tieneRol(personaId, ['cuidador_principal'])
             && request.resource.data.uid == resource.data.uid
             && rolCompatible(tipoUsuario(memberId), request.resource.data.rol))
-          // ...o quien dio de alta a la persona (familiar) recupera el rol de responsable
-          || (memberId == request.auth.uid
-            && get(/databases/$(database)/documents/personas_cuidadas/$(personaId)).data.creadoPor == request.auth.uid
-            && tipoUsuario(request.auth.uid) == 'familiar'
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rol'])
-            && request.resource.data.rol == 'cuidador_principal')
           // ...o cada quien actualiza solo su propio nombre (al editar su perfil) y sus
           // preferencias de avisos (Notificaciones); los turnos y el rol siguen siendo del responsable
           || (memberId == request.auth.uid
@@ -271,18 +272,21 @@ service cloud.firestore {
         allow delete: if tieneRol(personaId, ['cuidador_principal']);
       }
 
-      // entradas_bitacora: responsable, enfermeros y familiares registran; el médico solo lee.
-      // El autor edita/borra lo suyo; el responsable, todo.
+      // entradas_bitacora: responsable, enfermeros y familiares registran; el médico solo escribe
+      // indicaciones médicas (tipo 'indicacion'), que nadie más escribe ni convierte.
+      // El autor edita/borra lo suyo; el responsable, todo (salvo editar una indicación).
       match /entradas_bitacora/{entradaId} {
         allow read: if esMiembro(personaId);
-        allow create: if tieneRol(personaId, ['cuidador_principal', 'cuidador_turno', 'familiar'])
+        allow create: if tieneRol(personaId, ['cuidador_principal', 'cuidador_turno', 'familiar', 'medico'])
           && request.resource.data.autorUid == request.auth.uid
-          && entradaValida(request.resource.data);
+          && entradaValida(request.resource.data)
+          && tipoPermitido(personaId, request.resource.data);
         // El autor corrige lo suyo (sin cambiar de autor); el responsable, todo
         allow update: if (tieneRol(personaId, ['cuidador_principal'])
             || (esMiembro(personaId) && resource.data.autorUid == request.auth.uid))
           && request.resource.data.autorUid == resource.data.autorUid
-          && entradaValida(request.resource.data);
+          && entradaValida(request.resource.data)
+          && tipoPermitido(personaId, request.resource.data);
         allow delete: if tieneRol(personaId, ['cuidador_principal'])
           || (esMiembro(personaId) && resource.data.autorUid == request.auth.uid);
       }

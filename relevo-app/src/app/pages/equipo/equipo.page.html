@@ -146,9 +146,7 @@
     </ion-item>
     <ion-item lines="none">
       <ion-note class="ion-text-wrap ayuda-turnos">
-        Los recordatorios de tomas y tareas se envían a quien está de guardia; si nadie tiene turnos,
-        a todo el equipo, y si nadie está de guardia, al responsable. Los avisos del equipo (bitácora,
-        tomas omitidas, tareas no hechas, inventario) los recibe cada quien según sus notificaciones.
+        Los recordatorios de rutina llegan a quien está de guardia; los avisos del equipo, según lo que elija cada quien.
       </ion-note>
     </ion-item>
   </ion-list>
@@ -171,20 +169,6 @@
         </ion-item>
       }
     </ion-list>
-  } @else if (puedeRecuperarResponsable()) {
-    <ion-card color="light">
-      <ion-card-content>
-        <p>
-          Diste de alta a <strong>{{ persona()?.nombre }}</strong> con una versión anterior de la app y
-          quedaste como familiar. Hazte responsable para compartir el código de acceso y administrar
-          el equipo.
-        </p>
-        <ion-button expand="block" class="ion-margin-top" (click)="hacermeResponsable()">
-          <ion-icon slot="start" name="key-outline" />
-          Hacerme responsable
-        </ion-button>
-      </ion-card-content>
-    </ion-card>
   } @else if (!esPrincipal() && rol()) {
     <div class="ion-padding ion-text-center">
       <ion-text color="medium"><p>Solo el familiar responsable puede compartir el código de acceso.</p></ion-text>

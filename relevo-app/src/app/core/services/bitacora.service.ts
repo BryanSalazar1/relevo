@@ -128,8 +128,6 @@ export class BitacoraService {
     const ref = await addDoc(this.ref(personaId), {
       tipo: datos.tipo,
       texto: datos.texto,
-      fotos: [],
-      notaVozUrl: null,
       autorUid: uid,
       autorNombre: this.authSvc.nombreActual,
       fecha: Timestamp.fromDate(datos.fecha),

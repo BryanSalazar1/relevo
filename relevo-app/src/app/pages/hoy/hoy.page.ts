@@ -24,6 +24,7 @@ import {
 } from '@ionic/angular';
 import { combineLatest, map, of, switchMap } from 'rxjs';
 import {
+  EntradaBitacora,
   EventoCalendario,
   Medicamento,
   PUEDE_EDITAR_CITAS,
@@ -82,6 +83,8 @@ import { MarcarTareaService } from '../rutina/marcar-tarea.service';
 const REFRESCO_MS = 30_000;
 /** Cuántas citas próximas se muestran en Hoy (todas están en Plan › Citas). */
 const MAX_CITAS_HOY = 3;
+/** Durante cuántos días se destaca en Hoy la última indicación del médico. */
+const DIAS_INDICACION = 14;
 
 /** Última vez que este usuario abrió Hoy de esa persona en este dispositivo (para la Entrega de turno). */
 function claveVisita(personaId: string) {
@@ -254,6 +257,15 @@ export class HoyPage {
       miUid: this.auth.uid,
     });
   });
+  /** La última indicación del médico de los últimos días, destacada arriba de la agenda */
+  readonly indicacion = computed<EntradaBitacora | null>(() => {
+    const desde = this.ahora().getTime() - DIAS_INDICACION * 86_400_000;
+    return (
+      (this.entradasRecientes() ?? [])
+        .filter((e) => e.tipo === 'indicacion' && e.fecha.toMillis() >= desde)
+        .sort((a, b) => b.fecha.toMillis() - a.fecha.toMillis())[0] ?? null
+    );
+  });
   readonly lineasEntrega = computed(() => (this.entrega() ?? []).slice(0, MAX_LINEAS_ENTREGA));
   readonly masEntrega = computed(() => Math.max(0, (this.entrega()?.length ?? 0) - MAX_LINEAS_ENTREGA));
   readonly textoDesdeEntrega = computed(() => textoDesde(this.desdeEntrega(), this.ahora()));
@@ -359,8 +371,27 @@ export class HoyPage {
     const id = this.ctx.personaId();
     if (!id) return;
     const tipos = new Set((this.entrega() ?? []).map((n) => n.tipo));
-    const filtro: FiltroBitacora | null = tipos.has('incidente') ? 'incidente' : tipos.has('sintoma') ? 'sintoma' : null;
+    const filtro: FiltroBitacora | null = tipos.has('incidente')
+      ? 'incidente'
+      : tipos.has('sintoma')
+        ? 'sintoma'
+        : tipos.has('indicacion')
+          ? 'indicacion'
+          : null;
     void this.router.navigate(['/personas', id, 'bitacora'], { queryParams: filtro ? { filtro } : {} });
+  }
+
+  // ---------------------------------------------------------------- Indicación del médico
+  /** "hoy 12:10", "ayer 18:00", "jue 9 oct, 11:00" */
+  cuandoIndicacion(e: EntradaBitacora): string {
+    return textoFechaRelativa(e.fecha.toDate(), this.ahora());
+  }
+
+  /** Todas las indicaciones, en la bitácora filtrada */
+  verIndicaciones() {
+    const id = this.ctx.personaId();
+    if (!id) return;
+    void this.router.navigate(['/personas', id, 'bitacora'], { queryParams: { filtro: 'indicacion' } });
   }
 
   // ---------------------------------------------------------------- Citas

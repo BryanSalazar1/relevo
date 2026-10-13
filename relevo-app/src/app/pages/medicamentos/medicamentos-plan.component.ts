@@ -22,6 +22,7 @@ import {
   MedicamentosService,
   estadoInventario,
   finTratamiento,
+  textoInventario,
   unidadesRestantes,
 } from '../../core/services/medicamentos.service';
 import { inicioDeDia, sumarDias } from '../../core/utils/fechas';
@@ -59,13 +60,23 @@ export class MedicamentosPlan {
     return !!r && PUEDE_EDITAR_MEDICAMENTOS.includes(r);
   });
 
-  /** Unidades restantes que se muestran en la lista (nunca negativas). */
-  readonly restantes = unidadesRestantes;
+  /**
+   * Inventario en la lista: "Quedan 42: alcanza para 14 días" cuando hay horario fijo, "Quedan 5
+   * (según necesidad)" si no, "Agotado…" en 0 y, si está suspendido o terminado, solo las unidades.
+   * null si el inventario no se controla.
+   */
+  textoStock(m: Medicamento): string | null {
+    const unidades = unidadesRestantes(m);
+    if (unidades === null) return null;
+    const estado = estadoInventario(m);
+    if (estado) return textoInventario(estado);
+    return unidades === 1 ? 'Queda 1' : `Quedan ${unidades}`;
+  }
 
-  /** Color del badge de inventario en la lista: agotado, por acabarse o normal. */
+  /** Color del texto de inventario en la lista: agotado, por acabarse o normal. */
   colorInventario(m: Medicamento): string {
     const nivel = estadoInventario(m)?.nivel;
-    return nivel === 'agotado' ? 'danger' : nivel === 'bajo' ? 'warning' : 'light';
+    return nivel === 'agotado' ? 'danger' : nivel === 'bajo' ? 'warning' : 'medium';
   }
 
   /** Ya pasó el último día del tratamiento (se muestra atenuado, como los suspendidos). */

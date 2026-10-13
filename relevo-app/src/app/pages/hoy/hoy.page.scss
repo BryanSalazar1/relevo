@@ -211,6 +211,58 @@ ion-list.por-resurtir ion-item {
   }
 }
 
+// Indicación del médico: destacada con el color primario, abre la bitácora filtrada
+ion-card.indicacion {
+  margin: 4px 16px 8px;
+  padding: 14px 16px;
+  border-left: 4px solid var(--ion-color-primary);
+
+  .cabecera {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    p {
+      margin: 0;
+    }
+  }
+
+  .icono {
+    flex: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 22px;
+    color: var(--ion-color-primary);
+    background: var(--relevo-primario-suave);
+  }
+
+  .titulo {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--ion-color-primary);
+  }
+
+  .sub {
+    font-size: 0.82rem;
+    color: var(--relevo-texto-3);
+  }
+
+  .flecha {
+    margin-left: auto;
+    color: var(--relevo-texto-3);
+  }
+
+  .texto {
+    margin: 10px 0 0;
+    font-size: 0.98rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+  }
+}
+
 // Próximas citas: "Ver todas" en la cabecera y las de hoy ya pasadas atenuadas
 ion-list.citas {
   ion-list-header ion-button {

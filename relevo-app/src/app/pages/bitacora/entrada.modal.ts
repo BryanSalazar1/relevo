@@ -19,21 +19,26 @@ import {
   IonToolbar,
   ModalController,
 } from '@ionic/angular';
-import { EntradaBitacora, TIPOS_ENTRADA, TipoEntrada } from '../../core/models';
+import {
+  EntradaBitacora,
+  Rol,
+  TIPOS_ENTRADA,
+  TipoEntrada,
+  TipoEntradaInfo,
+  tiposEntradaPara,
+} from '../../core/models';
 import { DatosEntrada } from '../../core/services/bitacora.service';
-import { aIsoLocal, inicioDeDia } from '../../core/utils/fechas';
+import { aIsoLocal } from '../../core/utils/fechas';
 
-/** Cuánto tiempo atrás se puede fechar un registro nuevo (una hora). */
-export const VENTANA_REGISTRO_MS = 60 * 60 * 1000;
+/** Cuánto tiempo atrás se puede fechar un registro nuevo: 12 horas, para cerrar un turno de noche. */
+export const VENTANA_REGISTRO_MS = 12 * 60 * 60 * 1000;
 
 /**
- * Límites para fechar un registro nuevo: entre hace una hora y ahora, sin salir del día de hoy
- * (si son las 00:30, el mínimo es 00:00). La fecha siempre es la de hoy; solo se elige la hora.
+ * Límites para fechar un registro nuevo: entre hace 12 horas y ahora, aunque eso caiga en el día
+ * anterior (quien escribe al terminar un turno nocturno fecha lo que pasó de madrugada).
  */
 export function ventanaRegistro(ahora = new Date()): { min: Date; max: Date } {
-  const haceUnaHora = new Date(ahora.getTime() - VENTANA_REGISTRO_MS);
-  const inicioHoy = inicioDeDia(ahora);
-  return { min: haceUnaHora < inicioHoy ? inicioHoy : haceUnaHora, max: ahora };
+  return { min: new Date(ahora.getTime() - VENTANA_REGISTRO_MS), max: ahora };
 }
 
 /** Formulario para crear o editar un registro de la bitácora. Devuelve DatosEntrada con rol 'guardar'. */
@@ -109,8 +114,8 @@ export function ventanaRegistro(ahora = new Date()): { min: Date; max: Date } {
       } @else {
         <ion-item lines="none" class="fecha">
           <ion-label>
-            <h3>Hora</h3>
-            <p>Hoy · se puede registrar hasta una hora atrás</p>
+            <h3>Fecha y hora</h3>
+            <p>Hasta 12 horas atrás, aunque sea de ayer</p>
           </ion-label>
           <ion-datetime-button datetime="hora-entrada" />
         </ion-item>
@@ -118,7 +123,7 @@ export function ventanaRegistro(ahora = new Date()): { min: Date; max: Date } {
           <ng-template>
             <ion-datetime
               id="hora-entrada"
-              presentation="time"
+              presentation="date-time"
               locale="es-MX"
               [min]="minIso()"
               [max]="maxIso()"
@@ -162,8 +167,10 @@ export class EntradaModal implements OnInit {
   /** Se rellenan desde componentProps */
   entrada: EntradaBitacora | null = null;
   personaNombre = '';
+  /** Rol de quien escribe: decide qué tipos se ofrecen (el médico solo indicaciones) */
+  rol: Rol | null = null;
 
-  readonly tipos = TIPOS_ENTRADA;
+  tipos: TipoEntradaInfo[] = TIPOS_ENTRADA;
   readonly tipo = signal<TipoEntrada>('nota');
   /** Límites del selector de hora (se refrescan cada vez que se abre). */
   readonly minIso = signal(aIsoLocal(ventanaRegistro().min));
@@ -174,14 +181,18 @@ export class EntradaModal implements OnInit {
   fechaOriginal: Date | null = null;
 
   ngOnInit() {
+    this.tipos = tiposEntradaPara(this.rol);
     if (this.entrada) {
       this.tipo.set(this.entrada.tipo);
       this.texto = this.entrada.texto;
       this.fechaOriginal = this.entrada.fecha.toDate();
+    } else if (!this.tipos.some((t) => t.valor === this.tipo())) {
+      // El médico solo tiene "Indicación médica": queda elegida de entrada
+      this.tipo.set(this.tipos[0]?.valor ?? 'nota');
     }
   }
 
-  /** Recalcula la ventana [hace una hora, ahora] y acerca la hora elegida si quedó fuera. */
+  /** Recalcula la ventana [hace 12 horas, ahora] y acerca la fecha elegida si quedó fuera. */
   actualizarLimites() {
     const { min, max } = ventanaRegistro();
     this.minIso.set(aIsoLocal(min));
@@ -204,7 +215,7 @@ export class EntradaModal implements OnInit {
     void this.modalCtrl.dismiss(datos, 'guardar');
   }
 
-  /** Hora elegida, siempre de hoy y dentro de la ventana permitida al momento de guardar. */
+  /** Fecha y hora elegidas, dentro de la ventana permitida al momento de guardar. */
   private fechaElegida(): Date {
     const { min, max } = ventanaRegistro();
     const elegida = new Date(this.fechaIso);

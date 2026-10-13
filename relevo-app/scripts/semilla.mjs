@@ -163,17 +163,17 @@ async function main() {
   b.set(doc(personaRef, 'signos_vitales', 'sv5'), { tipo: 'peso', valor: 68.2, valorSecundario: null, unidad: 'kg', fecha: hace(2, 9), autorUid: ana });
   b.set(doc(personaRef, 'signos_vitales', 'sv6'), { tipo: 'temperatura', valor: 36.6, valorSecundario: null, unidad: '°C', fecha: hace(0, 8, 35), autorUid: ana });
 
-  b.set(doc(personaRef, 'entradas_bitacora', 'e1'), { tipo: 'comida', texto: 'Desayunó avena con fruta, comió todo.', fotos: [], notaVozUrl: null, autorUid: ana, autorNombre: 'Ana García', fecha: hace(0, 8, 40) });
-  b.set(doc(personaRef, 'entradas_bitacora', 'e2'), { tipo: 'animo', texto: 'De buen humor, estuvo viendo fotos con Sofía.', fotos: [], notaVozUrl: null, autorUid: ana, autorNombre: 'Ana García', fecha: hace(0, 11) });
-  b.set(doc(personaRef, 'entradas_bitacora', 'e3'), { tipo: 'sueno', texto: 'Durmió unas 7 horas, se levantó una vez al baño.', fotos: [], notaVozUrl: null, autorUid: ana, autorNombre: 'Ana García', fecha: hace(1, 7, 30) });
+  b.set(doc(personaRef, 'entradas_bitacora', 'e1'), { tipo: 'comida', texto: 'Desayunó avena con fruta, comió todo.', autorUid: ana, autorNombre: 'Ana García', fecha: hace(0, 8, 40) });
+  b.set(doc(personaRef, 'entradas_bitacora', 'e2'), { tipo: 'animo', texto: 'De buen humor, estuvo viendo fotos con Sofía.', autorUid: ana, autorNombre: 'Ana García', fecha: hace(0, 11) });
+  b.set(doc(personaRef, 'entradas_bitacora', 'e3'), { tipo: 'sueno', texto: 'Durmió unas 7 horas, se levantó una vez al baño.', autorUid: ana, autorNombre: 'Ana García', fecha: hace(1, 7, 30) });
   b.set(doc(personaRef, 'eventos_calendario', 'turno-marta'), { tipo: 'turno', titulo: 'Turno de Marta', inicio: hace(-1, 20), fin: hace(-2, 8), responsableUid: marta, notas: 'Turno de noche' });
   await b.commit();
 
   console.log('4) Turno de Marta (cuidadora de turno)');
   await signInWithEmailAndPassword(auth, 'marta@relevo.test', PASSWORD);
   b = writeBatch(db);
-  b.set(doc(personaRef, 'entradas_bitacora', 'e4'), { tipo: 'sintoma', texto: 'Se quejó de dolor en la rodilla derecha al caminar. Se aplicó compresa tibia.', fotos: [], notaVozUrl: null, autorUid: marta, autorNombre: 'Marta López', fecha: hace(1, 22, 15) });
-  b.set(doc(personaRef, 'entradas_bitacora', 'e5'), { tipo: 'incidente', texto: 'Casi resbala en el baño; sin golpe. Revisar tapete antiderrapante.', fotos: [], notaVozUrl: null, autorUid: marta, autorNombre: 'Marta López', fecha: hace(2, 23, 5) });
+  b.set(doc(personaRef, 'entradas_bitacora', 'e4'), { tipo: 'sintoma', texto: 'Se quejó de dolor en la rodilla derecha al caminar. Se aplicó compresa tibia.', autorUid: marta, autorNombre: 'Marta López', fecha: hace(1, 22, 15) });
+  b.set(doc(personaRef, 'entradas_bitacora', 'e5'), { tipo: 'incidente', texto: 'Casi resbala en el baño; sin golpe. Revisar tapete antiderrapante.', autorUid: marta, autorNombre: 'Marta López', fecha: hace(2, 23, 5) });
   b.set(doc(personaRef, 'medicamentos/metformina/tomas', 'antier-2000'), { horaProgramada: hace(2, 20), horaReal: hace(2, 20, 5), tomado: true, registradoPor: marta });
   b.update(doc(db, 'usuarios', marta), { personas: arrayUnion(PERSONA_ID) });
   await b.commit();
@@ -186,8 +186,12 @@ async function main() {
   b.update(doc(db, 'usuarios', sofia), { personas: arrayUnion(PERSONA_ID) });
   await b.commit();
 
+  console.log('6) Indicación del médico (Luis)');
   await signInWithEmailAndPassword(auth, 'luis@relevo.test', PASSWORD);
-  await updateDoc(doc(db, 'usuarios', luis), { personas: arrayUnion(PERSONA_ID) });
+  b = writeBatch(db);
+  b.set(doc(personaRef, 'entradas_bitacora', 'e6'), { tipo: 'indicacion', texto: 'Si la presión sigue arriba de 140/90 toda la semana, subir Losartán a 100 mg. Glucosa en ayunas a diario; avisarme si pasa de 180.', autorUid: luis, autorNombre: 'Dr. Luis Pérez', fecha: hace(1, 18) });
+  b.update(doc(db, 'usuarios', luis), { personas: arrayUnion(PERSONA_ID) });
+  await b.commit();
 
   console.log('\nListo. Usuarios de prueba (contraseña: ' + PASSWORD + '):');
   for (const u of USUARIOS) console.log(`  ${u.email.padEnd(20)} cuenta: ${u.tipo.padEnd(10)} rol: ${u.rol}`);

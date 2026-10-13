@@ -100,7 +100,8 @@ export type TipoNovedad =
   | 'sintoma'
   | 'incidente'
   | 'signo'
-  | 'nota';
+  | 'nota'
+  | 'indicacion';
 
 export interface Novedad {
   tipo: TipoNovedad;
@@ -156,7 +157,7 @@ const recortar = (texto: string, max = 90) => {
 /**
  * Lo relevante de la ventana, de lo más reciente a lo más antiguo: dosis no tomadas o vencidas sin
  * registro, tareas no hechas o vencidas, síntomas e incidentes, signos fuera de rango y la última
- * nota escrita por otra persona.
+ * nota escrita por otra persona. Las indicaciones del médico van siempre primero.
  */
 export function novedadesEntrega({ desde, ahora, filas, entradas, signos, miUid }: DatosEntrega): Novedad[] {
   const lista: Novedad[] = [];
@@ -191,9 +192,20 @@ export function novedadesEntrega({ desde, ahora, filas, entradas, signos, miUid 
   }
 
   for (const e of entradas) {
-    if (e.tipo !== 'sintoma' && e.tipo !== 'incidente') continue;
     const hora = e.fecha.toDate();
     if (!enVentana(hora, desde, ahora)) continue;
+    if (e.tipo === 'indicacion') {
+      lista.push({
+        tipo: 'indicacion',
+        hora,
+        texto: `Indicación médica: ${recortar(e.texto)}`,
+        quien: e.autorNombre,
+        icono: 'document-text-outline',
+        color: 'primary',
+      });
+      continue;
+    }
+    if (e.tipo !== 'sintoma' && e.tipo !== 'incidente') continue;
     lista.push({
       tipo: e.tipo,
       hora,
@@ -232,7 +244,11 @@ export function novedadesEntrega({ desde, ahora, filas, entradas, signos, miUid 
     });
   }
 
-  return lista.sort((a, b) => b.hora.getTime() - a.hora.getTime());
+  return lista.sort(
+    (a, b) =>
+      Number(b.tipo === 'indicacion') - Number(a.tipo === 'indicacion') ||
+      b.hora.getTime() - a.hora.getTime(),
+  );
 }
 
 /** "desde ayer 22:00", "desde hoy 06:00" o "desde el 10 oct 16:00", para el subtítulo de la tarjeta. */

@@ -15,7 +15,6 @@ import {
   IonHeader,
   IonIcon,
   IonItem,
-  IonItemDivider,
   IonLabel,
   IonList,
   IonListHeader,
@@ -32,13 +31,7 @@ import {
 import { SignoVital, TIPO_ENTRADA_INFO, TipoEntrada } from '../../core/models';
 import { AsistenteService } from '../../core/services/asistente.service';
 import { Reporte, ReporteService } from '../../core/services/reporte.service';
-import {
-  agruparPorDia,
-  etiquetaDia,
-  etiquetaRango,
-  inicioDeDia,
-  sumarDias,
-} from '../../core/utils/fechas';
+import { etiquetaRango, inicioDeDia, sumarDias } from '../../core/utils/fechas';
 import { personaActual } from '../../core/utils/persona-actual';
 import { GraficasReporte } from './graficas.component';
 import { FabAsistente } from '../../shared/fab-asistente.component';
@@ -70,7 +63,6 @@ type Periodo = 'semana' | 'mes';
     IonList,
     IonListHeader,
     IonItem,
-    IonItemDivider,
     IonBadge,
     IonChip,
     IonNote,
@@ -103,12 +95,6 @@ export class ReportePage {
   readonly exportando = signal(false);
   readonly resumiendo = signal(false);
   readonly errorResumen = signal<string | null>(null);
-
-  readonly grupos = computed(() => {
-    const r = this.reporte();
-    return r ? agruparPorDia(r.entradas, (e) => e.fecha.toDate()) : [];
-  });
-  readonly etiquetaDia = etiquetaDia;
 
   constructor() {
     // Se vuelve a generar cuando cambia la persona, el periodo o la fecha
