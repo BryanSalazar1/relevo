@@ -48,6 +48,8 @@ firebase use --add          # vincula esta carpeta con tu proyecto de Firebase (
 npm run deploy:rules        # sube firestore.rules al proyecto real
 npm run deploy:storage      # sube storage.rules (solo si activaste Storage, §4.6)
 npm run test:functions      # pruebas de la lógica de notificaciones (functions/logica.test.mjs)
+npm run semilla             # usuarios y datos de prueba en los EMULADORES (ver §6)
+npx ng test --watch=false --browsers=ChromeHeadless   # pruebas unitarias de la app (Karma)
 npm run deploy:functions    # sube las Cloud Functions de notificaciones (requiere plan Blaze, §8)
 npm run semilla:real        # usuarios y datos de prueba en tu proyecto real
 npm run semilla:historial:real  # cuenta demo con 60 días de historial (ver "Datos de demostración")
@@ -75,25 +77,33 @@ relevo-app/
     │   └── environment.development.ts   # ng serve: real si hay config, si no emuladores
     └── app/
         ├── app.config.ts        # providers: Ionic, Router, PWA y **Firebase**
-        ├── app.routes.ts        # /login, /home, /unirse/:codigo, /personas/:id/(bitacora|equipo|reporte)
+        ├── app.routes.ts        # /login, /home, /unirse/:codigo, /notificaciones, /personas/:id/(hoy|bitacora|plan/:seccion|equipo|reporte|ficha|semaforo)
         ├── core/
         │   ├── models/index.ts          # tipos del modelo de datos (sección 7 del doc) + invitaciones
         │   ├── guards/auth.guard.ts     # authGuard / noAuthGuard (recuerdan a dónde ibas con ?volver=)
-        │   ├── utils/                   # fechas.ts (agrupar por día, rangos), persona-actual.ts
+        │   ├── utils/                   # fechas.ts, agenda-dia.ts (filas del día), entrega-turno.ts, semaforo.ts, persona-actual.ts
         │   └── services/
         │       ├── auth.service.ts      # registro, login, logout, usuarios/{uid}
         │       ├── personas.service.ts  # personas_cuidadas + miembros (batch)
-        │       ├── miembros.service.ts  # miembros de una persona, mi rol, quitar
-        │       ├── bitacora.service.ts  # entradas_bitacora en tiempo real y por rango
+        │       ├── miembros.service.ts  # miembros de una persona, mi rol, preferencias de avisos
+        │       ├── bitacora.service.ts  # entradas_bitacora en tiempo real; línea de tiempo con tomas, tareas y signos
+        │       ├── medicamentos.service.ts / tareas.service.ts  # plan, agenda del día, tomas y registros, inventario
+        │       ├── signos.service.ts    # signos vitales (de una tarea o sueltos)
+        │       ├── eventos.service.ts   # citas de una sola vez (eventos_calendario)
         │       ├── invitaciones.service.ts  # códigos/QR: crear, buscar, canjear, cancelar
         │       └── reporte.service.ts   # resumen semanal/mensual + PDF (jsPDF) + compartir
         └── pages/
             ├── login/           # correo + contraseña (login / registro)
             ├── home/            # lista "mis personas" + "Unirme con código o QR"
-            ├── persona/         # pestañas de una persona: Bitácora · Medicinas · Rutina · Equipo · Reporte · Asistente
+            ├── persona/         # pestañas de una persona: Hoy · Bitácora · Plan · Equipo · Reporte
+            ├── hoy/             # agenda del día, semáforo, Entrega de turno, próximas citas, indicación del médico
+            ├── plan/            # segmento Medicinas · Rutina · Citas (componentes en medicamentos/, rutina/, citas/)
             ├── bitacora/        # feed agrupado por día, filtro por tipo, modal de registro
+            ├── ficha/           # ficha de emergencia a pantalla completa
             ├── semaforo/        # lo que sigue hoy en pantalla completa y un solo color (fuera de las pestañas)
-            ├── equipo/          # perfil, miembros, invitaciones y modal con QR
+            ├── equipo/          # ficha médica, miembros, turnos, invitaciones y modal con QR
+            ├── notificaciones/  # centro de notificaciones (/notificaciones)
+            ├── asistente/       # chat con IA; se abre como modal desde el botón flotante (shared/fab-asistente)
             ├── unirse/          # escribir código o escanear QR con la cámara
             └── reporte/         # reporte en pantalla + "Exportar PDF para el médico"
 android/                         # proyecto nativo Android (Capacitor 8) — ver §10
@@ -240,15 +250,17 @@ alias de la cuenta de la app, así que cualquier aviso llega a su bandeja):
 ### Datos de prueba
 
 Con los emuladores encendidos, `npm run semilla` crea usuarios de cada rol y una persona cuidada
-con bitácora, medicamentos, signos vitales y citas (`scripts/semilla.mjs`, idempotente).
-Contraseña de todos: `relevo123`.
+con bitácora, medicamentos con inventario, rutina, signos vitales, dos citas próximas y una
+indicación del médico (`scripts/semilla.mjs`, idempotente). Contraseña de todos: `relevo123`.
+Para que `ionic serve` apunte a los emuladores aunque haya config real, pon
+`FORZAR_EMULADORES = true` en `environment.development.ts` (y vuelve a `false` antes de hacer commit).
 
 | Correo | Tipo de cuenta | Rol con Carmen |
 |---|---|---|
-| ana@relevo.test | Familiar | Responsable (creó a Carmen) |
-| marta@relevo.test | Enfermero/a | Cuidadora (escribe bitácora) |
-| sofia@relevo.test | Familiar | Familiar (solo lectura + calendario) |
-| luis@relevo.test | Médico | Médico (solo lectura) |
+| ana@relevo.test | Familiar | Responsable (creó a Carmen): edita el plan, resurte, invita |
+| marta@relevo.test | Enfermero/a | Cuidadora de turno: registra tomas, tareas, signos y bitácora |
+| sofia@relevo.test | Familiar | Familiar: escribe en la bitácora, registra tomas y agenda citas |
+| luis@relevo.test | Médico | Médico: lee todo y escribe indicaciones médicas |
 
 Los datos viven solo en el emulador: al cerrarlo se pierden y vuelves a correr la semilla.
 
@@ -309,6 +321,8 @@ Cada vez que cambies código web: `ionic build && npx cap sync`.
 | Una dosis pasó de su hora y nadie la registró (revisión cada 10 min, hasta 2 h después, una sola vez) | **Quien está de guardia** (turnos de cada miembro, ver *Equipo*); sin turnos definidos, todos los que registran; nadie de guardia, el responsable |
 | **Se acerca una tarea de la rutina o una toma** (revisión cada 5 min; tareas: minutos que eligió el responsable, medicamentos: `AVISO_MEDICAMENTOS_MIN`, 15 por defecto). Una sola vez y solo si aún no se registró | **Quien está de guardia** (igual que arriba) |
 | **El inventario de un medicamento se está acabando** (alcanza para 5 días o menos) **o se agotó** (20/09/2026). Una vez por nivel; resurtir rearma el aviso | **Responsables** (siempre) y **familiares** (salvo con las alertas apagadas) |
+| **Se acerca una cita del calendario** (13/10/2026; `avisarMin` de la cita, 1 h si no dice, 0 = sin aviso). Una sola vez por cita y hora de inicio: si la mueven, vuelve a avisar | **Quien acompaña** (siempre), el **responsable** y los **familiares** que reciben avisos del equipo, y **quien está de guardia** (`destinatariosCita`) |
+| **El médico escribe una indicación médica** (13/10/2026; tipo `indicacion`) | Como cualquier entrada de bitácora, pero cuenta como **importante** (llega también a quien eligió "Importantes") |
 
 Tocar la notificación abre la pantalla correspondiente (`data.url`). Con la app abierta se muestra
 como aviso dentro de la app.
@@ -397,6 +411,64 @@ decisión: en la web se avisa por correo.
 
 ## 10. Funcionalidades implementadas (10 de septiembre de 2026)
 
+### Rediseño para uso diario — 13/10/2026
+Cinco fases en la rama `mejoras-uso-diario` (commits "Fase 1" a "Fase 5"). Las pestañas de una
+persona quedan en **Hoy · Bitácora · Plan · Equipo · Reporte**; el asistente sigue en el botón
+flotante de cada pantalla.
+
+- **Hoy** (`pages/hoy`, `core/utils/agenda-dia.ts`): la agenda del día (tomas y tareas en orden, con
+  ✔ / ✘ y hoja de opciones para nota o deshacer), el semáforo arriba, "Según necesidad", "Por
+  resurtir", "Próximas citas" y flechas para ver días anteriores (hasta 90). Botón **Registrar signos
+  vitales** sin tarea de por medio.
+- **Entrega de turno** (`core/utils/entrega-turno.ts`; tarjeta "Desde tu último turno" en Hoy): desde
+  que terminó el turno anterior de quien mira (o las últimas 8 h, o su última visita en ese
+  dispositivo), lista dosis no tomadas o sin registrar, tareas no hechas, incidentes y síntomas,
+  signos fuera de rango (`RANGOS_SIGNO`, orientativos) y la última nota de otra persona; las
+  indicaciones del médico van primero. Sin IA. "Ver en la bitácora" abre la bitácora filtrada por lo
+  más delicado. La ventana se fija al entrar a Hoy: lo registrado durante la visita sale en la
+  siguiente entrega.
+- **Plan** (`pages/plan`): un segmento con **Medicinas**, **Rutina** y **Citas**; el + da de alta en la
+  sección abierta. Las rutas viejas `/medicamentos` y `/rutina` redirigen. Medicinas muestra
+  "Quedan N: alcanza para N días" (unidades si no hay horario fijo).
+- **Ficha de emergencia** (`/personas/:id/ficha`, `pages/ficha`): pantalla completa con letra grande
+  (edad, tipo de sangre, alergias destacadas, condiciones, medicamentos activos, médico, seguro,
+  hospital y contactos que marcan con un toque). Se abre desde el inicio (icono por persona), la
+  barra de Hoy y Equipo.
+- **Signos vitales en cualquier momento**: `SignosService.guardarSueltas` (con `autorNombre` y `nota`
+  ≤ 200, validada en rules). En la bitácora cada registro de signos es una línea y hay filtro
+  "Signos vitales"; el botón del pulso de la barra los registra. Entran al reporte y al PDF.
+- **Citas de una sola vez** (`EventoCalendario` en `eventos_calendario`,
+  `core/services/eventos.service.ts`, `pages/citas`): título, tipo (cita médica / terapia o estudio),
+  fecha y hora, duración, lugar, quién acompaña y aviso previo (`avisarMin`: sin aviso, 30 min, 1 h,
+  2 h o 1 día). Las agendan, editan y borran el responsable y los familiares (`PUEDE_EDITAR_CITAS`);
+  enfermeros y médicos las ven. `avisarProximas` avisa de las que se acercan (`citasProximas`,
+  `mensajeCita`, `destinatariosCita` en `functions/logica.js`), una vez por cita y hora de inicio. El
+  tipo de tarea "cita" ya no se ofrece en tareas nuevas (`TIPOS_TAREA_TODOS` conserva las existentes).
+- **Indicación médica** (entrada de bitácora `tipo: 'indicacion'`): solo el médico la escribe y edita
+  (`PUEDE_ESCRIBIR_INDICACION`; `tipoPermitido` en rules; el responsable puede borrarla pero no
+  editarla). Se destaca en la bitácora, en Hoy (tarjeta con la última de los últimos 14 días) y en
+  la Entrega, y cuenta como importante en las notificaciones.
+- **Notificaciones**: una opción principal (Todos / Importantes / Ninguno) y un apartado "Avanzado"
+  plegado (recordatorios de guardia, solo en turno). Un miembro nuevo entra con `AVISOS_POR_DEFECTO`
+  (responsable y familiar: importantes; enfermero: todos; médico: importantes); a los miembros
+  existentes no se les cambia nada (sin valor sigue siendo "todos"). La lógica de envío no cambió.
+- **Limpieza**: sin pestaña Asistente (`/asistente` redirige a Hoy); `fotos` y `notaVozUrl` quedan
+  obsoletos y ya no se escriben; el reporte no repite la "Bitácora del periodo" (sigue en el PDF); se
+  retiró "Hacerme responsable" (interfaz y rule); los registros de bitácora se fechan hasta 12 h
+  atrás, aunque caiga en el día anterior; la ayuda de Equipo es de una línea.
+- **Rules** (`firestore.rules`): `eventoValido` y solo responsable y familiares escriben
+  `eventos_calendario`; `tipoPermitido` para indicaciones; `signoValido` admite `nota`; `tomaValida`
+  exige `horaProgramada` y medicamento activo (`getAfter`); los miembros nuevos pueden traer `avisos`
+  (`preferenciasValidas` también al crear); se quitó la recuperación del rol de responsable. 28
+  pruebas en `tests/firestore.rules.test.mjs`.
+- **Cómo probarlo**: `npm run emulators` + `npm run semilla` (con `FORZAR_EMULADORES = true`) y
+  entrar como ana (responsable), sofia (familiar), marta (enfermera) y luis (médico). Verificación
+  completa: `npx tsc -p tsconfig.app.json --noEmit`, `npm run build`,
+  `npx ng test --watch=false --browsers=ChromeHeadless` (37), `npm run test:functions` (52) y
+  `npm run test:rules` (28).
+- **Para publicarlo**, en este orden: `npm run deploy:rules` → `npm run deploy:functions` →
+  `firebase deploy --only hosting`; después, `npm run test:e2e` contra la app publicada.
+
 ### Paleta clara "clínica amable" — 06/10/2026
 - Se deja el tema oscuro azul marino por un tema claro pensado para salud: verde azulado (teal
   `#0f9d8a`) como color principal, fondo menta muy claro, tarjetas blancas con borde y sombra suaves,
@@ -462,7 +534,8 @@ decisión: en la web se avisa por correo.
   **Responsable** de su bitácora (administra, invita, define medicamentos, hace responsable a otro
   familiar). Un familiar invitado escribe en la bitácora, registra tomas y coordina citas.
 - **Enfermero/a**: se une con un código y entra como cuidador: registra bitácora, tomas y signos.
-- **Médico**: se une con un código y entra en solo lectura (bitácora, medicamentos y reportes).
+- **Médico**: se une con un código; lee todo (bitácora, plan, reportes) y solo escribe
+  **indicaciones médicas** en la bitácora (13/10/2026).
 - El tipo se guarda en `usuarios/{uid}.tipo`, no se puede cambiar después, y las reglas lo usan para
   decidir quién crea personas y con qué rol entra cada quien (`ROL_POR_TIPO`, `ROLES_COMPATIBLES`).
   Cuentas anteriores a esta versión lo eligen una sola vez al entrar.
