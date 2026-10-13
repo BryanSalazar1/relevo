@@ -1,0 +1,126 @@
+ion-toolbar.dia ion-title {
+  font-weight: 500;
+  cursor: pointer;
+}
+
+ion-list-header ion-badge {
+  margin-right: 16px;
+}
+
+// Estado del semáforo: una tarjeta con la luz del color que toca y qué sigue
+ion-card.estado {
+  --tono: var(--ion-color-medium);
+  margin: 12px 16px 4px;
+  padding: 14px 16px 12px;
+  border-color: color-mix(in srgb, var(--tono) 35%, transparent);
+  background: color-mix(in srgb, var(--tono) 10%, var(--relevo-superficie));
+
+  &[data-color='verde'] {
+    --tono: #22a06b;
+  }
+  &[data-color='amarillo'] {
+    --tono: #e9a23b;
+  }
+  &[data-color='rojo'] {
+    --tono: #e5484d;
+  }
+
+  .fila {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .luz {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--tono);
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--tono) 22%, transparent);
+  }
+
+  .texto {
+    flex: 1;
+    min-width: 0;
+
+    p {
+      margin: 0;
+    }
+  }
+
+  .titulo {
+    font-size: 1.05rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--tono);
+  }
+
+  .sigue {
+    margin-top: 2px;
+    font-size: 0.92rem;
+    color: var(--relevo-texto-2);
+
+    strong {
+      color: var(--relevo-texto);
+    }
+  }
+
+  // En su propia línea: en un teléfono "Toca: Metformina · Era a las 08:00 · hace 2 h" no cabe
+  .cuando {
+    display: block;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .flecha {
+    flex: none;
+    font-size: 20px;
+    color: var(--relevo-texto-3);
+  }
+
+  .progreso {
+    height: 8px;
+    margin-top: 12px;
+    border-radius: var(--relevo-radio-pildora);
+    background: rgba(22, 50, 56, 0.1);
+    overflow: hidden;
+
+    > span {
+      display: block;
+      height: 100%;
+      border-radius: var(--relevo-radio-pildora);
+      background: var(--tono);
+      transition: width 0.4s ease;
+    }
+  }
+
+  .avance {
+    margin: 6px 0 0;
+    font-size: 0.8rem;
+    color: var(--relevo-texto-3);
+  }
+}
+
+ion-list.por-resurtir ion-item {
+  --min-height: 52px;
+
+  h2 {
+    font-size: 0.95rem;
+  }
+}
+
+ion-item.registrada ion-label {
+  opacity: 0.75;
+}
+
+h2 ion-icon.tipo {
+  font-size: 1em;
+  vertical-align: -2px;
+  margin-right: 2px;
+}
+
+h2 ion-note {
+  font-size: 0.85em;
+  margin-left: 4px;
+}

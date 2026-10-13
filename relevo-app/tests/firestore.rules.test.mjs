@@ -592,6 +592,12 @@ test('tomas: no se registran en un medicamento suspendido (corregir una ya regis
   await assertFails(setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m1/tomas/b`), { tomado: true, registradoPor: 'luis' }));
   await assertFails(setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m2/tomas/nueva`), { tomado: true, registradoPor: 'luis', horaProgramada: Timestamp.now() }));
   await assertSucceeds(updateDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m2/tomas/vieja`), { tomado: false, registradoPor: 'luis', horaProgramada: Timestamp.now() }));
+  // La responsable crea un medicamento y sus tomas en el mismo batch (como las semillas de datos)
+  const dbAna = ana();
+  const b = writeBatch(dbAna);
+  b.set(doc(dbAna, `personas_cuidadas/${PERSONA_ID}/medicamentos/m3`), { nombre: 'Omega 3', dosis: '1 tableta', horarios: ['08:00'], inventario: 10, activo: true });
+  b.set(doc(dbAna, `personas_cuidadas/${PERSONA_ID}/medicamentos/m3/tomas/t1`), { tomado: true, registradoPor: 'ana', horaProgramada: Timestamp.now() });
+  await assertSucceeds(b.commit());
 });
 
 test('notas: quien registró edita su nota; el responsable solo la nota de otros; un tercero no', async () => {

@@ -165,9 +165,10 @@ service cloud.firestore {
         && (!('soloEnTurno' in d) || d.soloEnTurno is bool);
     }
 
-    // Un medicamento suspendido no admite tomas nuevas (el tratamiento terminado lo frena la app)
+    // Un medicamento suspendido no admite tomas nuevas (el tratamiento terminado lo frena la app).
+    // getAfter: el medicamento puede crearse en el mismo batch que sus tomas (semillas de datos).
     function medicamentoActivo(personaId, medicamentoId) {
-      return get(/databases/$(database)/documents/personas_cuidadas/$(personaId)/medicamentos/$(medicamentoId)).data.activo == true;
+      return getAfter(/databases/$(database)/documents/personas_cuidadas/$(personaId)/medicamentos/$(medicamentoId)).data.activo == true;
     }
 
     // ---------- usuarios/{uid} ----------

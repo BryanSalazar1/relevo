@@ -1,0 +1,194 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/home" text="" />
+    </ion-buttons>
+    <ion-title>{{ persona()?.nombre || 'Hoy' }}</ion-title>
+    <ion-buttons slot="end">
+      <ion-button routerLink="../semaforo" aria-label="Abrir el semáforo en pantalla completa">
+        <ion-icon slot="icon-only" name="semaforo" />
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+  <ion-toolbar class="dia">
+    <ion-buttons slot="start">
+      <ion-button (click)="cambiarDia(-1)" [disabled]="!puedeRetroceder()" aria-label="Día anterior">
+        <ion-icon slot="icon-only" name="chevron-back-outline" />
+      </ion-button>
+    </ion-buttons>
+    <ion-title size="small" class="ion-text-center" (click)="hoy()">{{ etiquetaDia(dia()) }}</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="cambiarDia(1)" [disabled]="esHoy()" aria-label="Día siguiente">
+        <ion-icon slot="icon-only" name="chevron-forward-outline" />
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  @if (cargando()) {
+    <div class="ion-text-center ion-padding"><ion-spinner name="crescent" /></div>
+  } @else {
+    @if (esHoy()) {
+      @let e = estado();
+      <ion-card class="estado" [attr.data-color]="e.color" button routerLink="../semaforo">
+        <div class="fila">
+          <span class="luz" aria-hidden="true"></span>
+          <div class="texto">
+            <p class="titulo">{{ titulo() }}</p>
+            @if (e.principal; as p) {
+              <p class="sigue">
+                {{ e.fase === 'despues' ? 'Sigue' : 'Toca' }}: <strong>{{ p.titulo }}</strong>
+                <span class="cuando">{{ cuando() }}</span>
+              </p>
+            } @else {
+              <p class="sigue">No queda nada pendiente por hoy.</p>
+            }
+          </div>
+          <ion-icon name="chevron-forward-outline" class="flecha" aria-hidden="true" />
+        </div>
+        @if (avance().total > 0) {
+          <div class="progreso" aria-hidden="true">
+            <span [style.width.%]="(100 * avance().registradas) / avance().total"></span>
+          </div>
+          <p class="avance">{{ avance().registradas }} de {{ avance().total }} registradas</p>
+        }
+      </ion-card>
+    }
+
+    @if (porResurtir().length > 0) {
+      <ion-list inset class="por-resurtir">
+        <ion-list-header>
+          <ion-label>Por resurtir</ion-label>
+          <ion-badge [color]="hayAgotados() ? 'danger' : 'warning'">{{ porResurtir().length }}</ion-badge>
+        </ion-list-header>
+        @for (x of porResurtir(); track x.m.id) {
+          <ion-item [detail]="false" lines="none">
+            <ion-icon
+              slot="start"
+              [name]="x.estado.nivel === 'agotado' ? 'alert-circle-outline' : 'warning-outline'"
+              [color]="x.estado.nivel === 'agotado' ? 'danger' : 'warning'"
+            />
+            <ion-label class="ion-text-wrap">
+              <h2>{{ x.m.nombre }} <ion-note>{{ x.m.dosis }}</ion-note></h2>
+              <p>{{ textoInventario(x.estado) }}</p>
+            </ion-label>
+            @if (puedeEditar()) {
+              <ion-button slot="end" fill="outline" size="small" (click)="resurtir(x.m)" [attr.aria-label]="'Resurtir ' + x.m.nombre">
+                Resurtir
+              </ion-button>
+            }
+          </ion-item>
+        }
+      </ion-list>
+    }
+
+    <ion-list inset class="agenda">
+      <ion-list-header>
+        <ion-label>{{ esHoy() ? 'Hoy' : etiquetaDia(dia()) }}</ion-label>
+        @if (avance().total > 0) {
+          <ion-badge [color]="avance().registradas === avance().total ? 'success' : 'medium'">
+            {{ avance().registradas }}/{{ avance().total }}
+          </ion-badge>
+        }
+      </ion-list-header>
+      @for (f of filas(); track f.clave) {
+        <ion-item [button]="puedeMarcar(f)" [detail]="false" (click)="opciones(f)" [class.registrada]="f.registrado">
+          <ion-icon slot="start" [name]="icono(f)" [color]="color(f)" />
+          <ion-label class="ion-text-wrap">
+            <h2>
+              <ion-icon [name]="f.icono" [color]="f.colorTipo" class="tipo" aria-hidden="true" />
+              {{ f.titulo }}
+              @if (f.detalle) {
+                <ion-note>{{ f.detalle }}</ion-note>
+              }
+            </h2>
+            <p>
+              <strong>{{ f.horario }}</strong> ·
+              @if (f.registrado) {
+                {{ textoEstado(f) }}
+                @if (f.hecho && f.horaReal) {
+                  a las {{ f.horaReal | date: 'HH:mm' }}
+                }
+                @if (f.quien) {
+                  · {{ f.quien }}
+                }
+                @if (f.aDemanda) {
+                  · según necesidad
+                }
+                @if (f.nota) {
+                  · {{ f.nota }}
+                }
+              } @else {
+                Pendiente
+              }
+            </p>
+          </ion-label>
+          @if (puedeMarcar(f) && !f.registrado) {
+            <ion-button
+              slot="end"
+              fill="clear"
+              color="success"
+              (click)="marcar(f, true); $event.stopPropagation()"
+              [attr.aria-label]="textoSi(f)"
+            >
+              <ion-icon slot="icon-only" name="checkmark-circle-outline" />
+            </ion-button>
+            <ion-button
+              slot="end"
+              fill="clear"
+              color="danger"
+              (click)="marcar(f, false); $event.stopPropagation()"
+              [attr.aria-label]="textoNo(f)"
+            >
+              <ion-icon slot="icon-only" name="close-circle-outline" />
+            </ion-button>
+          }
+        </ion-item>
+      } @empty {
+        <ion-item lines="none">
+          <ion-label class="ion-text-wrap" color="medium">
+            No hay tomas ni tareas programadas para este día.
+            @if (puedeEditar()) {
+              Los medicamentos y la rutina se definen en <strong>Plan</strong>.
+            }
+          </ion-label>
+        </ion-item>
+      }
+    </ion-list>
+
+    @if (segunNecesidad().length > 0) {
+      <ion-list inset class="segun-necesidad">
+        <ion-list-header>
+          <ion-label>Según necesidad</ion-label>
+        </ion-list-header>
+        @for (m of segunNecesidad(); track m.id) {
+          <ion-item [detail]="false">
+            <ion-icon slot="start" name="medkit-outline" color="tertiary" />
+            <ion-label class="ion-text-wrap">
+              <h2>{{ m.nombre }} <ion-note>{{ m.dosis }}</ion-note></h2>
+              @if (m.notas) {
+                <p>{{ m.notas }}</p>
+              }
+              <p><strong>{{ ultimaTomaTexto(m) }}</strong></p>
+            </ion-label>
+            @if (puedeRegistrarTomas()) {
+              <ion-button slot="end" fill="outline" size="small" (click)="registrarAhora(m)" [attr.aria-label]="'Registrar toma de ' + m.nombre">
+                <ion-icon slot="start" name="checkmark-circle-outline" />
+                Tomó ahora
+              </ion-button>
+            }
+          </ion-item>
+        }
+      </ion-list>
+    }
+
+    @if (soloLectura()) {
+      <div class="ion-padding ion-text-center">
+        <ion-text color="medium"><p>Tu cuenta es de solo lectura: ves el día, pero no registras.</p></ion-text>
+      </div>
+    }
+  }
+
+  <app-fab-asistente />
+</ion-content>

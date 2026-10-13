@@ -1,0 +1,59 @@
+<ion-list inset class="lista-medicamentos">
+  <ion-list-header>
+    <ion-label>Medicamentos</ion-label>
+  </ion-list-header>
+  @if (medicamentos(); as meds) {
+    @for (m of meds; track m.id) {
+      <ion-item [button]="puedeEditar()" [detail]="false" (click)="opcionesMedicamento(m)" [class.inactivo]="m.activo === false || terminado(m)">
+        <ion-icon slot="start" name="medkit-outline" [color]="m.activo === false || terminado(m) ? 'medium' : 'primary'" />
+        <ion-label class="ion-text-wrap">
+          <h2>
+            {{ m.nombre }} · {{ m.dosis }}
+            @if (m.activo === false) {
+              <ion-badge color="medium">Suspendido</ion-badge>
+            } @else if (terminado(m)) {
+              <ion-badge color="medium">Terminado</ion-badge>
+            }
+          </h2>
+          <p>
+            {{ m.segunNecesidad ? 'Según necesidad' : (m.horarios.length ? m.horarios.join(', ') : 'Sin horario') }}
+            @if (m.notas) {
+              · {{ m.notas }}
+            }
+          </p>
+          @if (duracionTexto(m); as duracion) {
+            <p>{{ duracion }}</p>
+          }
+        </ion-label>
+        @if (restantes(m) !== null) {
+          <ion-badge slot="end" [color]="colorInventario(m)" class="inventario">
+            {{ restantes(m) }} rest.
+          </ion-badge>
+        }
+      </ion-item>
+    } @empty {
+      <ion-item lines="none">
+        <ion-label class="ion-text-wrap" color="medium">
+          Sin medicamentos registrados.
+          @if (puedeEditar()) {
+            Toca <strong>+</strong> para agregar el primero.
+          }
+        </ion-label>
+      </ion-item>
+    }
+  } @else {
+    <ion-item lines="none"><ion-spinner name="crescent" /></ion-item>
+  }
+</ion-list>
+
+<div class="ion-padding ion-text-center">
+  <ion-text color="medium">
+    <p>
+      @if (puedeEditar()) {
+        Toca un medicamento para editarlo, resurtirlo o suspenderlo. Las tomas se marcan en <strong>Hoy</strong>.
+      } @else {
+        Solo el responsable edita el plan. Las tomas se marcan en <strong>Hoy</strong>.
+      }
+    </p>
+  </ion-text>
+</div>

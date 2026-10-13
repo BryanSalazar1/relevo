@@ -5,20 +5,24 @@ import { switchMap } from 'rxjs';
 import { MedicamentosService, estadoInventario } from '../../core/services/medicamentos.service';
 import { personaActual } from '../../core/utils/persona-actual';
 
-/** Contenedor con pestañas de una persona cuidada: bitácora, medicinas, rutina, equipo, reporte y asistente. */
+/** Contenedor con pestañas de una persona cuidada: hoy, bitácora, plan (medicinas y rutina), equipo, reporte y asistente. */
 @Component({
   selector: 'app-persona',
   imports: [IonTabs, IonTabBar, IonTabButton, IonIcon, IonLabel, IonBadge],
   template: `
     <ion-tabs>
       <ion-tab-bar slot="bottom">
+        <ion-tab-button tab="hoy">
+          <ion-icon name="today-outline" />
+          <ion-label>Hoy</ion-label>
+        </ion-tab-button>
         <ion-tab-button tab="bitacora">
           <ion-icon name="book-outline" />
           <ion-label>Bitácora</ion-label>
         </ion-tab-button>
-        <ion-tab-button tab="medicamentos">
-          <ion-icon name="medkit-outline" />
-          <ion-label>Medicinas</ion-label>
+        <ion-tab-button tab="plan">
+          <ion-icon name="clipboard-outline" />
+          <ion-label>Plan</ion-label>
           @if (porResurtir().total > 0) {
             <ion-badge
               [color]="porResurtir().agotados > 0 ? 'danger' : 'warning'"
@@ -26,10 +30,6 @@ import { personaActual } from '../../core/utils/persona-actual';
               >{{ porResurtir().total }}</ion-badge
             >
           }
-        </ion-tab-button>
-        <ion-tab-button tab="rutina">
-          <ion-icon name="alarm-outline" />
-          <ion-label>Rutina</ion-label>
         </ion-tab-button>
         <ion-tab-button tab="equipo">
           <ion-icon name="people-outline" />
@@ -56,7 +56,7 @@ export class PersonaPage {
     this.ctx.personaId$.pipe(switchMap((id) => this.medsSvc.medicamentos(id))),
   );
 
-  /** Medicamentos por resurtir (agotados o por acabarse), para el aviso de la pestaña Medicinas. */
+  /** Medicamentos por resurtir (agotados o por acabarse), para el aviso de la pestaña Plan. */
   readonly porResurtir = computed(() => {
     const niveles = (this.medicamentos() ?? []).map((m) => estadoInventario(m)?.nivel);
     const agotados = niveles.filter((n) => n === 'agotado').length;

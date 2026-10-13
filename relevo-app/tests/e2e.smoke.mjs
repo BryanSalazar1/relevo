@@ -77,7 +77,8 @@ try {
   ok('login como Ana y lista de personas');
 
   await page.click('text=Carmen Hernández');
-  await page.waitForURL(/\/personas\/persona-demo\/bitacora/, { timeout: 15_000 });
+  await page.waitForURL(/\/personas\/persona-demo\/hoy/, { timeout: 15_000 });
+  await page.click('ion-tab-button[tab="bitacora"]');
   await page.waitForSelector('text=Desayunó avena', { timeout: 20_000 });
   ok('bitácora de Carmen con los registros sembrados');
 
@@ -89,9 +90,9 @@ try {
   await page.waitForSelector(`text=${TEXTO}`, { timeout: 20_000 });
   ok('nuevo registro guardado y visible en tiempo real');
 
-  // ---------------------------------------------------------------- medicamentos
-  await page.click('ion-tab-button[tab="medicamentos"]');
-  await page.waitForSelector('text=Tomas del día', { timeout: 15_000 });
+  // ---------------------------------------------------------------- medicamentos (plan) y Hoy
+  await page.click('ion-tab-button[tab="plan"]');
+  await page.waitForSelector('ion-list.lista-medicamentos', { timeout: 15_000 });
   await page.click('button[aria-label="Nuevo medicamento"]');
   await page.waitForSelector('app-medicamento-modal ion-input[name="nombre"] input', { timeout: 10_000 });
   await page.fill('app-medicamento-modal ion-input[name="nombre"] input', 'Prueba Med');
@@ -102,12 +103,15 @@ try {
   await page.fill('app-medicamento-modal ion-input[name="inventario"] input', '10');
   await page.click('app-medicamento-modal ion-button:has-text("Guardar")');
   await page.waitForSelector('ion-list.lista-medicamentos ion-item:has-text("Prueba Med")', { timeout: 20_000 });
+  // La toma se marca en Hoy (desde el 12/10/2026)
+  await page.click('ion-tab-button[tab="hoy"]');
   await page.waitForSelector('ion-list.agenda ion-item:has-text("Prueba Med") button[aria-label="Marcar tomada"]', { timeout: 20_000 });
   await page.click('ion-list.agenda ion-item:has-text("Prueba Med") button[aria-label="Marcar tomada"]');
   // Desde el 15/09/2026 marcar pide confirmación con una nota opcional
   await page.waitForSelector('ion-alert button:has-text("Marcar")', { timeout: 10_000 });
   await page.click('ion-alert button:has-text("Marcar")');
   await page.waitForSelector('ion-list.agenda ion-item:has-text("Prueba Med"):has-text("Tomada")', { timeout: 20_000 });
+  await page.click('ion-tab-button[tab="plan"]');
   await page.waitForSelector('ion-list.lista-medicamentos ion-item:has-text("Prueba Med") ion-badge:has-text("9 rest.")', { timeout: 20_000 });
   ok('medicamento registrado, toma de las 08:00 marcada y el inventario bajó de 10 a 9');
 

@@ -315,7 +315,7 @@ export const notificarToma = onDocumentWritten(
           horario,
           toma: despues,
         }),
-        url: `/personas/${personaId}/medicamentos`,
+        url: `/personas/${personaId}/hoy`,
         personaId,
       },
     );
@@ -356,7 +356,7 @@ export const notificarRegistroTarea = onDocumentWritten(
           horario,
           registro: despues,
         }),
-        url: `/personas/${personaId}/rutina`,
+        url: `/personas/${personaId}/hoy`,
         personaId,
       },
     );
@@ -442,7 +442,7 @@ async function revisarInventario(personaId, medicamentoId, antesDe) {
         medicamento: actual,
         estado,
       }),
-      url: `/personas/${personaId}/medicamentos`,
+      url: `/personas/${personaId}/plan/medicamentos`,
       personaId,
     });
   } catch (error) {
@@ -499,7 +499,7 @@ export const recordarTomasPendientes = onSchedule(
             medicamento: v.medicamento,
             horario: v.horario,
           }),
-          url: `/personas/${p.id}/medicamentos`,
+          url: `/personas/${p.id}/hoy`,
           personaId: p.id,
         });
         await pSnap.ref.collection('recordatorios').doc(`${v.medicamento.id}-${v.idToma}`).set({
@@ -559,10 +559,9 @@ export const avisarProximas = onSchedule({ schedule: 'every 5 minutes', ...opcio
     const p = { id: pSnap.id, ...pSnap.data() };
     const uids = deGuardia(await miembros(p.id), ahora);
     for (const c of pendientes) {
-      const pantalla = c.elemento.clase === 'medicamento' ? 'medicamentos' : 'rutina';
       await notificar(uids, {
         ...mensajeProximo({ personaNombre: p.nombre, ...c }),
-        url: `/personas/${p.id}/${pantalla}`,
+        url: `/personas/${p.id}/hoy`,
         personaId: p.id,
       });
       await pSnap.ref.collection('recordatorios').doc(idAviso(c)).set({

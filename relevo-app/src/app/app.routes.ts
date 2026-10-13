@@ -43,19 +43,27 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/persona/persona.page').then((m) => m.PersonaPage),
     children: [
       {
+        // Lo que toca en el día: tomas y tareas con botones para marcar (primera pestaña)
+        path: 'hoy',
+        loadComponent: () => import('./pages/hoy/hoy.page').then((m) => m.HoyPage),
+      },
+      {
         path: 'bitacora',
         loadComponent: () =>
           import('./pages/bitacora/bitacora.page').then((m) => m.BitacoraPage),
       },
       {
-        path: 'medicamentos',
-        loadComponent: () =>
-          import('./pages/medicamentos/medicamentos.page').then((m) => m.MedicamentosPage),
+        // Plan: medicamentos y rutina en una pestaña con segmento (plan/medicamentos, plan/rutina)
+        path: 'plan',
+        loadComponent: () => import('./pages/plan/plan.page').then((m) => m.PlanPage),
       },
       {
-        path: 'rutina',
-        loadComponent: () => import('./pages/rutina/rutina.page').then((m) => m.RutinaPage),
+        path: 'plan/:seccion',
+        loadComponent: () => import('./pages/plan/plan.page').then((m) => m.PlanPage),
       },
+      // Rutas anteriores (enlaces de avisos y marcadores): van a su sección del plan
+      { path: 'medicamentos', redirectTo: 'plan/medicamentos' },
+      { path: 'rutina', redirectTo: 'plan/rutina' },
       {
         path: 'equipo',
         loadComponent: () => import('./pages/equipo/equipo.page').then((m) => m.EquipoPage),
@@ -69,7 +77,7 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./pages/asistente/asistente.page').then((m) => m.AsistentePage),
       },
-      { path: '', redirectTo: 'bitacora', pathMatch: 'full' },
+      { path: '', redirectTo: 'hoy', pathMatch: 'full' },
     ],
   },
   { path: '**', redirectTo: 'home' },

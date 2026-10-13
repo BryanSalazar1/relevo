@@ -1,0 +1,59 @@
+<ion-list inset class="lista-tareas">
+  <ion-list-header>
+    <ion-label>Tareas de la rutina</ion-label>
+  </ion-list-header>
+  @if (tareas(); as lista) {
+    @for (t of lista; track t.id) {
+      <ion-item
+        [button]="puedeEditar()"
+        [detail]="false"
+        (click)="opcionesTarea(t)"
+        [class.inactiva]="t.activo === false"
+      >
+        <ion-icon
+          slot="start"
+          [name]="info(t.tipo).icono"
+          [color]="t.activo === false ? 'medium' : info(t.tipo).color"
+        />
+        <ion-label class="ion-text-wrap">
+          <h2>
+            {{ t.nombre }}
+            @if (t.activo === false) {
+              <ion-badge color="medium">Suspendida</ion-badge>
+            }
+          </h2>
+          <p>
+            {{ textoDias(t.dias) }} · {{ horariosTexto(t) }} · aviso {{ t.avisarMin ?? 15 }} min antes
+            @if (t.notas) {
+              · {{ t.notas }}
+            }
+          </p>
+        </ion-label>
+      </ion-item>
+    } @empty {
+      <ion-item lines="none">
+        <ion-label class="ion-text-wrap" color="medium">
+          Sin tareas en la rutina.
+          @if (puedeEditar()) {
+            Toca <strong>+</strong> para agregar la primera: comidas, baño, ejercicio, terapias…
+          }
+        </ion-label>
+      </ion-item>
+    }
+  } @else {
+    <ion-item lines="none"><ion-spinner name="crescent" /></ion-item>
+  }
+</ion-list>
+
+<div class="ion-padding ion-text-center">
+  <ion-text color="medium">
+    <p>
+      @if (puedeEditar()) {
+        Toca una tarea para editarla o suspenderla. Se marcan en <strong>Hoy</strong>; quienes cuidan
+        reciben un aviso antes de cada una.
+      } @else {
+        Solo el responsable edita la rutina. Las tareas se marcan en <strong>Hoy</strong>.
+      }
+    </p>
+  </ion-text>
+</div>

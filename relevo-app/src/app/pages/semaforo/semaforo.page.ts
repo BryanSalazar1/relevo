@@ -3,32 +3,28 @@ import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { KeepAwake } from '@capacitor-community/keep-awake';
-import {
-  AlertController,
-  IonButton,
-  IonContent,
-  IonIcon,
-  IonSpinner,
-  ToastController,
-} from '@ionic/angular';
+import { IonButton, IonContent, IonIcon, IonSpinner, ToastController } from '@ionic/angular';
 import { combineLatest, distinctUntilChanged, map, switchMap } from 'rxjs';
-import { PUEDE_REGISTRAR_TAREAS, PUEDE_REGISTRAR_TOMAS, TIPO_TAREA_INFO } from '../../core/models';
 import {
-  DosisProgramada,
-  MedicamentosService,
-  agotado,
-} from '../../core/services/medicamentos.service';
-import { TareaProgramada, TareasService } from '../../core/services/tareas.service';
-import { claveDia, horaFin, inicioDeDia } from '../../core/utils/fechas';
-import { pedirNota } from '../../core/utils/notas';
+  PUEDE_EDITAR_MEDICAMENTOS,
+  PUEDE_REGISTRAR_TAREAS,
+  PUEDE_REGISTRAR_TOMAS,
+} from '../../core/models';
+import { MedicamentosService } from '../../core/services/medicamentos.service';
+import { TareasService } from '../../core/services/tareas.service';
+import {
+  FilaDia,
+  avanceDia,
+  filasDelDia,
+  pendientesDelDia,
+  textoCuando,
+  tituloEstado,
+} from '../../core/utils/agenda-dia';
+import { claveDia, inicioDeDia } from '../../core/utils/fechas';
 import { personaActual } from '../../core/utils/persona-actual';
+import { FaseSemaforo, estadoSemaforo } from '../../core/utils/semaforo';
+import { MarcarTomaService } from '../medicamentos/marcar-toma.service';
 import { MarcarTareaService } from '../rutina/marcar-tarea.service';
-import {
-  FaseSemaforo,
-  PendienteSemaforo,
-  cuandoEs,
-  estadoSemaforo,
-} from '../../core/utils/semaforo';
 
 /** Cada cuánto se vuelve a calcular el semáforo (ms). */
 const REFRESCO_MS = 15_000;
@@ -37,27 +33,12 @@ const MAX_DESPUES = 4;
 /** Tras tocar la pantalla, cuánto siguen a la vista los botones y la lista antes de volver al vistazo (ms). */
 const DETALLES_MS = 30_000;
 
-/** Un pendiente de hoy (toma o tarea sin registro) listo para pintarse. */
-type Pendiente = PendienteSemaforo & {
-  clave: string;
-  titulo: string;
-  detalle: string;
-  icono: string;
-  horario: string;
-} & ({ tipo: 'toma'; dosis: DosisProgramada } | { tipo: 'tarea'; programada: TareaProgramada });
-
-const TITULO_FASE: Record<FaseSemaforo, string> = {
-  atrasado: 'Atrasado',
-  ahora: 'Es hora',
-  pronto: 'Ya casi',
-  despues: 'Todo al día',
-};
-
 /**
  * Semáforo: lo que sigue hoy (tomas y rutina) en pantalla completa y con un solo color, para verlo
  * de lejos con el teléfono apoyado. Mantiene la pantalla encendida mientras está abierto.
  * Por defecto es solo un vistazo (luces, estado y qué toca); al tocar la pantalla aparecen los
  * botones para marcar y la lista de lo que sigue, y se esconden solos al rato.
+ * Los pendientes salen de la misma agenda del día que la pestaña Hoy (core/utils/agenda-dia.ts).
  */
 @Component({
   selector: 'app-semaforo',
@@ -68,8 +49,8 @@ const TITULO_FASE: Record<FaseSemaforo, string> = {
 export class SemaforoPage {
   private readonly medsSvc = inject(MedicamentosService);
   private readonly tareasSvc = inject(TareasService);
-  private readonly marcarSvc = inject(MarcarTareaService);
-  private readonly alertCtrl = inject(AlertController);
+  private readonly marcarToma = inject(MarcarTomaService);
+  private readonly marcarTarea = inject(MarcarTareaService);
   private readonly toast = inject(ToastController);
   private readonly router = inject(Router);
 
@@ -104,73 +85,17 @@ export class SemaforoPage {
 
   readonly cargando = computed(() => this.dosis() === undefined || this.tareas() === undefined);
 
+  private readonly filas = computed(() => filasDelDia(this.dosis() ?? [], this.tareas() ?? []));
   /** Avance del día: cuánto de lo programado ya tiene registro. */
-  readonly avance = computed(() => {
-    const dosis = (this.dosis() ?? []).filter((d) => !d.aDemanda);
-    const tareas = this.tareas() ?? [];
-    return {
-      total: dosis.length + tareas.length,
-      registradas: dosis.filter((d) => d.toma).length + tareas.filter((t) => t.registro).length,
-    };
-  });
-
-  private readonly pendientes = computed<Pendiente[]>(() => [
-    ...(this.dosis() ?? [])
-      .filter((d) => !d.toma && !d.aDemanda)
-      .map(
-        (d): Pendiente => ({
-          tipo: 'toma',
-          dosis: d,
-          clave: `toma-${d.medicamento.id}-${d.idToma}`,
-          titulo: d.medicamento.nombre,
-          detalle: [d.medicamento.dosis, d.medicamento.notas].filter(Boolean).join(' · '),
-          icono: 'medkit-outline',
-          horario: `a las ${d.horario}`,
-          hora: d.hora,
-        }),
-      ),
-    ...(this.tareas() ?? [])
-      .filter((t) => !t.registro)
-      .map((t): Pendiente => {
-        const info = TIPO_TAREA_INFO[t.tarea.tipo] ?? TIPO_TAREA_INFO['otro'];
-        const dura = t.tarea.duracionMin && t.tarea.duracionMin > 0 ? t.tarea.duracionMin : null;
-        return {
-          tipo: 'tarea',
-          programada: t,
-          clave: `tarea-${t.tarea.id}-${t.idRegistro}`,
-          titulo: t.tarea.nombre,
-          detalle: [info.etiqueta, t.tarea.notas].filter(Boolean).join(' · '),
-          icono: info.icono,
-          horario: dura
-            ? `de ${t.horario} a ${horaFin(t.horario, dura)}`
-            : `a las ${t.horario}`,
-          hora: t.hora,
-          duracionMin: dura,
-          avisarMin: t.tarea.avisarMin,
-        };
-      }),
-  ]);
-
-  readonly estado = computed(() => estadoSemaforo(this.pendientes(), this.ahora()));
+  readonly avance = computed(() => avanceDia(this.filas()));
+  readonly estado = computed(() => estadoSemaforo(pendientesDelDia(this.filas()), this.ahora()));
   readonly despues = computed(() => this.estado().resto.slice(0, MAX_DESPUES));
   readonly masDespues = computed(() => Math.max(0, this.estado().resto.length - MAX_DESPUES));
 
   /** "Atrasado", "Es hora", "Ya casi" o "Todo al día". */
-  readonly titulo = computed(() => {
-    const e = this.estado();
-    if (e.atrasados > 1) return `${e.atrasados} atrasados`;
-    return TITULO_FASE[e.fase ?? 'despues'];
-  });
-
+  readonly titulo = computed(() => tituloEstado(this.estado()));
   /** "Era a las 08:00 · hace 35 min", "A las 14:00 · en 10 min"… */
-  readonly cuando = computed(() => {
-    const e = this.estado();
-    const p = e.principal;
-    if (!p) return '';
-    const horario = e.fase === 'atrasado' ? `Era ${p.horario}` : this.mayuscula(p.horario);
-    const falta = cuandoEs(p.hora, this.ahora());
-    return falta === 'ahora' ? horario : `${horario} · ${falta}`;
-  });
+  readonly cuando = computed(() => textoCuando(this.estado(), this.ahora()));
 
   /** Sobre el amarillo el texto va oscuro; sobre verde y rojo, claro. */
   readonly colorBoton = computed(() => (this.estado().color === 'amarillo' ? 'dark' : 'light'));
@@ -229,22 +154,22 @@ export class SemaforoPage {
   }
 
   /** Puede marcar el pendiente según su rol (tomas y tareas tienen permisos distintos). */
-  puedeMarcar(p: Pendiente): boolean {
+  puedeMarcar(p: FilaDia): boolean {
     const r = this.rol();
     if (!r) return false;
     return (p.tipo === 'toma' ? PUEDE_REGISTRAR_TOMAS : PUEDE_REGISTRAR_TAREAS).includes(r);
   }
 
-  textoSi(p: Pendiente): string {
+  textoSi(p: FilaDia): string {
     return p.tipo === 'toma' ? 'Tomada' : 'Hecha';
   }
 
-  textoNo(p: Pendiente): string {
+  textoNo(p: FilaDia): string {
     return p.tipo === 'toma' ? 'No tomada' : 'No hecha';
   }
 
-  /** Marca el pendiente desde el semáforo, con la misma confirmación y nota opcional del resto de la app. */
-  async marcar(p: Pendiente, hecho: boolean) {
+  /** Marca el pendiente desde el semáforo, con la misma confirmación y nota opcional que en Hoy. */
+  async marcar(p: FilaDia, hecho: boolean) {
     const personaId = this.ctx.personaId();
     if (!personaId || !this.puedeMarcar(p) || this.guardando()) return;
     // Con el cuadro de confirmación abierto los botones no deben esconderse
@@ -252,34 +177,17 @@ export class SemaforoPage {
     this.guardando.set(true);
     try {
       if (p.tipo === 'tarea') {
-        // Misma confirmación que en Rutina (y la captura de mediciones si es de signos vitales)
-        const estado = hecho ? 'hecha' : 'omitida';
-        if (!(await this.marcarSvc.marcar(personaId, p.programada, estado))) return;
+        // Misma confirmación que en Hoy (y la captura de mediciones si es de signos vitales)
+        if (!(await this.marcarTarea.marcar(personaId, p.programada, hecho ? 'hecha' : 'omitida'))) return;
       } else {
-        const sinUnidades = hecho && agotado(p.dosis.medicamento);
-        const r = await pedirNota(this.alertCtrl, {
-          header: `¿Marcar como ${(hecho ? this.textoSi(p) : this.textoNo(p)).toLowerCase()}?`,
-          message: [
-            `${p.titulo} · ${p.horario}.`,
-            sinUnidades ? 'El inventario está en 0: la toma se registra sin descontar.' : '',
-          ]
-            .filter(Boolean)
-            .join(' '),
-          confirmar: 'Marcar',
-        });
-        if (!r.ok) return;
-        await this.medsSvc.registrarToma(personaId, p.dosis, hecho ? 'tomada' : 'omitida', r.nota);
-        if (sinUnidades) {
-          await this.aviso(
-            `Toma registrada. ${p.titulo} está en 0 unidades: hay que resurtirlo.`,
-            'warning',
-          );
-        }
+        const r = this.rol();
+        const puedeResurtir = !!r && PUEDE_EDITAR_MEDICAMENTOS.includes(r);
+        if (!(await this.marcarToma.marcar(personaId, p.dosis, hecho ? 'tomada' : 'omitida', { puedeResurtir }))) return;
       }
       this.ahora.set(new Date());
     } catch (error) {
       console.error(error);
-      await this.aviso('No se pudo registrar. Revisa tu conexión e inténtalo de nuevo.', 'danger');
+      await this.aviso('No se pudo registrar. Revisa tu conexión e inténtalo de nuevo.');
     } finally {
       this.guardando.set(false);
       // Si quedan más atrasados se marcan seguidos; si no, vuelve solo al vistazo
@@ -302,12 +210,8 @@ export class SemaforoPage {
     }
   }
 
-  private mayuscula(texto: string): string {
-    return texto.charAt(0).toUpperCase() + texto.slice(1);
-  }
-
-  private async aviso(message: string, color: 'warning' | 'danger') {
-    const t = await this.toast.create({ message, color, duration: 5000, position: 'top' });
+  private async aviso(message: string) {
+    const t = await this.toast.create({ message, color: 'danger', duration: 5000, position: 'top' });
     await t.present();
   }
 }
