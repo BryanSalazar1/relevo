@@ -12,7 +12,6 @@ import {
   IonInput,
   IonNote,
   IonTitle,
-  IonToggle,
   IonToolbar,
   ModalController,
 } from '@ionic/angular';
@@ -20,15 +19,51 @@ import { DIAS_SEMANA, Miembro, Turno } from '../../core/models';
 import { textoDias } from '../../core/utils/fechas';
 
 /** Lo que devuelve el modal con rol 'guardar'. */
-export interface DatosAvisos {
+export interface DatosTurnos {
   turnos: Turno[];
-  alertas: boolean;
 }
 
 const TURNO_NUEVO: Turno = { dias: [1, 2, 3, 4, 5], desde: '08:00', hasta: '16:00' };
 
+/** "HH:mm" de 00:00 a 23:59. */
+const HORA_VALIDA = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+const minutos = (hhmm: string) => {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+};
+
 /**
- * Guardias de un miembro del equipo y si recibe alertas fuera de ellas.
+ * Día de la semana (0–6) en el que dos turnos se pisan, o null si ninguno. Un turno nocturno
+ * (hasta <= desde) ocupa de `desde` a medianoche ese día y de medianoche a `hasta` el siguiente.
+ */
+export function turnosTraslapados(turnos: Turno[]): number | null {
+  const tramos: { dia: number; desde: number; hasta: number; turno: number }[] = [];
+  turnos.forEach((t, i) => {
+    if (!HORA_VALIDA.test(t.desde) || !HORA_VALIDA.test(t.hasta)) return;
+    const desde = minutos(t.desde);
+    const hasta = minutos(t.hasta);
+    for (const dia of t.dias) {
+      if (desde < hasta) tramos.push({ dia, desde, hasta, turno: i });
+      else {
+        tramos.push({ dia, desde, hasta: 24 * 60, turno: i });
+        tramos.push({ dia: (dia + 1) % 7, desde: 0, hasta, turno: i });
+      }
+    }
+  });
+  for (let a = 0; a < tramos.length; a++) {
+    for (let b = a + 1; b < tramos.length; b++) {
+      const x = tramos[a];
+      const y = tramos[b];
+      if (x.turno === y.turno || x.dia !== y.dia) continue;
+      if (x.desde < y.hasta && y.desde < x.hasta) return x.dia;
+    }
+  }
+  return null;
+}
+
+/**
+ * Guardias de un miembro del equipo. Qué avisos recibe lo elige cada quien en Notificaciones.
  * Los recordatorios de tomas y tareas se envían solo a quien está de guardia (functions/logica.js).
  */
 @Component({
@@ -47,7 +82,6 @@ const TURNO_NUEVO: Turno = { dias: [1, 2, 3, 4, 5], desde: '08:00', hasta: '16:0
     IonIcon,
     IonInput,
     IonNote,
-    IonToggle,
   ],
   template: `
     <ion-header>
@@ -121,25 +155,15 @@ const TURNO_NUEVO: Turno = { dias: [1, 2, 3, 4, 5], desde: '08:00', hasta: '16:0
         </ion-note>
       }
 
+      @if (traslape(); as t) {
+        <ion-note color="danger" class="bloque">{{ t }}</ion-note>
+      }
+
       <ion-button fill="outline" size="small" (click)="agregar()">
         <ion-icon slot="start" name="add" />
         Agregar turno
       </ion-button>
 
-      <ion-toggle
-        name="alertas"
-        [(ngModel)]="alertas"
-        labelPlacement="start"
-        justify="space-between"
-        class="alertas"
-      >
-        <div>
-          Recibe incidentes siempre
-          <ion-note class="ayuda"
-            >Incidentes, síntomas y tomas omitidas, aunque no esté de guardia</ion-note
-          >
-        </div>
-      </ion-toggle>
     </ion-content>
   `,
   styles: [
@@ -175,12 +199,6 @@ const TURNO_NUEVO: Turno = { dias: [1, 2, 3, 4, 5], desde: '08:00', hasta: '16:0
       .bloque {
         margin: 12px 0;
       }
-      .alertas {
-        margin-top: 24px;
-      }
-      .alertas .ayuda {
-        font-size: 0.8rem;
-      }
     `,
   ],
 })
@@ -193,11 +211,9 @@ export class TurnosModal implements OnInit {
   readonly diasSemana = DIAS_SEMANA;
   readonly textoDias = textoDias;
   readonly turnos = signal<Turno[]>([]);
-  alertas = true;
 
   ngOnInit() {
     this.turnos.set((this.miembro?.turnos ?? []).map((t) => ({ ...t, dias: [...t.dias] })));
-    this.alertas = this.miembro?.alertas !== false;
   }
 
   agregar() {
@@ -232,13 +248,23 @@ export class TurnosModal implements OnInit {
   }
 
   valido(): boolean {
-    return this.turnos().every(
-      (t) =>
-        t.dias.length > 0 &&
-        /^\d{2}:\d{2}$/.test(t.desde) &&
-        /^\d{2}:\d{2}$/.test(t.hasta) &&
-        t.desde !== t.hasta,
+    return (
+      this.turnos().every(
+        (t) =>
+          t.dias.length > 0 &&
+          HORA_VALIDA.test(t.desde) &&
+          HORA_VALIDA.test(t.hasta) &&
+          t.desde !== t.hasta,
+      ) && !this.traslape()
     );
+  }
+
+  /** Texto del problema si dos turnos se pisan el mismo día (o null si no hay traslape). */
+  traslape(): string | null {
+    const dia = turnosTraslapados(this.turnos());
+    if (dia === null) return null;
+    const nombre = DIAS_SEMANA.find((d) => d.valor === dia)?.nombre ?? 'el mismo día';
+    return `Dos turnos se traslapan el ${nombre}: ajusta las horas o los días.`;
   }
 
   cancelar() {
@@ -247,12 +273,11 @@ export class TurnosModal implements OnInit {
 
   guardar() {
     if (!this.valido()) return;
-    const datos: DatosAvisos = {
+    const datos: DatosTurnos = {
       turnos: this.turnos().map((t) => ({
         ...t,
         dias: [...new Set(t.dias)].sort((a, b) => a - b),
       })),
-      alertas: this.alertas,
     };
     void this.modalCtrl.dismiss(datos, 'guardar');
   }

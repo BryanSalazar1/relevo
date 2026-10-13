@@ -86,6 +86,14 @@
         }
         @if (avance().total > 0) {
           <p class="avance">Hoy: {{ avance().registradas }} de {{ avance().total }} registradas</p>
+          <div
+            class="progreso"
+            role="progressbar"
+            [attr.aria-valuenow]="avance().registradas"
+            [attr.aria-valuemax]="avance().total"
+          >
+            <span [style.width.%]="(100 * avance().registradas) / avance().total"></span>
+          </div>
         } @else {
           <p class="avance">No hay tomas ni tareas programadas para hoy.</p>
         }

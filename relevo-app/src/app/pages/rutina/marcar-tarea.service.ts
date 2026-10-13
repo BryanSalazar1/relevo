@@ -1,4 +1,5 @@
 import { Injectable, inject } from '@angular/core';
+import { claveDia } from '../../core/utils/fechas';
 import { AlertController, ModalController } from '@ionic/angular';
 import { SignosService, resumenMediciones } from '../../core/services/signos.service';
 import {
@@ -31,7 +32,10 @@ export class MarcarTareaService {
       const datos = await this.pedirSignos(p);
       if (!datos) return false;
       // Las mediciones van primero: si el registro fallara, al reintentar se reescriben las mismas
-      await this.signosSvc.guardarDeTarea(personaId, tareaId, p.idRegistro, datos.mediciones);
+      // Las mediciones llevan la hora real si la tarea es de hoy; si se marca una de otro día, la
+      // hora programada de esa tarea (si no, el reporte las pondría en el día equivocado)
+      const fecha = claveDia(p.hora) === claveDia(new Date()) ? new Date() : p.hora;
+      await this.signosSvc.guardarDeTarea(personaId, tareaId, p.idRegistro, datos.mediciones, fecha);
       const nota = [resumenMediciones(datos.mediciones), datos.nota].filter(Boolean).join(' — ');
       await this.tareasSvc.registrar(personaId, p, 'hecha', nota.slice(0, NOTA_MAX) || undefined);
       return true;

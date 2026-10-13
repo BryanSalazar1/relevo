@@ -88,6 +88,8 @@ export class RutinaPage {
   private readonly toast = inject(ToastController);
 
   private readonly ctx = personaActual();
+  /** Hay una confirmación de tarea abierta o guardándose */
+  private marcando = false;
   readonly persona = this.ctx.persona;
   readonly rol = this.ctx.rol;
 
@@ -152,12 +154,28 @@ export class RutinaPage {
    */
   async marcar(p: TareaProgramada, estado: EstadoRegistro) {
     const personaId = this.ctx.personaId();
-    if (!personaId || !this.puedeRegistrar()) return;
+    // `marcando` evita que dos toques seguidos abran dos confirmaciones y registren dos veces
+    if (!personaId || !this.puedeRegistrar() || this.marcando) return;
+    this.marcando = true;
     try {
       await this.marcarSvc.marcar(personaId, p, estado);
     } catch (error) {
       console.error(error);
       await this.aviso('No se pudo registrar la tarea.', 'danger');
+    } finally {
+      this.marcando = false;
+    }
+  }
+
+  /** Suspende o reactiva una tarea (una suspendida no sale en la agenda ni avisa). */
+  private async cambiarActivo(personaId: string, t: Tarea) {
+    const reactivar = t.activo === false;
+    try {
+      await this.tareasSvc.cambiarActivo(personaId, t.id!, reactivar);
+      await this.aviso(reactivar ? `${t.nombre} se reactivó.` : `${t.nombre} quedó suspendida.`, 'success');
+    } catch (error) {
+      console.error(error);
+      await this.aviso(`No se pudo ${reactivar ? 'reactivar' : 'suspender'} la tarea.`, 'danger');
     }
   }
 
@@ -274,7 +292,7 @@ export class RutinaPage {
           text: t.activo === false ? 'Reactivar' : 'Suspender',
           icon: t.activo === false ? 'play-circle-outline' : 'pause-circle-outline',
           handler: () => {
-            void this.tareasSvc.cambiarActivo(personaId, t.id!, t.activo === false);
+            void this.cambiarActivo(personaId, t);
           },
         },
         {

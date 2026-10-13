@@ -153,10 +153,63 @@ export interface Miembro {
    * no recibe recordatorios de rutina (salvo el responsable, que es el respaldo cuando nadie está de guardia).
    */
   turnos?: Turno[];
-  /** Recibe incidentes, síntomas y tomas omitidas aunque no esté de guardia (por defecto sí) */
+  /**
+   * Versión anterior de las preferencias: `false` equivalía a no recibir avisos del equipo.
+   * Hoy manda `avisos`; esto solo se lee cuando `avisos` no existe.
+   */
   alertas?: boolean;
+  /** Qué avisos del equipo recibe (lo elige cada quien en Notificaciones; sin valor = todos) */
+  avisos?: ModoAvisos;
+  /** Recibe los recordatorios de su guardia (tomas y tareas próximas o pendientes); sin valor = sí */
+  recordatorios?: boolean;
+  /** Los avisos del equipo solo le llegan durante sus turnos; sin turnos no aplica. Sin valor = no */
+  soloEnTurno?: boolean;
   /** Código con el que se unió (si entró por invitación). Lo validan las rules. */
   invitacionCodigo?: string;
+}
+
+/**
+ * Qué avisos del equipo recibe un miembro (coincide con functions/logica.js y firestore.rules):
+ *   - todos: bitácora, tomas no tomadas o según necesidad, tareas no hechas e inventario bajo
+ *   - importantes: solo incidentes, síntomas, tomas no tomadas y medicamentos agotados
+ *   - ninguno: nada del equipo (los recordatorios de guardia van aparte)
+ */
+export type ModoAvisos = 'todos' | 'importantes' | 'ninguno';
+
+export const MODOS_AVISOS: { valor: ModoAvisos; etiqueta: string; descripcion: string }[] = [
+  {
+    valor: 'todos',
+    etiqueta: 'Todos',
+    descripcion:
+      'Todo lo que registra el equipo: bitácora, tomas no tomadas o según necesidad, tareas no hechas e inventario bajo.',
+  },
+  {
+    valor: 'importantes',
+    etiqueta: 'Importantes',
+    descripcion: 'Solo lo delicado: incidentes, síntomas, tomas no tomadas y medicamentos agotados.',
+  },
+  {
+    valor: 'ninguno',
+    etiqueta: 'Ninguno',
+    descripcion: 'Ningún aviso del equipo. Los recordatorios de tu guardia se controlan aparte.',
+  },
+];
+
+/** Preferencias de avisos ya resueltas (con los valores por defecto aplicados). */
+export interface PreferenciasAvisos {
+  avisos: ModoAvisos;
+  recordatorios: boolean;
+  soloEnTurno: boolean;
+}
+
+/** Preferencias efectivas de un miembro; `alertas: false` (versión anterior) cuenta como 'ninguno'. */
+export function preferenciasDe(m?: Partial<Miembro> | null): PreferenciasAvisos {
+  const valido = MODOS_AVISOS.some((x) => x.valor === m?.avisos);
+  return {
+    avisos: valido ? (m!.avisos as ModoAvisos) : m?.alertas === false ? 'ninguno' : 'todos',
+    recordatorios: m?.recordatorios !== false,
+    soloEnTurno: m?.soloEnTurno === true,
+  };
 }
 
 /**

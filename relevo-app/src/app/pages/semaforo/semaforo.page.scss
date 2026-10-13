@@ -1,25 +1,32 @@
-// Colores de fondo con contraste suficiente para leer de lejos (texto claro; oscuro sobre amarillo)
+// Semáforo del día: pantalla completa de un solo color, para leerla de lejos.
+// Texto claro sobre verde y rojo; oscuro sobre amarillo. Todo redondeado: carcasa, luces, botones.
 ion-content {
   --fondo: #1f2933;
+  --fondo-2: #141b24;
   --texto: #ffffff;
   --tenue: rgba(255, 255, 255, 0.78);
-  --linea: rgba(255, 255, 255, 0.28);
+  --linea: rgba(255, 255, 255, 0.22);
+  --tarjeta: rgba(0, 0, 0, 0.22);
   --background: var(--fondo);
   // ion-content pinta su texto con --color (dentro de su shadow DOM), no con `color`
   --color: var(--texto);
   transition: background-color 0.6s ease;
 
   &[data-color='verde'] {
-    --fondo: #1b7a3d;
+    --fondo: #1f8a47;
+    --fondo-2: #11602f;
   }
   &[data-color='amarillo'] {
-    --fondo: #f6c343;
+    --fondo: #f7c948;
+    --fondo-2: #e0a63a;
     --texto: #231a00;
     --tenue: rgba(35, 26, 0, 0.78);
-    --linea: rgba(35, 26, 0, 0.3);
+    --linea: rgba(35, 26, 0, 0.25);
+    --tarjeta: rgba(255, 255, 255, 0.22);
   }
   &[data-color='rojo'] {
-    --fondo: #b3261e;
+    --fondo: #c42d25;
+    --fondo-2: #8e1d17;
   }
 }
 
@@ -30,6 +37,9 @@ ion-content {
   padding: calc(var(--ion-safe-area-top, 0px) + 8px) 16px
     calc(var(--ion-safe-area-bottom, 0px) + 16px);
   box-sizing: border-box;
+  // Degradado suave: el color del estado arriba, un poco más oscuro abajo
+  background: radial-gradient(120% 70% at 50% 0%, var(--fondo) 0%, var(--fondo-2) 100%);
+  transition: background 0.6s ease;
 }
 
 .barra {
@@ -40,6 +50,12 @@ ion-content {
 
   ion-button {
     margin-inline-start: -8px;
+    --background: rgba(0, 0, 0, 0.18);
+    --border-radius: 999px;
+    --padding-start: 0;
+    --padding-end: 0;
+    width: 42px;
+    height: 42px;
   }
   .quien {
     flex: 1;
@@ -47,12 +63,15 @@ ion-content {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-weight: 600;
+    font-weight: 700;
   }
   .reloj {
     font-size: 1.5rem;
-    font-weight: 700;
+    font-weight: 800;
     font-variant-numeric: tabular-nums;
+    padding: 2px 14px;
+    border-radius: 999px;
+    background: var(--tarjeta);
   }
 }
 
@@ -64,6 +83,7 @@ ion-content {
   justify-content: center;
   gap: 24px;
   padding: 16px 0;
+  cursor: pointer;
 
   &.centro ion-spinner {
     width: 48px;
@@ -71,14 +91,17 @@ ion-content {
   }
 }
 
-// El semáforo: carcasa oscura con tres luces; solo la del estado actual está encendida
+// La carcasa del semáforo: cápsula oscura con tres luces; solo la del estado está encendida.
+// La luz encendida cambia de posición, así que el estado se distingue sin depender del color.
 .luces {
   display: flex;
   gap: 14px;
-  padding: 14px 18px;
+  padding: 16px 20px;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.72);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.62) 0%, rgba(0, 0, 0, 0.78) 100%);
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 .luz {
@@ -86,22 +109,36 @@ ion-content {
   width: var(--tam);
   height: var(--tam);
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.45);
   transition:
     background-color 0.4s ease,
     box-shadow 0.4s ease;
 
+  &.encendida {
+    animation: latido-luz 2.4s ease-in-out infinite;
+  }
   &.encendida.rojo {
-    background: #ff5449;
-    box-shadow: 0 0 28px 6px rgba(255, 84, 73, 0.75);
+    background: radial-gradient(circle at 35% 30%, #ff8a80 0%, #ff5449 45%, #d12b22 100%);
+    box-shadow: 0 0 34px 8px rgba(255, 84, 73, 0.7);
   }
   &.encendida.amarillo {
-    background: #ffd54a;
-    box-shadow: 0 0 28px 6px rgba(255, 213, 74, 0.8);
+    background: radial-gradient(circle at 35% 30%, #fff1a8 0%, #ffd54a 45%, #e3a900 100%);
+    box-shadow: 0 0 34px 8px rgba(255, 213, 74, 0.75);
   }
   &.encendida.verde {
-    background: #4ade80;
-    box-shadow: 0 0 28px 6px rgba(74, 222, 128, 0.75);
+    background: radial-gradient(circle at 35% 30%, #a7f3c4 0%, #4ade80 45%, #15803d 100%);
+    box-shadow: 0 0 34px 8px rgba(74, 222, 128, 0.7);
+  }
+}
+
+@keyframes latido-luz {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
   }
 }
 
@@ -114,7 +151,11 @@ ion-content {
     margin: 0;
   }
   .estado {
-    font-size: clamp(1.6rem, 7vmin, 3rem);
+    display: inline-block;
+    padding: 6px 18px;
+    border-radius: 999px;
+    background: var(--tarjeta);
+    font-size: clamp(1.3rem, 6vmin, 2.4rem);
     font-weight: 800;
     letter-spacing: 0.02em;
     text-transform: uppercase;
@@ -127,9 +168,9 @@ ion-content {
     letter-spacing: 0.08em;
   }
   h1 {
-    margin: 10px 0 6px;
+    margin: 14px 0 6px;
     font-size: clamp(2rem, 9vmin, 3.8rem);
-    font-weight: 700;
+    font-weight: 800;
     line-height: 1.1;
     overflow-wrap: anywhere;
 
@@ -162,25 +203,31 @@ ion-content {
   ion-button {
     flex: 1 1 200px;
     max-width: 300px;
-    min-height: 60px;
+    min-height: 62px;
+    --border-radius: 999px;
+    --padding-start: 22px;
+    --padding-end: 22px;
     font-size: 1.2rem;
     font-weight: 700;
     text-transform: none;
   }
 }
 
+// Lo que sigue y el avance del día: tarjeta redondeada al pie
 .pie {
   width: 100%;
   max-width: 640px;
   margin: 0 auto;
-  border-top: 1px solid var(--linea);
-  padding-top: 12px;
+  padding: 14px 18px 16px;
+  border-radius: 24px;
+  background: var(--tarjeta);
 
   p {
     margin: 0;
   }
   .pie-titulo {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
+    font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--tenue);
@@ -194,8 +241,12 @@ ion-content {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 6px 0;
-    font-size: 1.15rem;
+    padding: 7px 0;
+    font-size: 1.1rem;
+
+    & + li {
+      border-top: 1px solid var(--linea);
+    }
   }
   .hora {
     font-weight: 700;
@@ -209,34 +260,51 @@ ion-content {
     white-space: nowrap;
   }
   .fase {
-    padding: 2px 10px;
+    padding: 3px 12px;
     border-radius: 999px;
     border: 1px solid var(--linea);
-    font-size: 0.85rem;
-    font-weight: 600;
+    font-size: 0.82rem;
+    font-weight: 700;
 
     &[data-fase='atrasado'] {
       background: rgba(0, 0, 0, 0.28);
     }
   }
-  .mas,
-  .avance {
+  .mas {
     margin-top: 6px;
     font-size: 0.95rem;
     color: var(--tenue);
+  }
+
+  .avance {
+    margin-top: 12px;
+    font-size: 0.95rem;
+    color: var(--tenue);
+  }
+  .progreso {
+    height: 10px;
+    margin-top: 8px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.25);
+    overflow: hidden;
+
+    > span {
+      display: block;
+      height: 100%;
+      border-radius: 999px;
+      background: var(--texto);
+      opacity: 0.85;
+      transition: width 0.4s ease;
+    }
   }
 }
 
 // Vistazo (por defecto): solo el semáforo y lo que toca, lo más grande posible para verlo de lejos.
 // Al tocar la pantalla se quita esta clase y aparecen los botones y la lista.
-.cuerpo {
-  cursor: pointer;
-}
-
 .vistazo {
   .luces {
     flex-direction: column;
-    padding: 18px 16px;
+    padding: 20px 18px;
     gap: 16px;
   }
   .luz {
@@ -244,7 +312,7 @@ ion-content {
   }
   .mensaje {
     .estado {
-      font-size: clamp(2rem, 9vmin, 3.6rem);
+      font-size: clamp(1.6rem, 8vmin, 3rem);
     }
     h1 {
       font-size: clamp(2.4rem, 11vmin, 4.6rem);
@@ -258,13 +326,14 @@ ion-content {
 .pista {
   align-self: center;
   margin: 0;
-  padding: 10px 18px;
+  padding: 12px 22px;
   border: 1px solid var(--linea);
   border-radius: 999px;
-  background: transparent;
+  background: var(--tarjeta);
   color: var(--tenue);
   font: inherit;
   font-size: 0.95rem;
+  font-weight: 600;
   cursor: pointer;
 
   &:focus-visible {
@@ -278,6 +347,7 @@ ion-content {
   .cuerpo {
     flex-direction: row;
     gap: 32px;
+    padding: 4px 0;
   }
   .luces {
     flex-direction: column;
@@ -288,9 +358,6 @@ ion-content {
   .vistazo .luces {
     padding: 12px;
     gap: 10px;
-  }
-  .cuerpo {
-    padding: 4px 0;
   }
   .mensaje {
     text-align: start;
@@ -307,12 +374,19 @@ ion-content {
     li {
       flex: 1 1 40%;
     }
+    li + li {
+      border-top: 0;
+    }
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   ion-content,
+  .pantalla,
   .luz {
     transition: none;
+  }
+  .luz.encendida {
+    animation: none;
   }
 }

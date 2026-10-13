@@ -27,7 +27,7 @@ import {
   finTratamiento,
   unidadesRestantes,
 } from '../../core/services/medicamentos.service';
-import { sumarDias } from '../../core/utils/fechas';
+import { claveDia, sumarDias } from '../../core/utils/fechas';
 
 /** Minutos mínimos entre dos horarios del mismo medicamento. */
 const SEPARACION_MIN = 30;
@@ -363,6 +363,16 @@ export class MedicamentoModal implements OnInit {
     if (n === null) return 'Escribe cuántos días dura el tratamiento.';
     if (!Number.isInteger(n)) return 'Usa días completos, sin decimales.';
     if (n < 1 || n > this.L.duracionDias) return `Debe estar entre 1 y ${this.L.duracionDias} días.`;
+    // Con esa fecha y esos días el tratamiento ya habría terminado: solo se acepta si no se tocó
+    // (editar las notas de uno terminado sigue siendo válido)
+    const fin = finTratamiento({ inicio: this.inicio || this.hoy, duracionDias: n });
+    const cambiado =
+      !this.medicamento ||
+      (this.inicio || this.hoy) !== (this.medicamento.inicio ?? this.hoy) ||
+      n !== (this.medicamento.duracionDias ?? null);
+    if (fin && cambiado && !this.errorInicio() && claveDia(fin) <= this.hoy) {
+      return `Con esa fecha de inicio el tratamiento ya habría terminado el ${formatDate(sumarDias(fin, -1), "d 'de' MMMM", 'es')}: ajusta los días o la fecha.`;
+    }
     return '';
   }
 

@@ -32,6 +32,9 @@ import { DatosTarea } from '../../core/services/tareas.service';
 import { rangoHorario, textoDias, textoDuracion } from '../../core/utils/fechas';
 
 /** Alta / edición de una tarea de la rutina. Devuelve DatosTarea con rol 'guardar'. */
+/** Horarios por tarea (el mismo tope que firestore.rules). */
+const MAX_HORARIOS = 12;
+
 @Component({
   selector: 'app-tarea-modal',
   imports: [
@@ -85,6 +88,7 @@ import { rangoHorario, textoDias, textoDuracion } from '../../core/utils/fechas'
         placeholder="Ej. Desayuno, Baño de esponja, Caminata"
         [(ngModel)]="nombre"
         autocapitalize="sentences"
+        maxlength="60"
         class="ion-margin-bottom"
       />
 
@@ -145,6 +149,9 @@ import { rangoHorario, textoDias, textoDuracion } from '../../core/utils/fechas'
           >Agregar</ion-button
         >
       </div>
+      @if (errorHora()) {
+        <ion-note color="danger" class="error-hora">{{ errorHora() }}</ion-note>
+      }
 
       <ion-select
         label="Duración de cada horario"
@@ -182,12 +189,18 @@ import { rangoHorario, textoDias, textoDuracion } from '../../core/utils/fechas'
         placeholder="Ej. Dieta blanda; ayudarle a levantarse…"
         [autoGrow]="true"
         rows="2"
+        maxlength="300"
+        [counter]="true"
         [(ngModel)]="notas"
       />
     </ion-content>
   `,
   styles: [
     `
+      .error-hora {
+        display: block;
+        margin: 4px 0 8px;
+      }
       .tipos {
         display: flex;
         flex-wrap: wrap;
@@ -289,15 +302,23 @@ export class TareaModal implements OnInit {
     this.dias.update((d) => (d.includes(valor) ? d.filter((x) => x !== valor) : [...d, valor]));
   }
 
+  readonly errorHora = signal('');
+
   agregarHora() {
     const m = String(this.nuevaHora).match(/(\d{1,2}):(\d{2})/);
-    if (!m) return;
-    const hora = `${m[1].padStart(2, '0')}:${m[2]}`;
-    this.horarios.update((h) => [...new Set([...h, hora])].sort());
-    this.nuevaHora = '';
+    const hora = m ? `${m[1].padStart(2, '0')}:${m[2]}` : '';
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(hora)) this.errorHora.set('Esa hora no es válida.');
+    else if (this.horarios().includes(hora)) this.errorHora.set(`Las ${hora} ya están en la lista.`);
+    else if (this.horarios().length >= MAX_HORARIOS) this.errorHora.set(`Máximo ${MAX_HORARIOS} horarios al día.`);
+    else {
+      this.errorHora.set('');
+      this.horarios.update((h) => [...h, hora].sort());
+      this.nuevaHora = '';
+    }
   }
 
   quitarHora(hora: string) {
+    this.errorHora.set('');
     this.horarios.update((h) => h.filter((x) => x !== hora));
   }
 

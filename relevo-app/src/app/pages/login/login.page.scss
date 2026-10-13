@@ -14,7 +14,7 @@
   }
 
   ion-toolbar {
-    --color: #e8eefc;
+    --color: var(--relevo-texto);
   }
 }
 
@@ -29,15 +29,15 @@
   pointer-events: none;
 
   background:
-    radial-gradient(140% 90% at 50% -10%, #14284a 0%, transparent 58%),
-    linear-gradient(165deg, #0b1526 0%, #05080f 55%, #03050a 100%);
+    radial-gradient(140% 90% at 50% -10%, #d3efe9 0%, transparent 58%),
+    linear-gradient(165deg, #e8f6f3 0%, #f5fbf9 55%, #ffffff 100%);
 
   // Viñeta estática: enfoca la vista en el formulario. No anima.
   &::after {
     content: '';
     position: absolute;
     inset: 0;
-    background: radial-gradient(120% 78% at 50% 42%, transparent 30%, rgba(0, 0, 0, 0.55) 100%);
+    background: radial-gradient(120% 78% at 50% 42%, transparent 30%, rgba(15, 100, 90, 0.08) 100%);
   }
 }
 
@@ -55,21 +55,21 @@
 // Gradientes elípticos: el rotate se nota, y el corte a 0 da el borde suave
 // sin pagar un filter: blur(), que sí obligaría a repintar.
 .a1 {
-  background: radial-gradient(ellipse 50% 34% at 50% 50%, rgba(77, 141, 255, 0.5), rgba(77, 141, 255, 0) 70%);
+  background: radial-gradient(ellipse 50% 34% at 50% 50%, rgba(25, 181, 160, 0.4), rgba(25, 181, 160, 0) 70%);
   animation:
     deriva-1 32s ease-in-out infinite alternate,
     latido 17s ease-in-out 0s infinite alternate;
 }
 
 .a2 {
-  background: radial-gradient(ellipse 44% 30% at 50% 50%, rgba(132, 130, 251, 0.42), rgba(132, 130, 251, 0) 70%);
+  background: radial-gradient(ellipse 44% 30% at 50% 50%, rgba(124, 111, 240, 0.22), rgba(124, 111, 240, 0) 70%);
   animation:
     deriva-2 41s ease-in-out infinite alternate,
     latido 23s ease-in-out -6s infinite alternate;
 }
 
 .a3 {
-  background: radial-gradient(ellipse 56% 26% at 50% 50%, rgba(70, 177, 255, 0.32), rgba(70, 177, 255, 0) 72%);
+  background: radial-gradient(ellipse 56% 26% at 50% 50%, rgba(43, 159, 217, 0.26), rgba(43, 159, 217, 0) 72%);
   animation:
     deriva-3 47s ease-in-out infinite alternate,
     latido 29s ease-in-out -11s infinite alternate;
@@ -139,7 +139,7 @@
     height: 84px;
     display: inline-block;
     border-radius: 22px;
-    box-shadow: 0 14px 38px rgba(47, 99, 255, 0.35);
+    box-shadow: 0 14px 38px rgba(15, 157, 138, 0.3);
   }
 
   h1 {

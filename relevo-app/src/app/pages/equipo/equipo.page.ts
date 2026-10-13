@@ -29,6 +29,7 @@ import {
   ModalController,
   ToastController,
 } from '@ionic/angular';
+import { RouterLink } from '@angular/router';
 import { combineLatest, of, switchMap } from 'rxjs';
 import { Invitacion, Miembro, ROL_COLOR, ROL_ETIQUETA } from '../../core/models';
 import { AuthService } from '../../core/services/auth.service';
@@ -43,7 +44,7 @@ import { PersonasService } from '../../core/services/personas.service';
 import { edad, textoTurnos } from '../../core/utils/fechas';
 import { personaActual } from '../../core/utils/persona-actual';
 import { CompartirModal } from './compartir.modal';
-import { DatosAvisos, TurnosModal } from './turnos.modal';
+import { DatosTurnos, TurnosModal } from './turnos.modal';
 import { DatosFicha } from './ficha-campos.component';
 import { FichaModal } from './ficha.modal';
 import { DatosPersona, PersonaModal } from '../home/persona.modal';
@@ -52,6 +53,7 @@ import { FabAsistente } from '../../shared/fab-asistente.component';
 @Component({
   selector: 'app-equipo',
   imports: [
+    RouterLink,
     FabAsistente,
     DatePipe,
     IonHeader,
@@ -283,7 +285,7 @@ export class EquipoPage {
     if (!this.esPrincipal()) return;
     const buttons: { text: string; icon?: string; role?: string; handler?: () => void }[] = [
       {
-        text: 'Turnos y alertas',
+        text: 'Turnos de guardia',
         icon: 'time-outline',
         handler: () => {
           void this.editarTurnos(m);
@@ -353,16 +355,16 @@ export class EquipoPage {
     }
   }
 
-  /** El responsable define cuándo está de guardia cada miembro y si recibe alertas fuera de turno. */
+  /** El responsable define cuándo está de guardia cada miembro. */
   async editarTurnos(m: Miembro) {
     const personaId = this.ctx.personaId();
     if (!personaId) return;
     const modal = await this.modalCtrl.create({ component: TurnosModal, componentProps: { miembro: m } });
     await modal.present();
-    const { data, role } = await modal.onWillDismiss<DatosAvisos>();
+    const { data, role } = await modal.onWillDismiss<DatosTurnos>();
     if (role !== 'guardar' || !data) return;
     try {
-      await this.miembrosSvc.actualizarAvisos(personaId, m.uid, data);
+      await this.miembrosSvc.actualizarTurnos(personaId, m.uid, data.turnos);
       await this.aviso(`Turnos de ${m.nombre} guardados.`, 'success');
     } catch (error) {
       console.error(error);

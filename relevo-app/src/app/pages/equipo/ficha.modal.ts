@@ -33,7 +33,7 @@ import { FichaCamposComponent } from './ficha-campos.component';
         </ion-buttons>
         <ion-title>Ficha médica</ion-title>
         <ion-buttons slot="end">
-          <ion-button [strong]="true" (click)="guardar()">Guardar</ion-button>
+          <ion-button [strong]="true" (click)="guardar()" [disabled]="campos()?.valido() === false">Guardar</ion-button>
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
@@ -56,7 +56,7 @@ import { FichaCamposComponent } from './ficha-campos.component';
 })
 export class FichaModal {
   private readonly modalCtrl = inject(ModalController);
-  private readonly campos = viewChild.required(FichaCamposComponent);
+  protected readonly campos = viewChild(FichaCamposComponent);
 
   /** Se rellena desde componentProps */
   persona: PersonaCuidada | null = null;
@@ -66,6 +66,8 @@ export class FichaModal {
   }
 
   guardar() {
-    void this.modalCtrl.dismiss(this.campos().datos(), 'guardar');
+    const campos = this.campos();
+    if (!campos || !campos.valido()) return;
+    void this.modalCtrl.dismiss(campos.datos(), 'guardar');
   }
 }

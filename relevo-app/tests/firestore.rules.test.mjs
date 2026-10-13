@@ -241,12 +241,14 @@ test('roles: solo el responsable define medicamentos y administra miembros', asy
     setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m1/tomas/t1`), {
       tomado: true,
       registradoPor: 'luis',
+      horaProgramada: Timestamp.now(),
     }),
   );
   await assertFails(
     setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m1/tomas/t2`), {
       tomado: true,
       registradoPor: 'ana',
+      horaProgramada: Timestamp.now(),
     }),
   );
   await assertSucceeds(
@@ -341,7 +343,7 @@ test('roles: el familiar coordina el calendario, escribe en la bitácora y regis
     await setDoc(doc(ctx.firestore(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m1`), { nombre: 'Losartán', dosis: '50 mg', horarios: ['08:00'], inventario: 10, activo: true });
   });
   await assertSucceeds(
-    setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m1/tomas/20260914-0800`), { tomado: true, registradoPor: 'luis' }),
+    setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m1/tomas/20260914-0800`), { tomado: true, registradoPor: 'luis', horaProgramada: Timestamp.now() }),
   );
   await assertSucceeds(
     updateDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m1`), { inventario: 9 }),
@@ -539,23 +541,57 @@ test('rutina: solo el responsable define tareas; enfermeros y familiares registr
   await assertFails(setDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/recordatorios/x`), { enviado: true }));
 });
 
-test('turnos: el responsable define turnos y alertas de cada miembro (y los suyos); un miembro no edita los propios', async () => {
+test('turnos: el responsable define los turnos de cada miembro (y los suyos); un miembro no edita los propios', async () => {
   await anaCreaPersona();
   await perfil(luis(), 'luis', 'enfermero');
   await agregarLuisComo('cuidador_turno');
   const turnos = [{ dias: [1, 2, 3, 4, 5], desde: '08:00', hasta: '16:00' }];
   await assertSucceeds(
-    updateDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/miembros/luis`), { turnos, alertas: false }),
+    updateDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/miembros/luis`), { turnos }),
   );
   await assertSucceeds(
-    updateDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/miembros/ana`), { turnos, alertas: true }),
+    updateDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/miembros/ana`), { turnos }),
   );
   await assertFails(
-    updateDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/miembros/luis`), { turnos: [], alertas: true }),
+    updateDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/miembros/luis`), { turnos: [] }),
   );
   const m = await getDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/miembros/luis`));
   assert.deepEqual(m.data().turnos, turnos);
-  assert.equal(m.data().alertas, false);
+});
+
+test('notificaciones: cada quien elige sus avisos (valores válidos) sin tocar su rol ni sus turnos', async () => {
+  await anaCreaPersona();
+  await perfil(luis(), 'luis', 'enfermero');
+  await agregarLuisComo('cuidador_turno');
+  const ref = doc(luis(), `personas_cuidadas/${PERSONA_ID}/miembros/luis`);
+  await assertSucceeds(updateDoc(ref, { avisos: 'importantes', recordatorios: false, soloEnTurno: true }));
+  await assertSucceeds(updateDoc(ref, { avisos: 'ninguno' }));
+  await assertSucceeds(updateDoc(ref, { nombre: 'Luis P.', avisos: 'todos' }));
+  await assertFails(updateDoc(ref, { avisos: 'raro' }));
+  await assertFails(updateDoc(ref, { recordatorios: 'sí' }));
+  await assertFails(updateDoc(ref, { avisos: 'todos', rol: 'cuidador_principal' }));
+  await assertFails(updateDoc(ref, { avisos: 'todos', turnos: [] }));
+  // Las preferencias de otro no se tocan
+  await assertFails(updateDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/miembros/ana`), { avisos: 'ninguno' }));
+  const m = await getDoc(ref);
+  assert.equal(m.data().avisos, 'todos');
+  assert.equal(m.data().recordatorios, false);
+  assert.equal(m.data().soloEnTurno, true);
+});
+
+test('tomas: no se registran en un medicamento suspendido (corregir una ya registrada sí) y llevan hora programada', async () => {
+  await anaCreaPersona();
+  await agregarLuisComo('cuidador_turno');
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, `personas_cuidadas/${PERSONA_ID}/medicamentos/m1`), { nombre: 'Losartán', dosis: '50 mg', horarios: ['08:00'], inventario: 10, activo: true });
+    await setDoc(doc(db, `personas_cuidadas/${PERSONA_ID}/medicamentos/m2`), { nombre: 'Omeprazol', dosis: '20 mg', horarios: ['08:00'], inventario: 10, activo: false });
+    await setDoc(doc(db, `personas_cuidadas/${PERSONA_ID}/medicamentos/m2/tomas/vieja`), { tomado: true, registradoPor: 'luis', horaProgramada: Timestamp.now() });
+  });
+  await assertSucceeds(setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m1/tomas/a`), { tomado: true, registradoPor: 'luis', horaProgramada: Timestamp.now() }));
+  await assertFails(setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m1/tomas/b`), { tomado: true, registradoPor: 'luis' }));
+  await assertFails(setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m2/tomas/nueva`), { tomado: true, registradoPor: 'luis', horaProgramada: Timestamp.now() }));
+  await assertSucceeds(updateDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m2/tomas/vieja`), { tomado: false, registradoPor: 'luis', horaProgramada: Timestamp.now() }));
 });
 
 test('notas: quien registró edita su nota; el responsable solo la nota de otros; un tercero no', async () => {
@@ -570,7 +606,7 @@ test('notas: quien registró edita su nota; el responsable solo la nota de otros
     await setDoc(doc(db, `personas_cuidadas/${PERSONA_ID}/tareas/t1`), { tipo: 'comida', nombre: 'Desayuno', horarios: ['08:00'], avisarMin: 15, activo: true });
   });
   // Luis registra una toma y un registro de tarea, y edita sus propias notas
-  await assertSucceeds(setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m1/tomas/x`), { tomado: false, registradoPor: 'luis' }));
+  await assertSucceeds(setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m1/tomas/x`), { tomado: false, registradoPor: 'luis', horaProgramada: Timestamp.now() }));
   await assertSucceeds(updateDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m1/tomas/x`), { nota: 'vomitó' }));
   await assertSucceeds(setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/tareas/t1/registros/y`), { hecha: false, registradoPor: 'luis' }));
   await assertSucceeds(updateDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/tareas/t1/registros/y`), { nota: 'no tenía hambre' }));
@@ -612,7 +648,7 @@ test('medicamentos: el inventario nunca queda negativo y los datos del medicamen
   // Mismo batch que MedicamentosService.registrarToma(): la toma + increment(-1)
   const tomar = (db, tomaId, uid) => {
     const b = writeBatch(db);
-    b.set(doc(med(db), 'tomas', tomaId), { tomado: true, registradoPor: uid });
+    b.set(doc(med(db), 'tomas', tomaId), { tomado: true, registradoPor: uid, horaProgramada: Timestamp.now() });
     b.update(med(db), { inventario: increment(-1) });
     return b.commit();
   };
@@ -621,7 +657,7 @@ test('medicamentos: el inventario nunca queda negativo y los datos del medicamen
   await assertFails(tomar(ana(), 't3', 'ana')); // tampoco la responsable
   assert.equal((await getDoc(med(ana()))).data().inventario, 0);
   // Con 0 unidades la app registra la toma sin tocar el inventario
-  await assertSucceeds(setDoc(doc(med(luis()), 'tomas', 't2'), { tomado: true, registradoPor: 'luis', sinDescuento: true }));
+  await assertSucceeds(setDoc(doc(med(luis()), 'tomas', 't2'), { tomado: true, registradoPor: 'luis', sinDescuento: true, horaProgramada: Timestamp.now() }));
 
   // Quien registra tomas mueve el inventario de uno en uno; la responsable lo fija al resurtir
   await assertFails(updateDoc(med(luis()), { inventario: 50 }));
@@ -641,7 +677,9 @@ test('medicamentos: el inventario nunca queda negativo y los datos del medicamen
   await assertFails(updateDoc(med(luis()), { inventario: increment(-1) }));
   await assertSucceeds(updateDoc(med(luis()), { inventario: 0 }));
 
-  // Tomas: `tomado` es booleano y la nota tiene tope
-  await assertFails(setDoc(doc(med(luis()), 'tomas', 't8'), { tomado: 'si', registradoPor: 'luis' }));
-  await assertFails(setDoc(doc(med(luis()), 'tomas', 't9'), { tomado: true, registradoPor: 'luis', nota: 'x'.repeat(201) }));
+  // Tomas: `tomado` es booleano, la nota tiene tope y llevan hora programada (se prueba con el medicamento activo)
+  await assertSucceeds(updateDoc(med(ana()), { activo: true }));
+  await assertFails(setDoc(doc(med(luis()), 'tomas', 't8'), { tomado: 'si', registradoPor: 'luis', horaProgramada: Timestamp.now() }));
+  await assertFails(setDoc(doc(med(luis()), 'tomas', 't9'), { tomado: true, registradoPor: 'luis', nota: 'x'.repeat(201), horaProgramada: Timestamp.now() }));
+  await assertFails(setDoc(doc(med(luis()), 'tomas', 't10'), { tomado: true, registradoPor: 'luis' }));
 });

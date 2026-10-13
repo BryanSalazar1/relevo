@@ -39,6 +39,7 @@ import {
   textoInventario,
   unidadesRestantes,
   vigenteEnDia,
+  TomaNoPermitida,
 } from '../../core/services/medicamentos.service';
 import { claveDia, etiquetaDia, haceCuanto, inicioDeDia, sumarDias, textoDuracion } from '../../core/utils/fechas';
 import { formatDate } from '@angular/common';
@@ -51,6 +52,9 @@ import { FabAsistente } from '../../shared/fab-asistente.component';
 const DOSIS_ADELANTADA_MIN = 60;
 /** Una toma según necesidad con otra registrada hace menos de estos minutos avisa de un posible duplicado. */
 const TOMA_RECIENTE_MIN = 60;
+
+/** Hasta cuántos días atrás se puede navegar la agenda de tomas. */
+const DIAS_ATRAS_MAX = 90;
 
 @Component({
   selector: 'app-medicamentos',
@@ -129,6 +133,12 @@ export class MedicamentosPage {
   readonly restantes = unidadesRestantes;
   /** Hay un cuadro de "Resurtir" abierto */
   private resurtiendo = false;
+  /** Se está confirmando o guardando una toma: evita que dos toques seguidos la registren dos veces */
+  private marcando = false;
+  /** Hasta cuántos días atrás se puede ver la agenda (lo anterior está en el reporte) */
+  readonly puedeRetroceder = computed(
+    () => claveDia(this.dia()) > claveDia(sumarDias(inicioDeDia(new Date()), -DIAS_ATRAS_MAX)),
+  );
 
   /** Medicamentos que se están acabando o ya se agotaron: primero los agotados, luego por nombre. */
   readonly porResurtir = computed(() =>
@@ -148,6 +158,21 @@ export class MedicamentosPage {
   colorInventario(m: Medicamento): string {
     const nivel = estadoInventario(m)?.nivel;
     return nivel === 'agotado' ? 'danger' : nivel === 'bajo' ? 'warning' : 'light';
+  }
+
+  /** Suspende o reactiva un medicamento (un suspendido no admite tomas ni sale en la agenda). */
+  private async cambiarActivo(personaId: string, m: Medicamento) {
+    const reactivar = m.activo === false;
+    try {
+      await this.medsSvc.cambiarActivo(personaId, m.id!, reactivar);
+      await this.aviso(
+        reactivar ? `${m.nombre} se reactivó.` : `${m.nombre} quedó suspendido: no se registrarán tomas hasta reactivarlo.`,
+        'success',
+      );
+    } catch (error) {
+      console.error(error);
+      await this.aviso(`No se pudo ${reactivar ? 'reactivar' : 'suspender'} el medicamento.`, 'danger');
+    }
   }
 
   /** Ya pasó el último día del tratamiento (se muestra atenuado, como los suspendidos). */
@@ -250,7 +275,16 @@ export class MedicamentosPage {
   /** Marca una dosis programada; para tomada / no tomada pide confirmación con nota opcional. */
   async marcar(d: DosisProgramada, estado: EstadoToma) {
     const personaId = this.ctx.personaId();
-    if (!personaId || !this.puedeRegistrar()) return;
+    if (!personaId || !this.puedeRegistrar() || this.marcando) return;
+    this.marcando = true;
+    try {
+      await this.marcarDosis(personaId, d, estado);
+    } finally {
+      this.marcando = false;
+    }
+  }
+
+  private async marcarDosis(personaId: string, d: DosisProgramada, estado: EstadoToma) {
     let nota: string | undefined;
     // Se marca tomada (no lo estaba) y ya no quedan unidades: se registra, pero no hay de dónde descontar
     const sinUnidades = estado === 'tomada' && !d.toma?.tomado && agotado(d.medicamento);
@@ -273,7 +307,10 @@ export class MedicamentosPage {
       if (sinUnidades) await this.avisarAgotado(d.medicamento);
     } catch (error) {
       console.error(error);
-      await this.aviso('No se pudo registrar la toma.', 'danger');
+      await this.aviso(
+        error instanceof TomaNoPermitida ? error.message : 'No se pudo registrar la toma.',
+        'danger',
+      );
     }
   }
 
@@ -424,7 +461,7 @@ export class MedicamentosPage {
           text: m.activo === false ? 'Reactivar' : 'Suspender',
           icon: m.activo === false ? 'play-circle-outline' : 'pause-circle-outline',
           handler: () => {
-            void this.medsSvc.cambiarActivo(personaId, m.id!, m.activo === false);
+            void this.cambiarActivo(personaId, m);
           },
         },
         {

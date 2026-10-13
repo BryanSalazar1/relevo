@@ -74,6 +74,28 @@ export const LIMITES_MEDICAMENTO = {
 /** Horario válido "HH:mm" (00:00–23:59). */
 export const HORARIO_VALIDO = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+/**
+ * La toma no se puede registrar por el estado del medicamento (suspendido, o un tratamiento que no
+ * aplica ese día porque aún no empieza o ya terminó). El mensaje se le muestra tal cual a quien registra.
+ */
+export class TomaNoPermitida extends Error {}
+
+/** Lanza TomaNoPermitida si el medicamento no admite una toma en `dia`. */
+export function comprobarTomaPermitida(m: Medicamento, dia: Date): void {
+  if (m.activo === false) {
+    throw new TomaNoPermitida('Este medicamento está suspendido: reactívalo para registrar tomas.');
+  }
+  if (!vigenteEnDia(m, dia)) {
+    const fin = finTratamiento(m);
+    const terminado = !!fin && claveDia(dia) >= claveDia(fin);
+    throw new TomaNoPermitida(
+      terminado
+        ? 'Este tratamiento ya terminó: no se registran más tomas. Si el médico lo extendió, edita el medicamento.'
+        : 'Este tratamiento todavía no empieza: no se registran tomas antes de la fecha de inicio.',
+    );
+  }
+}
+
 /** Unidades restantes para mostrar: nunca negativas (datos antiguos pudieron quedar en -1); null si no se controla. */
 export function unidadesRestantes(m: Pick<Medicamento, 'inventario'>): number | null {
   return m.inventario === null || m.inventario === undefined ? null : Math.max(0, m.inventario);
@@ -387,6 +409,8 @@ export class MedicamentosService {
     const uid = this.authSvc.uid;
     const med = dosis.medicamento;
     if (!uid || !med.id) throw new Error('Datos incompletos');
+    // Un medicamento suspendido o un tratamiento terminado no admiten tomas nuevas (quitar un registro sí)
+    if (estado !== 'quitar') comprobarTomaPermitida(med, dosis.hora);
     const tomaRef = doc(this.db, `personas_cuidadas/${personaId}/medicamentos/${med.id}/tomas/${dosis.idToma}`);
     const batch = writeBatch(this.db);
 

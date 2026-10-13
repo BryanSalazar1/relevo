@@ -46,7 +46,7 @@ ion-footer {
 }
 
 ion-header {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom: 1px solid var(--relevo-linea);
 }
 
 /*
@@ -55,11 +55,11 @@ ion-header {
  * y sin línea se leen como un bloque único.
  */
 ion-header ion-toolbar + ion-toolbar {
-  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  border-top: 1px solid var(--relevo-linea);
 }
 
 ion-footer {
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  border-top: 1px solid var(--relevo-linea);
 }
 
 /*
@@ -73,8 +73,24 @@ ion-toolbar::part(background) {
 }
 
 ion-toolbar {
-  --color: #e8eefc;
+  --color: var(--relevo-texto);
   --border-color: transparent;
+}
+
+/*
+ * Las barras llevan color="primary" desde el primer diseño (fondo azul, texto blanco). Hoy el fondo
+ * es transparente sobre página clara, así que el "contraste" tiene que ser la tinta oscura. Ionic
+ * fija --ion-color-contrast con !important en la clase .ion-color-primary: se gana por especificidad.
+ */
+ion-toolbar.ion-color-primary {
+  --ion-color-base: transparent !important;
+  --ion-color-contrast: var(--relevo-texto) !important;
+  --ion-color-contrast-rgb: 22, 50, 56 !important;
+}
+
+ion-toolbar.ion-color-primary ion-buttons ion-button,
+ion-toolbar.ion-color-primary ion-back-button {
+  --color: var(--ion-color-primary);
 }
 
 /* La sombra dura de Material corta el degradado. */
@@ -92,11 +108,9 @@ ion-footer.footer-ios::before {
 /* ion-card pinta en su propio host, que está en el árbol exterior. */
 ion-card {
   background: var(--relevo-superficie);
-  backdrop-filter: var(--relevo-desenfoque);
-  -webkit-backdrop-filter: var(--relevo-desenfoque);
   border: 1px solid var(--relevo-borde);
-  border-radius: 16px;
-  box-shadow: none;
+  border-radius: var(--relevo-radio);
+  box-shadow: var(--relevo-sombra);
   color: var(--ion-card-color);
 }
 
@@ -115,19 +129,185 @@ ion-list.list-ios {
 /* Las listas `inset` son la superficie principal de home: se tratan como tarjeta. */
 ion-list.list-inset {
   background: var(--relevo-superficie);
-  backdrop-filter: var(--relevo-desenfoque);
-  -webkit-backdrop-filter: var(--relevo-desenfoque);
   border: 1px solid var(--relevo-borde);
-  border-radius: 16px;
+  border-radius: var(--relevo-radio);
+  box-shadow: var(--relevo-sombra);
   overflow: hidden;
 }
 
 ion-item {
   --background: transparent;
-  --background-hover: rgba(255, 255, 255, 0.06);
-  --background-activated: rgba(255, 255, 255, 0.1);
+  --background-hover: var(--relevo-hover);
+  --background-activated: var(--relevo-activo);
   --border-color: var(--ion-item-border-color);
   --color: var(--ion-text-color);
+  /* Las líneas entre filas no llegan al borde: se leen como filas de una tarjeta, no como tabla */
+  --inner-padding-end: 12px;
+}
+
+/* ---------------------------------------------------------------
+ * Formas: todo redondeado
+ * ---------------------------------------------------------------
+ * Un solo juego de radios (variables.css) para que botón, campo, chip y
+ * tarjeta se reconozcan como parte de la misma familia.
+ */
+ion-button {
+  --border-radius: var(--relevo-radio-pildora);
+  --padding-start: 18px;
+  --padding-end: 18px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+}
+
+ion-button[size='small'] {
+  --padding-start: 12px;
+  --padding-end: 12px;
+}
+
+ion-button[fill='outline'] {
+  --border-width: 1.5px;
+}
+
+ion-input,
+ion-textarea,
+ion-select {
+  --border-radius: var(--relevo-radio-medio);
+}
+
+/* Campos con contorno: el borde sigue el radio del campo (Ionic lo dibuja en su shadow). */
+ion-input[fill='outline']::part(native),
+ion-textarea[fill='outline']::part(native),
+ion-select[fill='outline']::part(native) {
+  border-radius: var(--relevo-radio-medio);
+}
+
+ion-badge {
+  --padding-start: 10px;
+  --padding-end: 10px;
+  --padding-top: 4px;
+  --padding-bottom: 4px;
+  border-radius: var(--relevo-radio-pildora);
+  font-weight: 600;
+}
+
+ion-chip {
+  --background: var(--relevo-primario-suave);
+  --color: var(--relevo-texto);
+  border-radius: var(--relevo-radio-pildora);
+}
+
+ion-segment {
+  --background: rgba(15, 157, 138, 0.1);
+  border-radius: var(--relevo-radio-pildora);
+  padding: 4px;
+}
+
+ion-segment-button {
+  --border-radius: var(--relevo-radio-pildora);
+  --indicator-color: #ffffff;
+  --indicator-box-shadow: 0 2px 8px rgba(15, 100, 90, 0.18);
+  --indicator-height: 0;
+  --color: var(--relevo-texto-2);
+  --color-checked: var(--ion-color-primary);
+  --padding-top: 8px;
+  --padding-bottom: 8px;
+  min-height: 38px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+}
+
+ion-segment-button::part(indicator-background) {
+  border-radius: var(--relevo-radio-pildora);
+}
+
+ion-searchbar {
+  --border-radius: var(--relevo-radio-pildora);
+}
+
+ion-item-divider {
+  --background: transparent;
+  --color: var(--relevo-texto-2);
+  --padding-start: 4px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 0;
+}
+
+ion-avatar,
+ion-thumbnail {
+  --border-radius: var(--relevo-radio-pildora);
+}
+
+ion-skeleton-text {
+  --border-radius: var(--relevo-radio-medio);
+}
+
+ion-alert {
+  --border-radius: var(--relevo-radio);
+}
+
+ion-alert .alert-wrapper {
+  border-radius: var(--relevo-radio);
+  border: 1px solid var(--relevo-borde);
+}
+
+ion-alert .alert-button-group button,
+ion-alert .alert-button {
+  border-radius: var(--relevo-radio-pildora);
+}
+
+ion-toggle {
+  --track-background: rgba(22, 50, 56, 0.18);
+  --track-background-checked: var(--ion-color-primary);
+}
+
+/* Las hojas de acciones salen de abajo: esquinas superiores redondeadas y botones en píldora. */
+ion-action-sheet .action-sheet-group {
+  border-radius: var(--relevo-radio) var(--relevo-radio) 0 0;
+  padding-top: 6px;
+}
+
+ion-action-sheet .action-sheet-group:last-child {
+  border-radius: 0;
+}
+
+ion-action-sheet .action-sheet-button {
+  border-radius: var(--relevo-radio-medio);
+  margin-inline: 8px;
+  width: calc(100% - 16px);
+}
+
+/* Modales en el teléfono: esquinas redondeadas arriba, como una hoja que sube. */
+ion-modal {
+  --border-radius: var(--relevo-radio) var(--relevo-radio) 0 0;
+}
+
+ion-modal::part(content) {
+  border-top-left-radius: var(--relevo-radio);
+  border-top-right-radius: var(--relevo-radio);
+}
+
+ion-popover {
+  --border-radius: var(--relevo-radio-medio);
+}
+
+/* Los botones de la barra son iconos: van en círculo para que la pulsación se vea redonda. */
+ion-toolbar ion-buttons ion-button {
+  --border-radius: var(--relevo-radio-pildora);
+}
+
+/* Botones circulares reutilizables (icono solo). */
+.boton-redondo {
+  --border-radius: var(--relevo-radio-pildora);
+  --padding-start: 0;
+  --padding-end: 0;
+  width: 44px;
+  height: 44px;
+  margin: 0;
 }
 
 /* Modales y popovers: opacos con degradado, para que el contenido de atrás no distraiga. */
@@ -151,7 +331,7 @@ ion-modal .ion-page {
   ion-modal {
     --width: min(820px, 92vw);
     --height: min(880px, 88vh);
-    --border-radius: 20px;
+    --border-radius: var(--relevo-radio);
     --border-width: 1px;
     --border-style: solid;
     --border-color: var(--relevo-borde);
@@ -172,24 +352,26 @@ ion-popover {
  */
 ion-action-sheet {
   --button-background: transparent;
-  --button-background-selected: rgba(255, 255, 255, 0.1);
+  --button-background-selected: var(--relevo-activo);
   --button-color: var(--ion-text-color);
-  --color: rgba(232, 238, 252, 0.6);
-  --backdrop-opacity: 0.6;
+  --color: var(--relevo-texto-2);
+  --backdrop-opacity: 0.35;
 }
 
 ion-alert {
-  --backdrop-opacity: 0.6;
+  --backdrop-opacity: 0.35;
 }
 
+/* Los toasts van oscuros sobre el fondo claro: se leen aunque pasen sobre una tarjeta blanca */
 ion-toast {
-  --background: #1b2744;
-  --color: var(--ion-text-color);
-  --border-radius: 12px;
+  --background: #163238;
+  --color: #ffffff;
+  --border-radius: var(--relevo-radio-medio);
+  --box-shadow: 0 10px 30px rgba(22, 50, 56, 0.28);
 }
 
 ion-loading {
-  --spinner-color: #7aa2ff;
+  --spinner-color: var(--ion-color-primary);
 }
 
 /* ---------------------------------------------------------------
@@ -200,17 +382,51 @@ ion-loading {
  * dejarían de leerse como algo pulsable.
  */
 ion-fab-button {
-  --background: linear-gradient(145deg, #2f63ff 0%, #1b3a8f 100%);
-  --background-activated: linear-gradient(145deg, #1b3a8f 0%, #2f63ff 100%);
+  --background: var(--relevo-primario-degradado);
+  --background-activated: var(--relevo-primario-degradado-activo);
   --color: #ffffff;
-  --box-shadow: 0 8px 24px rgba(47, 99, 255, 0.35);
+  --box-shadow: var(--relevo-primario-sombra);
 }
 
 ion-button[expand="block"] {
-  --background: linear-gradient(145deg, #2f63ff 0%, #1b3a8f 100%);
-  --background-activated: linear-gradient(145deg, #1b3a8f 0%, #2f63ff 100%);
+  --background: var(--relevo-primario-degradado);
+  --background-activated: var(--relevo-primario-degradado-activo);
   --color: #ffffff;
-  --border-radius: 12px;
+  --border-radius: var(--relevo-radio-pildora);
+  --box-shadow: var(--relevo-primario-sombra);
+  min-height: 48px;
+}
+
+/* Los botones de contorno y los "clear" dentro de superficies de cristal no llevan sombra. */
+ion-button[expand="block"][fill="outline"],
+ion-button[expand="block"][fill="clear"] {
+  --background: transparent;
+  --box-shadow: none;
+  --color: var(--ion-color-primary);
+}
+
+/*
+ * FAB extendido: una píldora con icono y texto ("Nueva persona") dentro de un <ion-fab>.
+ * Es un ion-button y no un ion-fab-button porque este último mide --size x --size y su interior es
+ * absoluto: nunca crece con el texto.
+ */
+ion-fab ion-button.fab-extendido {
+  margin: 0;
+  height: 56px;
+  --border-radius: var(--relevo-radio-pildora);
+  --padding-start: 22px;
+  --padding-end: 24px;
+  --background: var(--relevo-primario-degradado);
+  --background-activated: var(--relevo-primario-degradado-activo);
+  --color: #ffffff;
+  --box-shadow: var(--relevo-primario-sombra);
+  font-weight: 700;
+  font-size: 1rem;
+  white-space: nowrap;
+}
+
+ion-fab ion-button.fab-extendido ion-icon {
+  font-size: 22px;
 }
 
 /* ---------------------------------------------------------------
@@ -221,9 +437,9 @@ ion-button[expand="block"] {
  * su safe-area y su ocultado con el teclado.
  */
 ion-tab-bar {
-  --background: var(--relevo-rail);
-  --color: rgba(255, 255, 255, 0.62);
-  --color-selected: #7aa2ff;
+  --background: #ffffff;
+  --color: var(--relevo-texto-3);
+  --color-selected: var(--ion-color-primary);
   --border: 1px solid var(--ion-tab-bar-border-color);
 }
 
@@ -254,7 +470,7 @@ ion-item ion-label h3 {
 ion-item ion-label p {
   font-size: 0.8125rem;
   line-height: 1.45;
-  color: rgba(232, 238, 252, 0.6);
+  color: var(--relevo-texto-2);
 }
 
 ion-card-title {
@@ -265,12 +481,12 @@ ion-card-title {
 ion-card-subtitle {
   font-size: 0.75rem;
   letter-spacing: 0.04em;
-  color: rgba(232, 238, 252, 0.55);
+  color: var(--relevo-texto-3);
 }
 
 ion-note {
   font-size: 0.8125rem;
-  color: rgba(232, 238, 252, 0.55);
+  color: var(--relevo-texto-3);
 }
 
 ion-list-header ion-label {
@@ -278,7 +494,7 @@ ion-list-header ion-label {
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: rgba(232, 238, 252, 0.5);
+  color: var(--relevo-texto-3);
 }
 
 /* ---------------------------------------------------------------
@@ -330,7 +546,7 @@ ion-list-header ion-label {
     font-size: 1rem;
     font-weight: 600;
     letter-spacing: 0;
-    color: rgba(232, 238, 252, 0.72);
+    color: var(--relevo-texto-2);
   }
 
   /*

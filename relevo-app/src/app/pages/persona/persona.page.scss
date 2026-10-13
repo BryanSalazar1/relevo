@@ -48,6 +48,7 @@ $bp-rail: 992px;
 
     border-top: 0;
     border-inline-end: 1px solid var(--ion-tab-bar-border-color);
+    --background: var(--relevo-rail);
   }
 
   // Cada botón pasa a fila. .button-native hereda flex-direction del host,
@@ -74,7 +75,7 @@ $bp-rail: 992px;
   // El degradado queda en el recuadro general del rail; la pestaña activa
   // se marca con un rectángulo blanco translúcido sobre él.
   ion-tab-bar ion-tab-button:hover::part(native) {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--relevo-hover);
   }
 
   // El icono y la etiqueta viven en el light DOM del botón: selector directo.
@@ -92,13 +93,13 @@ $bp-rail: 992px;
 
   // .tab-selected la pone Stencil en el HOST, no en el shadow: es seleccionable.
   ion-tab-bar ion-tab-button.tab-selected::part(native) {
-    background: rgba(255, 255, 255, 0.12);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+    background: var(--relevo-primario-suave);
+    box-shadow: inset 0 0 0 1px rgba(15, 157, 138, 0.18);
   }
 
   ion-tab-bar ion-tab-button.tab-selected ion-label,
   ion-tab-bar ion-tab-button.tab-selected ion-icon {
-    color: #ffffff;
+    color: var(--ion-color-primary);
   }
 }
 

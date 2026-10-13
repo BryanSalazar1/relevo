@@ -397,6 +397,66 @@ decisión: en la web se avisa por correo.
 
 ## 10. Funcionalidades implementadas (10 de septiembre de 2026)
 
+### Paleta clara "clínica amable" — 06/10/2026
+- Se deja el tema oscuro azul marino por un tema claro pensado para salud: verde azulado (teal
+  `#0f9d8a`) como color principal, fondo menta muy claro, tarjetas blancas con borde y sombra suaves,
+  tinta verde-grisácea (`#163238`) y acentos cálidos solo para avisos (ámbar) y peligro (coral). El
+  asistente de IA conserva su acento lavanda. Todo vive en `src/theme/variables.css` (colores de
+  Ionic + tokens `--relevo-*`); `src/styles.scss` y las páginas solo usan tokens, salvo el semáforo
+  (sus colores significan algo) y la paleta de series de las gráficas del reporte.
+- Las barras siguen con `color="primary"` en las plantillas, pero `styles.scss` fuerza su contraste a
+  la tinta oscura (Ionic lo fija con `!important` en `.ion-color-primary`).
+- Logo e iconos regenerados con la nueva paleta: `public/favicon.svg` (degradado teal), favicon.ico,
+  los iconos de la PWA (`public/icons/`), los de Android (`mipmap-*`, fondo adaptativo `#0F9D8A`) y
+  los colores del manifest y de `theme-color`.
+
+### Rediseño redondeado e inicio reorganizado — 06/10/2026
+- Un solo juego de radios en `src/theme/variables.css` (`--relevo-radio`, `--relevo-radio-medio`,
+  `--relevo-radio-pildora`) aplicado desde `src/styles.scss`: tarjetas y listas de 24 px, campos de
+  16 px, botones, chips, insignias y selectores en píldora; modales y hojas de acciones con esquinas
+  redondeadas. Sin tocar las plantillas de cada página.
+- **Inicio** (`pages/home`): el perfil vive en la esquina (avatar con iniciales → *Mi perfil*,
+  *Notificaciones*, *Cerrar sesión*), campana a Notificaciones, saludo con el tipo de cuenta, una
+  tarjeta por persona (iniciales con color propio, edad, tamaño del equipo, descripción y acceso
+  directo al semáforo) y *Unirme con código o QR* como tarjeta punteada al final. Las cuentas de
+  familiar dan de alta con el botón flotante extendido **Nueva persona**.
+- **Semáforo**: carcasa en cápsula con luces degradadas y latido, estado en píldora, botones en
+  píldora, lista de "después" y barra de avance del día en una tarjeta redondeada.
+
+### Centro de notificaciones — 06/10/2026
+- `/notificaciones` (campana del inicio, menú del perfil o *Equipo → Mis notificaciones*). Por cada
+  persona cuidada, cada quien elige en su documento de miembro:
+  - `avisos`: **todos** (bitácora, tomas no tomadas o según necesidad, tareas no hechas, inventario),
+    **importantes** (solo incidentes, síntomas, tomas no tomadas y medicamentos agotados) o **ninguno**;
+  - `recordatorios`: si recibe los recordatorios de su guardia (tomas y tareas próximas o pendientes);
+  - `soloEnTurno`: los avisos del equipo solo durante sus turnos (requiere turnos definidos).
+- Arriba muestra por dónde llegan los avisos: push en el teléfono (con el estado del permiso y botón
+  para pedirlo) o correo en la web.
+- Las Cloud Functions los aplican (`functions/logica.js`: `modoAvisos`, `quiereAviso`,
+  `destinatariosAlertas`, `destinatariosInventario`, `deGuardia`); `alertas: false` de la versión
+  anterior sigue contando como "ninguno". Las rules (`preferenciasValidas`) dejan que cada quien
+  cambie solo `nombre`, `avisos`, `recordatorios` y `soloEnTurno`; los turnos siguen siendo del
+  responsable (el modal de turnos ya no trae el interruptor de alertas y rechaza turnos traslapados).
+- Verificado: 48 pruebas unitarias de funciones, 24 de reglas y 13 de la app; las 9 funciones
+  siguen desplegadas (`firebase functions:list`). Las nuevas preferencias se aplican en producción
+  al redesplegar funciones y reglas: `npm run deploy:functions` y `npm run deploy:rules`.
+
+### Medicamentos terminados y formularios — 06/10/2026
+- Un medicamento **suspendido** o un tratamiento **terminado** (o que aún no empieza) ya no admite
+  tomas: lo frena el servicio (`comprobarTomaPermitida`, con mensaje claro en pantalla) y, para los
+  suspendidos, también las rules (`medicamentoActivo`); las tomas llevan `horaProgramada`
+  obligatoria. El formulario no deja crear un tratamiento que ya habría terminado, y la agenda de
+  tomas solo retrocede 90 días.
+- Correcciones de la auditoría de formularios: Suspender/Reactivar avisan si fallan (medicamentos y
+  rutina); doble toque protegido al marcar tomas y tareas; una tarea de signos vitales exige al menos
+  una medición y guarda las mediciones con la fecha de la tarea (antes, siempre con la de hoy);
+  notas de tareas recortadas a 200; login valida nombre, correo y contraseña antes de enviar; el
+  registro deshace la cuenta de Auth si falla el perfil, y el inicio repara cuentas sin perfil;
+  límites de longitud en persona, perfil, bitácora (2000) y tareas (nombre 60, notas 300, 12
+  horarios); teléfonos de la ficha médica validados; fecha de nacimiento mínima 1900.
+- Rules más estrictas: inventario máximo 9999 (igual que la app), `entradaValida`, `tareaValida`,
+  `registroValido`; el autor de una entrada no puede cambiar de autor al editarla.
+
 ### Tipos de cuenta (al registrarse)
 - **Familiar**: es el único que puede **dar de alta** a una persona cuidada; queda como
   **Responsable** de su bitácora (administra, invita, define medicamentos, hace responsable a otro

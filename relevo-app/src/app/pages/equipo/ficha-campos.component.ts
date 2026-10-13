@@ -36,6 +36,15 @@ type Lista = 'alergias' | 'condiciones';
  * (pages/home/persona.modal.ts) y "Editar ficha médica" en Equipo (ficha.modal.ts).
  * Quien lo usa lee el resultado con `datos()`.
  */
+/** Teléfono aceptable: vacío, o de 7 a 15 dígitos con espacios, guiones, paréntesis o un + inicial. */
+export function telefonoValido(telefono: string | null | undefined): boolean {
+  const t = (telefono ?? '').trim();
+  if (!t) return true;
+  if (!/^\+?[\d\s().-]+$/.test(t)) return false;
+  const digitos = t.replace(/\D/g, '').length;
+  return digitos >= 7 && digitos <= 15;
+}
+
 @Component({
   selector: 'app-ficha-campos',
   imports: [
@@ -143,6 +152,9 @@ type Lista = 'alergias' | 'condiciones';
       name="telefonoMedico"
       placeholder="Ej. 33 1234 5678"
       [(ngModel)]="telefonoMedico"
+      errorText="Revisa el teléfono: de 7 a 15 dígitos."
+      [class.ion-invalid]="!telefonoValido(telefonoMedico)"
+      [class.ion-touched]="!telefonoValido(telefonoMedico)"
       class="campo"
     />
     <ion-input
@@ -202,6 +214,9 @@ type Lista = 'alergias' | 'condiciones';
               [name]="'ctel' + i"
               [ngModel]="c.telefono"
               (ngModelChange)="cambiarContacto(i, 'telefono', $event)"
+              errorText="De 7 a 15 dígitos"
+              [class.ion-invalid]="!telefonoValido(c.telefono)"
+              [class.ion-touched]="!telefonoValido(c.telefono)"
             />
             <ion-input
               label="Relación"
@@ -352,6 +367,16 @@ export class FichaCamposComponent implements OnInit {
    * Lo escrito en "Nueva condición" / "Nueva alergia" sin tocar Agregar también cuenta: es fácil
    * olvidarlo al guardar.
    */
+  /** Un teléfono vacío vale; si hay algo escrito, debe tener de 7 a 15 dígitos (se admiten espacios, guiones, paréntesis y +). */
+  telefonoValido(telefono: string | null | undefined): boolean {
+    return telefonoValido(telefono);
+  }
+
+  /** La ficha se puede guardar: los teléfonos escritos tienen sentido. */
+  valido(): boolean {
+    return telefonoValido(this.telefonoMedico) && this.contactos().every((c) => telefonoValido(c.telefono));
+  }
+
   datos(): DatosFicha {
     this.agregar('condiciones');
     this.agregar('alergias');

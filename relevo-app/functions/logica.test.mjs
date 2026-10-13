@@ -9,6 +9,9 @@ import {
   destinatariosAlertas,
   destinatariosInventario,
   enTurno,
+  entradaImportante,
+  modoAvisos,
+  quiereAviso,
   dosisVencidas,
   elementosAgenda,
   estadoInventario,
@@ -875,6 +878,83 @@ test('destinatariosInventario: responsables siempre, familiares con alertas; enf
     { uid: 'doc', rol: 'medico' },
     { rol: 'cuidador_principal' },
   ];
-  assert.deepEqual(destinatariosInventario(miembros), ['resp', 'resp2', 'fam']);
+  // Cada quien manda sobre sus avisos: un responsable que los apagó tampoco recibe el inventario
+  assert.deepEqual(destinatariosInventario(miembros), ['resp2', 'fam']);
   assert.deepEqual(destinatariosInventario([]), []);
+});
+
+test('destinatariosInventario: "queda poco" solo a quien quiere todos los avisos; "agotado" también a "importantes"', () => {
+  const miembros = [
+    { uid: 'todo', rol: 'cuidador_principal', avisos: 'todos' },
+    { uid: 'imp', rol: 'familiar', avisos: 'importantes' },
+    { uid: 'nada', rol: 'familiar', avisos: 'ninguno' },
+  ];
+  assert.deepEqual(destinatariosInventario(miembros, { importante: false }), ['todo']);
+  assert.deepEqual(destinatariosInventario(miembros, { importante: true }), ['todo', 'imp']);
+});
+
+test('modoAvisos y quiereAviso: modos, versión anterior (alertas) y "solo en turno"', () => {
+  assert.equal(modoAvisos({}), 'todos');
+  assert.equal(modoAvisos({ alertas: false }), 'ninguno');
+  assert.equal(modoAvisos({ alertas: false, avisos: 'todos' }), 'todos'); // manda `avisos`
+  assert.equal(modoAvisos({ avisos: 'raro' }), 'todos');
+
+  assert.equal(quiereAviso({ avisos: 'ninguno' }, { importante: true }), false);
+  assert.equal(quiereAviso({ avisos: 'importantes' }, { importante: false }), false);
+  assert.equal(quiereAviso({ avisos: 'importantes' }, { importante: true }), true);
+  assert.equal(quiereAviso({ avisos: 'todos' }, { importante: false }), true);
+
+  const turnos = [{ dias: [1, 2, 3, 4, 5], desde: '08:00', hasta: '16:00' }];
+  const martes0830 = partesEnZona(new Date('2026-09-15T14:30:00Z'), ZONA);
+  const martes2330 = partesEnZona(new Date('2026-09-16T05:30:00Z'), ZONA);
+  assert.equal(quiereAviso({ soloEnTurno: true, turnos }, { ahora: martes0830 }), true);
+  assert.equal(quiereAviso({ soloEnTurno: true, turnos }, { ahora: martes2330 }), false);
+  // Sin turnos definidos "solo en turno" no aplica; sin `ahora` tampoco se puede evaluar
+  assert.equal(quiereAviso({ soloEnTurno: true, turnos: [] }, { ahora: martes2330 }), true);
+  assert.equal(quiereAviso({ soloEnTurno: true, turnos }), true);
+});
+
+test('destinatariosAlertas: respeta "importantes" y "solo en turno" de cada miembro', () => {
+  const turnos = [{ dias: [1, 2, 3, 4, 5], desde: '08:00', hasta: '16:00' }];
+  const miembros = [
+    { uid: 'autor', rol: 'cuidador_principal' },
+    { uid: 'todo', rol: 'familiar', avisos: 'todos' },
+    { uid: 'imp', rol: 'familiar', avisos: 'importantes' },
+    { uid: 'nada', rol: 'medico', avisos: 'ninguno' },
+    { uid: 'turno', rol: 'cuidador_turno', soloEnTurno: true, turnos },
+  ];
+  const martes0830 = partesEnZona(new Date('2026-09-15T14:30:00Z'), ZONA);
+  const martes2330 = partesEnZona(new Date('2026-09-16T05:30:00Z'), ZONA);
+  assert.deepEqual(
+    destinatariosAlertas(miembros, { excluir: 'autor', importante: false, ahora: martes0830 }),
+    ['todo', 'turno'],
+  );
+  assert.deepEqual(
+    destinatariosAlertas(miembros, { excluir: 'autor', importante: true, ahora: martes2330 }),
+    ['todo', 'imp'],
+  );
+});
+
+test('entradaImportante: incidentes y síntomas sí; notas, ánimo y sueño no', () => {
+  assert.equal(entradaImportante({ tipo: 'incidente' }), true);
+  assert.equal(entradaImportante({ tipo: 'sintoma' }), true);
+  assert.equal(entradaImportante({ tipo: 'nota' }), false);
+  assert.equal(entradaImportante({ tipo: 'animo' }), false);
+  assert.equal(entradaImportante(undefined), false);
+});
+
+test('deGuardia: quien apagó los recordatorios no los recibe, ni como respaldo', () => {
+  const turnos = [{ dias: [1, 2, 3, 4, 5], desde: '08:00', hasta: '16:00' }];
+  const martes0830 = partesEnZona(new Date('2026-09-15T14:30:00Z'), ZONA);
+  const martes2330 = partesEnZona(new Date('2026-09-16T05:30:00Z'), ZONA);
+  const miembros = [
+    { uid: 'resp', rol: 'cuidador_principal', recordatorios: false },
+    { uid: 'enf', rol: 'cuidador_turno', turnos },
+    { uid: 'fam', rol: 'familiar', recordatorios: false, turnos },
+  ];
+  assert.deepEqual(deGuardia(miembros, martes0830), ['enf']);
+  // Nadie de guardia y el responsable apagó sus recordatorios: no hay respaldo
+  assert.deepEqual(deGuardia(miembros, martes2330), []);
+  // Sin turnos en el equipo, todos los que registran... salvo quien los apagó
+  assert.deepEqual(deGuardia([{ uid: 'a', rol: 'familiar' }, { uid: 'b', rol: 'familiar', recordatorios: false }], martes0830), ['a']);
 });

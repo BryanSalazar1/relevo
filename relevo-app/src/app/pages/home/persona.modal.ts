@@ -73,6 +73,7 @@ export interface DatosPersona {
         placeholder="Ej. Lupe, Mamá, Don Carlos"
         [(ngModel)]="nombre"
         autocapitalize="words"
+        maxlength="60"
         class="campo"
       />
 
@@ -82,6 +83,7 @@ export interface DatosPersona {
         labelPlacement="stacked"
         fill="outline"
         name="fechaNacimiento"
+        min="1900-01-01"
         [max]="hoy"
         [(ngModel)]="fechaNacimiento"
         [helperText]="edadTexto()"
@@ -166,9 +168,10 @@ export class PersonaModal implements OnInit {
 
   valido(): boolean {
     if (!this.nombre.trim()) return false;
+    if (this.ficha()?.valido() === false) return false;
     if (!this.fechaNacimiento) return true;
     const anios = edad(this.fechaNacimiento);
-    return anios !== null && anios >= 0 && this.fechaNacimiento <= this.hoy;
+    return anios !== null && anios >= 0 && this.fechaNacimiento <= this.hoy && this.fechaNacimiento >= '1900-01-01';
   }
 
   cancelar() {

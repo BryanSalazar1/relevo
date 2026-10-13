@@ -96,7 +96,27 @@ service cloud.firestore {
     // Inventario: sin controlar (null) o un entero de 0 en adelante; nunca negativo
     function inventarioValido(d) {
       return !('inventario' in d) || d.inventario == null
-        || (d.inventario is int && d.inventario >= 0 && d.inventario <= 99999);
+        || (d.inventario is int && d.inventario >= 0 && d.inventario <= 9999);
+    }
+
+    // Una entrada de bitácora: tipo conocido y texto con algo escrito (la app limita a 2000 caracteres)
+    function entradaValida(d) {
+      return d.tipo in ['sintoma', 'animo', 'comida', 'sueno', 'incidente', 'nota']
+        && d.texto is string && d.texto.size() > 0 && d.texto.size() <= 2000;
+    }
+
+    // Una tarea de la rutina: tipo conocido, nombre y hasta 12 horarios
+    function tareaValida(d) {
+      return d.tipo in ['comida', 'bano', 'ejercicio', 'terapia', 'signos', 'cita', 'otro']
+        && d.nombre is string && d.nombre.size() > 0 && d.nombre.size() <= 60
+        && d.horarios is list && d.horarios.size() <= 12
+        && (!('notas' in d) || (d.notas is string && d.notas.size() <= 300));
+    }
+
+    // Un registro de tarea: hecha/no hecha y nota corta
+    function registroValido(d) {
+      return d.hecha is bool
+        && (!('nota' in d) || (d.nota is string && d.nota.size() <= 200));
     }
 
     // Último resurtido (lo que propone el botón Resurtir): opcional; si viene, un entero de 1 a 9999
@@ -134,7 +154,20 @@ service cloud.firestore {
 
     function tomaValida(d) {
       return d.tomado is bool
+        && d.horaProgramada is timestamp
         && (!('nota' in d) || (d.nota is string && d.nota.size() <= 200));
+    }
+
+    // Preferencias de avisos de un miembro (las elige cada quien en Notificaciones; mismos valores en la app)
+    function preferenciasValidas(d) {
+      return (!('avisos' in d) || d.avisos in ['todos', 'importantes', 'ninguno'])
+        && (!('recordatorios' in d) || d.recordatorios is bool)
+        && (!('soloEnTurno' in d) || d.soloEnTurno is bool);
+    }
+
+    // Un medicamento suspendido no admite tomas nuevas (el tratamiento terminado lo frena la app)
+    function medicamentoActivo(personaId, medicamentoId) {
+      return get(/databases/$(database)/documents/personas_cuidadas/$(personaId)/medicamentos/$(medicamentoId)).data.activo == true;
     }
 
     // ---------- usuarios/{uid} ----------
@@ -214,9 +247,12 @@ service cloud.firestore {
             && tipoUsuario(request.auth.uid) == 'familiar'
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rol'])
             && request.resource.data.rol == 'cuidador_principal')
-          // ...o cada quien actualiza solo su propio nombre (al editar su perfil)
+          // ...o cada quien actualiza solo su propio nombre (al editar su perfil) y sus
+          // preferencias de avisos (Notificaciones); los turnos y el rol siguen siendo del responsable
           || (memberId == request.auth.uid
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nombre']));
+            && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['nombre', 'avisos', 'recordatorios', 'soloEnTurno'])
+            && preferenciasValidas(request.resource.data));
         allow delete: if tieneRol(personaId, ['cuidador_principal']);
       }
 
@@ -225,8 +261,14 @@ service cloud.firestore {
       match /entradas_bitacora/{entradaId} {
         allow read: if esMiembro(personaId);
         allow create: if tieneRol(personaId, ['cuidador_principal', 'cuidador_turno', 'familiar'])
-          && request.resource.data.autorUid == request.auth.uid;
-        allow update, delete: if tieneRol(personaId, ['cuidador_principal'])
+          && request.resource.data.autorUid == request.auth.uid
+          && entradaValida(request.resource.data);
+        // El autor corrige lo suyo (sin cambiar de autor); el responsable, todo
+        allow update: if (tieneRol(personaId, ['cuidador_principal'])
+            || (esMiembro(personaId) && resource.data.autorUid == request.auth.uid))
+          && request.resource.data.autorUid == resource.data.autorUid
+          && entradaValida(request.resource.data);
+        allow delete: if tieneRol(personaId, ['cuidador_principal'])
           || (esMiembro(personaId) && resource.data.autorUid == request.auth.uid);
       }
 
@@ -258,6 +300,7 @@ service cloud.firestore {
           allow create, update, delete: if tieneRol(personaId, ['cuidador_principal', 'cuidador_turno', 'familiar'])
             && (request.method == 'delete'
                 || (tomaValida(request.resource.data)
+                    && (request.method == 'update' || medicamentoActivo(personaId, medicamentoId))
                     && (request.resource.data.registradoPor == request.auth.uid
                         || (tieneRol(personaId, ['cuidador_principal'])
                             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nota'])))));
@@ -268,15 +311,20 @@ service cloud.firestore {
       // quienes cuidan registran si se hicieron (firmado por ellos); el médico solo lee.
       match /tareas/{tareaId} {
         allow read: if esMiembro(personaId);
-        allow create, update, delete: if tieneRol(personaId, ['cuidador_principal']);
+        allow create: if tieneRol(personaId, ['cuidador_principal']) && tareaValida(request.resource.data);
+        // Suspender/reactivar no revalida el resto (tareas guardadas antes de estos límites)
+        allow update: if tieneRol(personaId, ['cuidador_principal'])
+          && (soloCambia(['activo']) || tareaValida(request.resource.data));
+        allow delete: if tieneRol(personaId, ['cuidador_principal']);
 
         match /registros/{registroId} {
           allow read: if esMiembro(personaId);
           allow create, update, delete: if tieneRol(personaId, ['cuidador_principal', 'cuidador_turno', 'familiar'])
             && (request.method == 'delete'
-                || request.resource.data.registradoPor == request.auth.uid
-                || (tieneRol(personaId, ['cuidador_principal'])
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nota'])));
+                || (registroValido(request.resource.data)
+                    && (request.resource.data.registradoPor == request.auth.uid
+                        || (tieneRol(personaId, ['cuidador_principal'])
+                            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nota'])))));
         }
       }
 

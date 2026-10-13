@@ -55,7 +55,7 @@ export interface DatosSignos {
     </ion-header>
 
     <ion-content class="ion-padding">
-      <ion-note>{{ titulo }}. Escribe lo que mediste; lo que no, déjalo vacío.</ion-note>
+      <ion-note>{{ titulo }}. Escribe lo que mediste (al menos una medición); lo que no, déjalo vacío.</ion-note>
 
       @for (s of signos; track s.valor) {
         @if (s.valor === 'presion') {
@@ -206,8 +206,9 @@ export class SignosModal implements OnInit {
     return fuera(v, s.min, s.max) ? `Revisa el valor: debe estar entre ${s.min} y ${s.max} ${s.unidad}.` : '';
   }
 
+  /** Sin errores y con al menos una medición: una tarea de signos "hecha" sin mediciones no tiene sentido. */
   valido(): boolean {
-    return this.signos.every((s) => !this.error(s));
+    return this.signos.every((s) => !this.error(s)) && this.mediciones().length > 0;
   }
 
   private mediciones(): Medicion[] {

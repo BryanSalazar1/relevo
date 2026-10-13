@@ -48,7 +48,7 @@ import { AuthService } from '../../core/services/auth.service';
     <ion-header>
       <ion-toolbar>
         <ion-buttons slot="start">
-          <ion-button (click)="cancelar()">Cancelar</ion-button>
+          <ion-button (click)="cancelar()" [disabled]="guardando">Cancelar</ion-button>
         </ion-buttons>
         <ion-title>Mi perfil</ion-title>
         <ion-buttons slot="end">
@@ -67,6 +67,7 @@ import { AuthService } from '../../core/services/auth.service';
         name="nombre"
         [(ngModel)]="nombre"
         autocapitalize="words"
+        maxlength="60"
         class="ion-margin-bottom"
       />
       <ion-input
@@ -177,7 +178,16 @@ export class PerfilModal implements OnInit {
     await alerta.present();
     const { role, data } = await alerta.onDidDismiss<{ values: { password?: string } }>();
     const password = data?.values?.password ?? '';
-    if (role !== 'destructive' || !password) return;
+    if (role !== 'destructive') return;
+    if (!password) {
+      const sinClave = await this.alertCtrl.create({
+        header: 'Falta la contraseña',
+        message: 'Para eliminar la cuenta escribe tu contraseña actual.',
+        buttons: ['Entendido'],
+      });
+      await sinClave.present();
+      return;
+    }
     this.guardando = true;
     try {
       await this.auth.eliminarCuenta(password);

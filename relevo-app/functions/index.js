@@ -4,7 +4,9 @@
  * Destinatarios (functions/logica.js):
  *   - Recordatorios de rutina (tomas pendientes, avisos previos) → quien está de guardia según los
  *     turnos de cada miembro; sin turnos definidos, todos los que registran; nadie de guardia, el responsable.
- *   - Alertas (bitácora, tomas omitidas, según necesidad) → todos menos el autor, salvo `alertas: false`.
+ *   - Avisos del equipo (bitácora, tomas omitidas, según necesidad, tareas no hechas, inventario) → todos
+ *     menos el autor, según las preferencias de cada miembro (avisos: todos | importantes | ninguno,
+ *     soloEnTurno). Lo importante: incidentes, síntomas, tomas no tomadas y medicamentos agotados.
  *
  * Canales:
  *   - Push (FCM) a quien tiene la app en el teléfono (usuarios/{uid}.fcmTokens).
@@ -49,6 +51,7 @@ import {
   deGuardia,
   destinatariosAlertas,
   destinatariosInventario,
+  entradaImportante,
   dosisVencidas,
   elementosAgenda,
   estadoInventario,
@@ -250,11 +253,19 @@ export const notificarEntradaBitacora = onDocumentCreated(
     const { personaId } = event.params;
     const [p, ms] = await Promise.all([persona(personaId), miembros(personaId)]);
     if (!p) return;
-    await notificar(destinatariosAlertas(ms, { excluir: entrada.autorUid }), {
-      ...mensajeEntrada({ personaNombre: p.nombre, entrada }),
-      url: `/personas/${personaId}/bitacora`,
-      personaId,
-    });
+    const ahora = partesEnZona(new Date(), ZONA_HORARIA.value());
+    await notificar(
+      destinatariosAlertas(ms, {
+        excluir: entrada.autorUid,
+        importante: entradaImportante(entrada),
+        ahora,
+      }),
+      {
+        ...mensajeEntrada({ personaNombre: p.nombre, entrada }),
+        url: `/personas/${personaId}/bitacora`,
+        personaId,
+      },
+    );
   },
 );
 
@@ -293,16 +304,21 @@ export const notificarToma = onDocumentWritten(
     const horario = despues.horaProgramada
       ? horarioDe(despues.horaProgramada.toDate(), ZONA_HORARIA.value())
       : '--:--';
-    await notificar(destinatariosAlertas(ms, { excluir: despues.registradoPor }), {
-      ...mensajeToma({
-        personaNombre: p.nombre,
-        medicamento: medSnap.data(),
-        horario,
-        toma: despues,
-      }),
-      url: `/personas/${personaId}/medicamentos`,
-      personaId,
-    });
+    const ahora = partesEnZona(new Date(), ZONA_HORARIA.value());
+    // Una toma no tomada es lo delicado; las realizadas o según necesidad son solo informativas
+    await notificar(
+      destinatariosAlertas(ms, { excluir: despues.registradoPor, importante: !despues.tomado, ahora }),
+      {
+        ...mensajeToma({
+          personaNombre: p.nombre,
+          medicamento: medSnap.data(),
+          horario,
+          toma: despues,
+        }),
+        url: `/personas/${personaId}/medicamentos`,
+        personaId,
+      },
+    );
   },
 );
 
@@ -329,16 +345,21 @@ export const notificarRegistroTarea = onDocumentWritten(
     const horario = despues.horaProgramada
       ? horarioDe(despues.horaProgramada.toDate(), ZONA_HORARIA.value())
       : '--:--';
-    await notificar(destinatariosAlertas(ms, { excluir: despues.registradoPor }), {
-      ...mensajeTarea({
-        personaNombre: p.nombre,
-        tarea: tareaSnap.data(),
-        horario,
-        registro: despues,
-      }),
-      url: `/personas/${personaId}/rutina`,
-      personaId,
-    });
+    const ahora = partesEnZona(new Date(), ZONA_HORARIA.value());
+    // Una tarea no hecha no cuenta como importante: quien eligió "solo importantes" no la recibe
+    await notificar(
+      destinatariosAlertas(ms, { excluir: despues.registradoPor, importante: false, ahora }),
+      {
+        ...mensajeTarea({
+          personaNombre: p.nombre,
+          tarea: tareaSnap.data(),
+          horario,
+          registro: despues,
+        }),
+        url: `/personas/${personaId}/rutina`,
+        personaId,
+      },
+    );
   },
 );
 
@@ -412,11 +433,14 @@ async function revisarInventario(personaId, medicamentoId, antesDe) {
   try {
     const [p, ms] = await Promise.all([persona(personaId), miembros(personaId)]);
     if (!p) return;
-    await notificar(destinatariosInventario(ms), {
+    const estado = estadoInventario(actual, hoyIso);
+    const ahora = partesEnZona(new Date(), ZONA_HORARIA.value());
+    // Agotado es importante; "queda poco" solo lo reciben quienes quieren todos los avisos
+    await notificar(destinatariosInventario(ms, { importante: estado?.nivel === 'agotado', ahora }), {
       ...mensajeInventario({
         personaNombre: p.nombre,
         medicamento: actual,
-        estado: estadoInventario(actual, hoyIso),
+        estado,
       }),
       url: `/personas/${personaId}/medicamentos`,
       personaId,

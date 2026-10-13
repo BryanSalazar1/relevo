@@ -71,8 +71,22 @@ export class LoginPage {
     if (valor === 'familiar' || valor === 'enfermero' || valor === 'medico') this.tipo.set(valor);
   }
 
+  /** Lo que falta o está mal antes de llamar a Firebase (los `required` del HTML no detienen el envío). */
+  errorFormulario(): string {
+    const email = this.email.trim();
+    if (this.modo() === 'registro' && this.nombre.trim().length < 2) return 'Escribe tu nombre.';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return 'Escribe un correo válido.';
+    if (this.password.length < 6) return 'La contraseña debe tener al menos 6 caracteres.';
+    return '';
+  }
+
   async enviar() {
     if (this.cargando()) return;
+    const error = this.errorFormulario();
+    if (error) {
+      await this.avisar(error);
+      return;
+    }
     this.cargando.set(true);
     try {
       if (this.modo() === 'registro') {
@@ -86,15 +100,14 @@ export class LoginPage {
         replaceUrl: true,
       });
     } catch (error) {
-      const t = await this.toast.create({
-        message: this.auth.mensajeError(error),
-        duration: 3500,
-        color: 'danger',
-        position: 'top',
-      });
-      await t.present();
+      await this.avisar(this.auth.mensajeError(error));
     } finally {
       this.cargando.set(false);
     }
+  }
+
+  private async avisar(message: string) {
+    const t = await this.toast.create({ message, duration: 3500, color: 'danger', position: 'top' });
+    await t.present();
   }
 }

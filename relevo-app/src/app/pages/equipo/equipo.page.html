@@ -139,9 +139,6 @@
               <p class="turnos">
                 <ion-icon name="time-outline" />
                 {{ textoTurnos(m.turnos) }}
-                @if (m.alertas === false) {
-                  · sin alertas fuera de turno
-                }
               </p>
             }
           </ion-label>
@@ -161,11 +158,18 @@
     } @else {
       <ion-item lines="none"><ion-spinner name="crescent" /></ion-item>
     }
+    <ion-item button detail routerLink="/notificaciones">
+      <ion-icon name="notifications-outline" slot="start" color="primary" />
+      <ion-label class="ion-text-wrap">
+        <h2>Mis notificaciones</h2>
+        <p>Elige qué avisos y recordatorios te llegan de {{ persona()?.nombre || 'esta persona' }}.</p>
+      </ion-label>
+    </ion-item>
     <ion-item lines="none">
       <ion-note class="ion-text-wrap ayuda-turnos">
         Los recordatorios de tomas y tareas se envían a quien está de guardia; si nadie tiene turnos,
-        a todo el equipo, y si nadie está de guardia, al responsable. Los incidentes, síntomas y tomas
-        omitidas se avisan a todos.
+        a todo el equipo, y si nadie está de guardia, al responsable. Los avisos del equipo (bitácora,
+        tomas omitidas, tareas no hechas, inventario) los recibe cada quien según sus notificaciones.
       </ion-note>
     </ion-item>
   </ion-list>

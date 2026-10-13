@@ -25,10 +25,10 @@ import { personaActual } from '../core/utils/persona-actual';
   `,
   styles: `
     .fab-asistente ion-fab-button {
-      --background: linear-gradient(145deg, #6b5cf6 0%, #3730a3 100%);
-      --background-activated: linear-gradient(145deg, #3730a3 0%, #6b5cf6 100%);
+      --background: var(--relevo-ia-degradado);
+      --background-activated: linear-gradient(145deg, #5b4fd6 0%, #7c6ff0 100%);
       --color: #ffffff;
-      --box-shadow: 0 10px 28px rgba(107, 92, 246, 0.4);
+      --box-shadow: var(--relevo-ia-sombra);
     }
   `,
 })

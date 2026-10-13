@@ -1,4 +1,5 @@
 import { Injectable, inject } from '@angular/core';
+import { NOTA_MAX } from '../utils/notas';
 import {
   Firestore,
   Timestamp,
@@ -212,7 +213,7 @@ export class TareasService {
     nota?: string,
   ): Promise<void> {
     await updateDoc(doc(this.registrosRef(personaId, tareaId), registroId), {
-      nota: nota?.trim() ? nota.trim() : deleteField(),
+      nota: nota?.trim() ? nota.trim().slice(0, NOTA_MAX) : deleteField(),
     });
   }
 
@@ -239,7 +240,7 @@ export class TareasService {
       registradoPor: uid,
       registradoNombre: this.authSvc.nombreActual,
       registradoEn: serverTimestamp(),
-      ...(nota?.trim() ? { nota: nota.trim() } : {}),
+      ...(nota?.trim() ? { nota: nota.trim().slice(0, NOTA_MAX) } : {}),
     });
   }
 

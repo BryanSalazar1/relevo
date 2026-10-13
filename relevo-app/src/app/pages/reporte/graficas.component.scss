@@ -7,12 +7,12 @@
  * es oscura, y además duplica una información que la marca ya da.
  */
 .viz-root {
-  --viz-superficie: rgba(255, 255, 255, 0.05);
-  --viz-borde: rgba(255, 255, 255, 0.1);
-  --viz-tinta: #e8eefc;
-  --viz-tinta-2: rgba(232, 238, 252, 0.62);
-  --viz-rejilla: rgba(255, 255, 255, 0.08);
-  --viz-pista: rgba(255, 255, 255, 0.07);
+  --viz-superficie: var(--relevo-superficie-alta);
+  --viz-borde: var(--relevo-borde);
+  --viz-tinta: var(--relevo-texto);
+  --viz-tinta-2: var(--relevo-texto-2);
+  --viz-rejilla: rgba(22, 50, 56, 0.1);
+  --viz-pista: rgba(22, 50, 56, 0.08);
 
   display: flex;
   flex-direction: column;
@@ -162,7 +162,7 @@
 .tile {
   padding: 12px 14px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(22, 50, 56, 0.04);
   border: 1px solid var(--viz-borde);
 }
 

@@ -1,86 +1,152 @@
 /**
- * Relevo — tema oscuro con degradados
+ * Relevo — tema claro "clínica amable"
  * -----------------------------------------------------
- * Se fuerza el tema oscuro SIEMPRE (dark.always) en vez de seguir al sistema.
- * Motivo: el diseño se basa en degradados oscuros y superficies translúcidas.
- * Si el SO estuviera en claro, Ionic pintaría tarjetas y listas blancas encima
- * de esos degradados y el texto quedaría ilegible.
+ * Paleta pensada para salud: verde azulado (teal) como color principal, menta muy clara de fondo,
+ * superficies blancas con bordes suaves y acentos cálidos solo para avisos (ámbar) y peligro (coral).
+ * Todo lo que antes era azul marino sobre fondo oscuro ahora vive en estos tokens: las páginas no
+ * llevan colores propios, salvo el semáforo (sus colores significan algo) y las gráficas del reporte.
  */
-@import "@ionic/angular/css/palettes/dark.always.css";
-
 :root {
-  /* ---- Degradados de marca ---- */
-  --relevo-fondo: linear-gradient(170deg, #0b1220 0%, #101a2e 45%, #080d18 100%);
-  --relevo-barra: linear-gradient(160deg, #0b1b3a 0%, #13284f 55%, #0d1e3d 100%);
-  --relevo-rail: linear-gradient(180deg, #0b1220 0%, #101a2e 55%, #0b1220 100%);
+  /* ---- Colores de Ionic (cada uno con rgb, contraste, sombra y tinte) ---- */
+  --ion-color-primary: #0f9d8a;
+  --ion-color-primary-rgb: 15, 157, 138;
+  --ion-color-primary-contrast: #ffffff;
+  --ion-color-primary-contrast-rgb: 255, 255, 255;
+  --ion-color-primary-shade: #0d8a79;
+  --ion-color-primary-tint: #27a796;
 
-  /* ---- Superficies translúcidas (antes blancas) ---- */
-  --relevo-superficie: rgba(255, 255, 255, 0.06);
-  --relevo-superficie-alta: rgba(255, 255, 255, 0.09);
-  --relevo-borde: rgba(255, 255, 255, 0.12);
-  --relevo-desenfoque: blur(14px);
+  --ion-color-secondary: #2b9fd9;
+  --ion-color-secondary-rgb: 43, 159, 217;
+  --ion-color-secondary-contrast: #ffffff;
+  --ion-color-secondary-contrast-rgb: 255, 255, 255;
+  --ion-color-secondary-shade: #268cbf;
+  --ion-color-secondary-tint: #40a9dd;
+
+  --ion-color-tertiary: #6d5ce7;
+  --ion-color-tertiary-rgb: 109, 92, 231;
+  --ion-color-tertiary-contrast: #ffffff;
+  --ion-color-tertiary-contrast-rgb: 255, 255, 255;
+  --ion-color-tertiary-shade: #6051cb;
+  --ion-color-tertiary-tint: #7c6ce9;
+
+  --ion-color-success: #22a06b;
+  --ion-color-success-rgb: 34, 160, 107;
+  --ion-color-success-contrast: #ffffff;
+  --ion-color-success-contrast-rgb: 255, 255, 255;
+  --ion-color-success-shade: #1e8d5e;
+  --ion-color-success-tint: #38aa7a;
+
+  --ion-color-warning: #e9a23b;
+  --ion-color-warning-rgb: 233, 162, 59;
+  --ion-color-warning-contrast: #2b1d00;
+  --ion-color-warning-contrast-rgb: 43, 29, 0;
+  --ion-color-warning-shade: #cd8f34;
+  --ion-color-warning-tint: #ebab4f;
+
+  --ion-color-danger: #e5484d;
+  --ion-color-danger-rgb: 229, 72, 77;
+  --ion-color-danger-contrast: #ffffff;
+  --ion-color-danger-contrast-rgb: 255, 255, 255;
+  --ion-color-danger-shade: #ca3f44;
+  --ion-color-danger-tint: #e85a5f;
+
+  --ion-color-light: #e6f2f0;
+  --ion-color-light-rgb: 230, 242, 240;
+  --ion-color-light-contrast: #163238;
+  --ion-color-light-contrast-rgb: 22, 50, 56;
+  --ion-color-light-shade: #cad5d3;
+  --ion-color-light-tint: #e9f3f2;
+
+  --ion-color-medium: #5f7480;
+  --ion-color-medium-rgb: 95, 116, 128;
+  --ion-color-medium-contrast: #ffffff;
+  --ion-color-medium-contrast-rgb: 255, 255, 255;
+  --ion-color-medium-shade: #546671;
+  --ion-color-medium-tint: #6f828d;
+
+  --ion-color-dark: #163238;
+  --ion-color-dark-rgb: 22, 50, 56;
+  --ion-color-dark-contrast: #ffffff;
+  --ion-color-dark-contrast-rgb: 255, 255, 255;
+  --ion-color-dark-shade: #132c31;
+  --ion-color-dark-tint: #2d474c;
+
+  /* ---- Tokens de Relevo ---- */
+  /* Fondo de página: menta muy clara con un leve degradado hacia blanco */
+  --relevo-fondo: linear-gradient(180deg, #e4f4f1 0%, #f3faf8 38%, #f6f9fa 100%);
+  /* Barra lateral de escritorio */
+  --relevo-rail: linear-gradient(180deg, #e3f3f0 0%, #f2f9f7 100%);
+
+  /* Superficies: tarjetas y listas blancas, con borde y sombra suaves */
+  --relevo-superficie: #ffffff;
+  --relevo-superficie-alta: #f1f8f6;
+  --relevo-borde: rgba(15, 76, 70, 0.12);
+  --relevo-linea: rgba(22, 50, 56, 0.08);
+  --relevo-sombra: 0 8px 24px rgba(15, 100, 90, 0.1);
+  --relevo-desenfoque: blur(0px);
+
+  /* Texto: tinta verde-grisácea oscura y dos niveles atenuados */
+  --relevo-texto: #163238;
+  --relevo-texto-2: rgba(22, 50, 56, 0.66);
+  --relevo-texto-3: rgba(22, 50, 56, 0.5);
+
+  /* Acento principal (teal) en degradado para botones y avatares, y su versión suave para fondos */
+  --relevo-primario-degradado: linear-gradient(145deg, #19b5a0 0%, #0b8577 100%);
+  --relevo-primario-degradado-activo: linear-gradient(145deg, #0b8577 0%, #19b5a0 100%);
+  --relevo-primario-suave: rgba(15, 157, 138, 0.12);
+  --relevo-primario-sombra: 0 8px 22px rgba(15, 157, 138, 0.28);
+  --relevo-hover: rgba(15, 157, 138, 0.06);
+  --relevo-activo: rgba(15, 157, 138, 0.12);
+
+  /* Asistente de IA: un acento propio (lavanda) para distinguirlo de las acciones de cuidado */
+  --relevo-ia-degradado: linear-gradient(145deg, #7c6ff0 0%, #5b4fd6 100%);
+  --relevo-ia-sombra: 0 10px 28px rgba(109, 92, 231, 0.35);
+
+  /* ---- Radios: todo redondeado, de la tarjeta al botón ---- */
+  --relevo-radio: 24px;        /* tarjetas, listas, modales */
+  --relevo-radio-medio: 16px;  /* campos de texto, toasts, grupos */
+  --relevo-radio-pildora: 999px; /* botones, chips, insignias */
 }
 
 /*
- * dark.always.css define los tokens de superficie bajo `:root.md` / `:root.ios`,
- * que tienen especificidad (0,2,0). Un `:root {}` pelado es (0,1,0) y PIERDE
- * aunque venga después. Por eso los overrides van con el mismo selector.
+ * Tokens de superficie de Ionic. Van con `:root.md` / `:root.ios` (especificidad 0,2,0) para ganar
+ * a cualquier paleta de Ionic que se cargue después.
  */
 :root.md,
 :root.ios {
-  /*
-   * OJO: este token es el ÚLTIMO fallback de --ion-item-background,
-   * --ion-card-background, --ion-toolbar-background Y del
-   * `body { background: var(--ion-background-color) }` de core.css.
-   * Si se pone `transparent`, el body se queda sin fondo y cualquier hueco
-   * no cubierto sale blanco del navegador. Tiene que ser un color real.
-   */
-  --ion-background-color: #080d18;
-  --ion-background-color-rgb: 8, 13, 24;
+  /* Último fallback de --ion-item-background, --ion-card-background, --ion-toolbar-background y
+     del body: tiene que ser un color real (los huecos saldrían blancos del navegador). */
+  --ion-background-color: #f4faf8;
+  --ion-background-color-rgb: 244, 250, 248;
 
-  /*
-   * CLAVE: todos los overlays de Ionic (action-sheet, alert, toast, loading,
-   * popover, picker) resuelven su fondo como
-   *   var(--ion-overlay-background-color, var(--ion-background-color, #fff))
-   * Sin este token heredarían el `transparent` de arriba y quedarían
-   * ilegibles flotando sobre el contenido. Un solo token los cubre todos.
-   */
-  --ion-overlay-background-color: #16203a;
+  /* Todos los overlays (action-sheet, alert, toast, loading, popover, picker) resuelven su fondo aquí */
+  --ion-overlay-background-color: #ffffff;
   --ion-item-background: transparent;
-  --ion-card-background: transparent;
+  --ion-card-background: #ffffff;
   --ion-toolbar-background: transparent;
-  --ion-tab-bar-background: transparent;
+  --ion-tab-bar-background: #ffffff;
 
-  /* Bordes: el gris por defecto (#363636) desaparece sobre el degradado. */
-  --ion-border-color: rgba(255, 255, 255, 0.12);
-  --ion-item-border-color: rgba(255, 255, 255, 0.12);
-  --ion-toolbar-border-color: rgba(255, 255, 255, 0.1);
-  --ion-tab-bar-border-color: rgba(255, 255, 255, 0.08);
+  --ion-border-color: rgba(15, 76, 70, 0.12);
+  --ion-item-border-color: rgba(22, 50, 56, 0.08);
+  --ion-toolbar-border-color: rgba(22, 50, 56, 0.08);
+  --ion-tab-bar-border-color: rgba(22, 50, 56, 0.08);
 
-  /* Texto sobre superficies oscuras. */
-  --ion-text-color: #e8eefc;
-  --ion-text-color-rgb: 232, 238, 252;
-  --ion-card-color: #e8eefc;
+  --ion-text-color: #163238;
+  --ion-text-color-rgb: 22, 50, 56;
+  --ion-card-color: #163238;
 
-  /*
-   * Trampa de contraste: la paleta oscura invierte --ion-color-primary-contrast
-   * de #fff a #000. Como ion-toolbar[color=primary] hace `color: var(--ion-color-contrast)`,
-   * el título quedaría NEGRO sobre el degradado oscuro.
-   */
-  --ion-color-primary-contrast: #ffffff;
-  --ion-color-primary-contrast-rgb: 255, 255, 255;
+  /* Escalones entre fondo y texto que usan listas, notas y placeholders de Ionic */
+  --ion-text-color-step-400: #5f7480;
+  --ion-text-color-step-600: #8a9aa3;
+  --ion-background-color-step-50: #eef5f3;
+  --ion-background-color-step-100: #e6efed;
+  --ion-background-color-step-150: #dde8e6;
 }
 
-/*
- * dark.always.css trae `:root.ios ion-modal { --ion-toolbar-background: ... }`
- * con especificidad (0,2,1) APLICADA SOBRE el elemento ion-modal, así que
- * hereda a todo su interior y gana a nuestro :root.md/:root.ios (0,2,0).
- * Sin esto, las toolbars de los modales salen gris opaco en iOS.
- * Empatamos en (0,2,1) y ganamos por orden: variables.css carga el último.
- */
+/* Dentro de un modal el fondo es el mismo degradado claro; las barras siguen transparentes */
 :root.md ion-modal,
 :root.ios ion-modal {
-  --ion-background-color: #0a1120;
+  --ion-background-color: #f4faf8;
   --ion-toolbar-background: transparent;
-  --ion-toolbar-border-color: rgba(255, 255, 255, 0.12);
+  --ion-toolbar-border-color: rgba(22, 50, 56, 0.08);
 }

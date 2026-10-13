@@ -17,6 +17,7 @@ import {
   collection,
   doc,
   docData,
+  getDoc,
   getDocs,
   query,
   serverTimestamp,
@@ -75,18 +76,37 @@ export class AuthService {
   /** Crea la cuenta en Auth y su perfil en `usuarios/{uid}` con el tipo elegido. */
   async registrar(nombre: string, email: string, password: string, tipo: TipoUsuario): Promise<User> {
     const cred = await createUserWithEmailAndPassword(this.auth, email, password);
-    await updateProfile(cred.user, { displayName: nombre });
-    await setDoc(doc(this.db, 'usuarios', cred.user.uid), {
-      uid: cred.user.uid,
+    try {
+      await updateProfile(cred.user, { displayName: nombre });
+      await this.crearPerfil(cred.user, nombre, tipo);
+    } catch (error) {
+      // Sin perfil la cuenta no sirve (no tiene tipo): se deshace para que pueda registrarse de nuevo
+      await deleteUser(cred.user).catch(() => undefined);
+      throw error;
+    }
+    return cred.user;
+  }
+
+  /** Documento `usuarios/{uid}` de una cuenta (la de un registro nuevo, o una que se quedó sin perfil). */
+  async crearPerfil(user: User, nombre: string, tipo: TipoUsuario): Promise<void> {
+    await setDoc(doc(this.db, 'usuarios', user.uid), {
+      uid: user.uid,
       nombre,
-      email,
+      email: user.email ?? '',
       tipo,
       fotoUrl: null,
       fcmTokens: [],
       personas: [],
       creadoEn: serverTimestamp(),
     });
-    return cred.user;
+  }
+
+  /** ¿Existe el perfil de la sesión actual? (null si no hay sesión) */
+  async perfilExiste(): Promise<boolean | null> {
+    const uid = this.uid;
+    if (!uid) return null;
+    const snap = await getDoc(doc(this.db, 'usuarios', uid));
+    return snap.exists();
   }
 
   /** Para cuentas creadas antes de que existiera el tipo: se define una sola vez. */

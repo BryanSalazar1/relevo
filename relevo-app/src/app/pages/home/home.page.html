@@ -1,72 +1,105 @@
-<ion-header>
-  <ion-toolbar color="primary">
-    <ion-title>Mis personas</ion-title>
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-title>Relevo</ion-title>
     <ion-buttons slot="end">
-      @if (esFamiliar()) {
-        <ion-button (click)="nuevaPersona()" aria-label="Nueva persona">
-          <ion-icon slot="icon-only" name="add" />
-        </ion-button>
-      }
-      <ion-button (click)="salir()" aria-label="Cerrar sesión">
-        <ion-icon slot="icon-only" name="log-out-outline" />
+      <ion-button
+        routerLink="/notificaciones"
+        class="boton-redondo"
+        aria-label="Notificaciones"
+        title="Notificaciones"
+      >
+        <ion-icon slot="icon-only" name="notifications-outline" />
+      </ion-button>
+      <ion-button class="boton-avatar" (click)="menuPerfil()" aria-label="Mi perfil" title="Mi perfil">
+        <span class="avatar" aria-hidden="true">{{ iniciales() }}</span>
       </ion-button>
     </ion-buttons>
   </ion-toolbar>
 </ion-header>
 
 <ion-content>
-  <ion-list inset>
-    <ion-item lines="full" button detail (click)="editarPerfil()">
-      <ion-icon name="person-circle-outline" slot="start" color="primary" />
-      <ion-label>
-        <h2>{{ usuario()?.displayName || usuario()?.email }}</h2>
-        <p>{{ usuario()?.email }} · Mi perfil</p>
-      </ion-label>
+  <section class="saludo">
+    <p class="hola">
+      Hola, <strong>{{ nombreCorto() }}</strong>
       @if (tipoEtiqueta(); as tipo) {
-        <ion-badge slot="end" color="primary">{{ tipo }}</ion-badge>
+        <ion-badge color="primary">{{ tipo }}</ion-badge>
       }
-    </ion-item>
-    <ion-item button routerLink="/unirse" detail>
-      <ion-icon name="qr-code-outline" slot="start" color="primary" />
-      <ion-label>
-        <h2>Unirme con código o QR</h2>
-        <p>Si alguien te invitó a una bitácora</p>
-      </ion-label>
-    </ion-item>
-  </ion-list>
+    </p>
+    <h1>{{ esFamiliar() ? 'Personas que cuidas' : 'Personas a tu cuidado' }}</h1>
+  </section>
 
   @if (personas(); as lista) {
     @if (lista.length === 0) {
-      <div class="vacio ion-padding ion-text-center">
-        <ion-icon name="heart-outline" color="medium" />
-        <ion-text color="medium">
-          @if (esFamiliar()) {
-            <p>Aún no cuidas a nadie.<br />Toca <strong>+</strong> para dar de alta a tu familiar, o únete con un código.</p>
-          } @else {
-            <p>Aún no formas parte de ninguna bitácora.<br />Pide a la familia el código o el QR de invitación y entra con <strong>Unirme con código</strong>.</p>
-          }
-        </ion-text>
-      </div>
-    } @else {
-      <ion-list inset>
-        @for (p of lista; track p.id) {
-          <ion-item button detail [routerLink]="['/personas', p.id]">
-            <ion-icon name="heart-outline" slot="start" color="danger" />
-            <ion-label>
-              <h2>{{ p.nombre }}</h2>
-              <p>
-                @if (edad(p.fechaNacimiento); as anios) {
-                  {{ anios }} años ·
-                }
-                {{ p.miembrosUids.length }} en el equipo
-              </p>
-              @if (p.descripcion) {
-                <p class="descripcion">{{ p.descripcion }}</p>
-              }
-            </ion-label>
-          </ion-item>
+      <ion-card class="vacio">
+        <div class="icono"><ion-icon name="heart-outline" /></div>
+        @if (esFamiliar()) {
+          <h2>Aún no cuidas a nadie</h2>
+          <p>Da de alta a tu familiar para empezar su bitácora, o únete con el código de alguien que ya la lleva.</p>
+          <ion-button expand="block" (click)="nuevaPersona()">
+            <ion-icon slot="start" name="add" />
+            Dar de alta a mi familiar
+          </ion-button>
+          <ion-button expand="block" fill="outline" routerLink="/unirse">
+            <ion-icon slot="start" name="qr-code-outline" />
+            Tengo un código o QR
+          </ion-button>
+        } @else {
+          <h2>Aún no formas parte de ninguna bitácora</h2>
+          <p>Pide a la familia el código o el QR de invitación y entra con él.</p>
+          <ion-button expand="block" routerLink="/unirse">
+            <ion-icon slot="start" name="qr-code-outline" />
+            Unirme con código o QR
+          </ion-button>
         }
-      </ion-list>
+      </ion-card>
+    } @else {
+      <div class="tarjetas">
+        @for (p of lista; track p.id) {
+          <ion-card button class="persona" (click)="abrir(p)">
+            <div class="fila">
+              <div class="avatar-persona" [style.--tono]="tono(p.nombre)" aria-hidden="true">
+                {{ inicialesDe(p.nombre) }}
+              </div>
+              <div class="texto">
+                <h2>{{ p.nombre }}</h2>
+                <p class="meta">
+                  @if (edad(p.fechaNacimiento); as anios) {
+                    <span class="chip">{{ anios }} años</span>
+                  }
+                  <span class="chip">
+                    <ion-icon name="people-outline" aria-hidden="true" />
+                    {{ p.miembrosUids.length }} en el equipo
+                  </span>
+                </p>
+                @if (p.descripcion) {
+                  <p class="descripcion">{{ p.descripcion }}</p>
+                }
+              </div>
+              <ion-button
+                fill="clear"
+                class="boton-redondo semaforo"
+                (click)="abrirSemaforo(p, $event)"
+                [attr.aria-label]="'Semáforo de ' + p.nombre"
+                title="Semáforo del día"
+              >
+                <ion-icon slot="icon-only" name="semaforo" />
+              </ion-button>
+              <ion-icon class="flecha" name="chevron-forward-outline" aria-hidden="true" />
+            </div>
+          </ion-card>
+        }
+      </div>
+
+      <ion-card button class="unirse" routerLink="/unirse">
+        <div class="fila">
+          <div class="icono" aria-hidden="true"><ion-icon name="qr-code-outline" /></div>
+          <div class="texto">
+            <h2>Unirme con código o QR</h2>
+            <p>¿Te invitaron a la bitácora de alguien más? Entra con su código.</p>
+          </div>
+          <ion-icon class="flecha" name="chevron-forward-outline" aria-hidden="true" />
+        </div>
+      </ion-card>
     }
   } @else {
     <div class="ion-text-center ion-padding">
@@ -74,4 +107,12 @@
     </div>
   }
 
+  @if (esFamiliar()) {
+    <ion-fab slot="fixed" vertical="bottom" horizontal="end">
+      <ion-button class="fab-extendido" shape="round" (click)="nuevaPersona()" aria-label="Nueva persona">
+        <ion-icon slot="start" name="add" />
+        Nueva persona
+      </ion-button>
+    </ion-fab>
+  }
 </ion-content>

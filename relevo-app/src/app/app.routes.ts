@@ -19,6 +19,13 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/unirse/unirse.page').then((m) => m.UnirsePage),
   },
   {
+    // Centro de notificaciones: qué avisos y recordatorios recibe el usuario de cada persona
+    path: 'notificaciones',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./pages/notificaciones/notificaciones.page').then((m) => m.NotificacionesPage),
+  },
+  {
     // Enlace de los códigos QR: https://<app>/unirse/CODIGO
     path: 'unirse/:codigo',
     canActivate: [authGuard],

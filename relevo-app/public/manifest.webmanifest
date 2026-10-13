@@ -55,7 +55,7 @@
     }
   ],
   "description": "Bitacora compartida de cuidado",
-  "theme_color": "#3880ff",
-  "background_color": "#ffffff",
+  "theme_color": "#0f9d8a",
+  "background_color": "#f4faf8",
   "lang": "es"
 }

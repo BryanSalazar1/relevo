@@ -11,7 +11,7 @@ import {
   writeBatch,
 } from '@angular/fire/firestore';
 import { Observable, catchError, map, of, switchMap } from 'rxjs';
-import { Miembro, ROLES, Rol, TipoUsuario, Turno, Usuario } from '../models';
+import { Miembro, PreferenciasAvisos, Rol, ROLES, TipoUsuario, Turno, Usuario } from '../models';
 import { AuthService } from './auth.service';
 
 const ORDEN_ROL: Record<Rol, number> = Object.fromEntries(
@@ -61,13 +61,34 @@ export class MiembrosService {
     await updateDoc(doc(this.db, `personas_cuidadas/${personaId}/miembros/${uid}`), { rol });
   }
 
-  /** Guardias y alertas de un miembro (solo el responsable; las rules exigen que uid y rol no cambien). */
-  async actualizarAvisos(
-    personaId: string,
-    uid: string,
-    datos: { turnos: Turno[]; alertas: boolean },
-  ): Promise<void> {
-    await updateDoc(doc(this.db, `personas_cuidadas/${personaId}/miembros/${uid}`), datos);
+  /** Mi documento de miembro en esa persona (turnos y preferencias de avisos), en tiempo real. */
+  miMembresia(personaId: string): Observable<Miembro | null> {
+    return this.authSvc.user$.pipe(
+      switchMap((user) => {
+        if (!user) return of(null);
+        const ref = doc(this.db, `personas_cuidadas/${personaId}/miembros/${user.uid}`);
+        return (docData(ref, { idField: 'uid' }) as Observable<Miembro | undefined>).pipe(
+          map((m) => m ?? null),
+          catchError(() => of(null)),
+        );
+      }),
+    );
+  }
+
+  /** Guardias de un miembro (solo el responsable; las rules exigen que uid y rol no cambien). */
+  async actualizarTurnos(personaId: string, uid: string, turnos: Turno[]): Promise<void> {
+    await updateDoc(doc(this.db, `personas_cuidadas/${personaId}/miembros/${uid}`), { turnos });
+  }
+
+  /** Mis preferencias de avisos en esa persona (cada quien las suyas; las rules solo permiten estos campos). */
+  async actualizarPreferencias(personaId: string, prefs: PreferenciasAvisos): Promise<void> {
+    const uid = this.authSvc.uid;
+    if (!uid) throw new Error('Sin sesión');
+    await updateDoc(doc(this.db, `personas_cuidadas/${personaId}/miembros/${uid}`), {
+      avisos: prefs.avisos,
+      recordatorios: prefs.recordatorios,
+      soloEnTurno: prefs.soloEnTurno,
+    });
   }
 
   /** Quita a un miembro (solo lo permiten las rules al responsable). */

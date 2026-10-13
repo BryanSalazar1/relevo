@@ -212,10 +212,13 @@ export function enTurno(turno, ahora) {
 /**
  * Quién recibe los recordatorios de rutina (tomas pendientes, avisos previos) en este momento:
  * los que están de guardia. Si nadie del equipo definió turnos, todos los que registran (como
- * antes). Si hay turnos pero nadie está de guardia, el responsable.
+ * antes). Si hay turnos pero nadie está de guardia, el responsable. Quien apagó
+ * "recordatorios de mi guardia" en Notificaciones (recordatorios: false) no cuenta.
  */
 export function deGuardia(miembros, ahora) {
-  const registran = miembros.filter((m) => m.uid && ROLES_REGISTRAN_TOMAS.includes(m.rol));
+  const registran = miembros.filter(
+    (m) => m.uid && ROLES_REGISTRAN_TOMAS.includes(m.rol) && m.recordatorios !== false,
+  );
   const conTurnos = registran.filter((m) => Array.isArray(m.turnos) && m.turnos.length > 0);
   if (!conTurnos.length) return registran.map((m) => m.uid);
   const activos = conTurnos.filter((m) => m.turnos.some((t) => enTurno(t, ahora)));
@@ -223,13 +226,48 @@ export function deGuardia(miembros, ahora) {
   return registran.filter((m) => m.rol === 'cuidador_principal').map((m) => m.uid);
 }
 
+// ---------------------------------------------------------------------------
+// Preferencias de avisos de cada miembro (las elige en Notificaciones; mismos valores en la app
+// y en firestore.rules)
+// ---------------------------------------------------------------------------
+
+/** Qué avisos del equipo recibe: todos, solo los importantes o ninguno. */
+export const MODOS_AVISOS = ['todos', 'importantes', 'ninguno'];
+
+/** Modo efectivo de un miembro: `avisos`; sin él, `alertas: false` (versión anterior) = ninguno. */
+export function modoAvisos(m) {
+  if (MODOS_AVISOS.includes(m?.avisos)) return m.avisos;
+  return m?.alertas === false ? 'ninguno' : 'todos';
+}
+
+/** Lo "importante" (delicado) de una entrada de bitácora: incidentes y síntomas. */
+export function entradaImportante(entrada) {
+  return entrada?.tipo === 'incidente' || entrada?.tipo === 'sintoma';
+}
+
 /**
- * Quién recibe las alertas (bitácora, tomas omitidas, tomas según necesidad): todos menos quien
- * lo originó, salvo quien tenga las alertas desactivadas (miembro.alertas === false).
+ * ¿El miembro quiere recibir este aviso del equipo en este momento?
+ *   - modo 'ninguno': nunca; 'importantes': solo si `importante`.
+ *   - soloEnTurno: solo mientras alguno de sus turnos cubre `ahora` (sin turnos definidos no aplica).
  */
-export function destinatariosAlertas(miembros, { excluir } = {}) {
+export function quiereAviso(m, { importante = true, ahora } = {}) {
+  const modo = modoAvisos(m);
+  if (modo === 'ninguno') return false;
+  if (modo === 'importantes' && !importante) return false;
+  if (m?.soloEnTurno === true && ahora && Array.isArray(m.turnos) && m.turnos.length > 0) {
+    return m.turnos.some((t) => enTurno(t, ahora));
+  }
+  return true;
+}
+
+/**
+ * Quién recibe un aviso del equipo (bitácora, tomas omitidas o según necesidad, tareas no hechas):
+ * todos menos quien lo originó, según las preferencias de cada uno (`quiereAviso`).
+ * `importante` marca lo delicado (incidente, síntoma, toma no tomada, medicamento agotado).
+ */
+export function destinatariosAlertas(miembros, { excluir, importante = true, ahora } = {}) {
   return miembros
-    .filter((m) => m.uid && m.uid !== excluir && m.alertas !== false)
+    .filter((m) => m.uid && m.uid !== excluir && quiereAviso(m, { importante, ahora }))
     .map((m) => m.uid);
 }
 
@@ -447,15 +485,17 @@ export function mensajeInventario({ personaNombre, medicamento, estado }) {
 }
 
 /**
- * Quién recibe el aviso de inventario: los responsables siempre (son quienes resurten en la app) y
- * los familiares, salvo que tengan las alertas desactivadas. Enfermeros y médicos no lo reciben.
+ * Quién recibe el aviso de inventario: responsables y familiares (son quienes resurten), según sus
+ * preferencias de avisos; "agotado" cuenta como importante y "queda poco" no. Enfermeros y médicos
+ * no lo reciben.
  */
-export function destinatariosInventario(miembros) {
+export function destinatariosInventario(miembros, { importante = true, ahora } = {}) {
   return miembros
     .filter(
       (m) =>
         m.uid &&
-        (m.rol === 'cuidador_principal' || (m.rol === 'familiar' && m.alertas !== false)),
+        (m.rol === 'cuidador_principal' || m.rol === 'familiar') &&
+        quiereAviso(m, { importante, ahora }),
     )
     .map((m) => m.uid);
 }
