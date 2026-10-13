@@ -92,18 +92,23 @@ async function anaCreaPersona() {
   return batch.commit();
 }
 
-/** Agrega a `luis` a la persona con el rol indicado, saltándose las reglas. */
-async function agregarLuisComo(rol) {
+/** Agrega a `uid` a la persona con el rol indicado, saltándose las reglas. */
+async function agregarComo(uid, rol) {
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
-    await setDoc(doc(db, `personas_cuidadas/${PERSONA_ID}/miembros/luis`), {
-      uid: 'luis',
+    await setDoc(doc(db, `personas_cuidadas/${PERSONA_ID}/miembros/${uid}`), {
+      uid,
       rol,
-      nombre: 'Luis',
+      nombre: uid.charAt(0).toUpperCase() + uid.slice(1),
       agregadoEn: serverTimestamp(),
     });
-    await updateDoc(doc(db, `personas_cuidadas/${PERSONA_ID}`), { miembrosUids: arrayUnion('luis') });
+    await updateDoc(doc(db, `personas_cuidadas/${PERSONA_ID}`), { miembrosUids: arrayUnion(uid) });
   });
+}
+
+/** Agrega a `luis` a la persona con el rol indicado, saltándose las reglas. */
+function agregarLuisComo(rol) {
+  return agregarComo('luis', rol);
 }
 
 // ---------------------------------------------------------------------------
@@ -327,6 +332,8 @@ test('roles: el familiar coordina el calendario, escribe en la bitácora y regis
     setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/eventos_calendario/c1`), {
       tipo: 'cita',
       titulo: 'Cardiólogo',
+      inicio: Timestamp.fromDate(new Date('2026-10-20T10:00:00')),
+      fin: Timestamp.fromDate(new Date('2026-10-20T11:00:00')),
     }),
   );
   await assertSucceeds(
@@ -480,7 +487,12 @@ test('invitaciones: cada tipo de cuenta entra con su rol (familiar, enfermero, m
 
   // Pedro (familiar) y Marta (enfermera) escriben en la bitácora; Luis (médico) no
   await assertSucceeds(
-    setDoc(doc(pedro(), `personas_cuidadas/${PERSONA_ID}/eventos_calendario/c1`), { tipo: 'cita', titulo: 'Dentista' }),
+    setDoc(doc(pedro(), `personas_cuidadas/${PERSONA_ID}/eventos_calendario/c1`), {
+      tipo: 'cita',
+      titulo: 'Dentista',
+      inicio: Timestamp.fromDate(new Date('2026-10-20T10:00:00')),
+      fin: Timestamp.fromDate(new Date('2026-10-20T11:00:00')),
+    }),
   );
   await assertSucceeds(
     setDoc(doc(pedro(), `personas_cuidadas/${PERSONA_ID}/entradas_bitacora/e9`), { tipo: 'nota', texto: 'x', autorUid: 'pedro' }),
@@ -705,4 +717,33 @@ test('medicamentos: el inventario nunca queda negativo y los datos del medicamen
   await assertFails(setDoc(doc(med(luis()), 'tomas', 't8'), { tomado: 'si', registradoPor: 'luis', horaProgramada: Timestamp.now() }));
   await assertFails(setDoc(doc(med(luis()), 'tomas', 't9'), { tomado: true, registradoPor: 'luis', nota: 'x'.repeat(201), horaProgramada: Timestamp.now() }));
   await assertFails(setDoc(doc(med(luis()), 'tomas', 't10'), { tomado: true, registradoPor: 'luis' }));
+});
+
+test('citas: el responsable y los familiares agendan, editan y borran citas válidas; enfermeros y médicos solo las ven', async () => {
+  await anaCreaPersona();
+  await agregarComo('pedro', 'familiar');
+  await agregarComo('marta', 'cuidador_turno');
+  await agregarComo('luis', 'medico');
+  const cita = (db, id = 'c1') => doc(db, `personas_cuidadas/${PERSONA_ID}/eventos_calendario/${id}`);
+  const inicio = Timestamp.fromDate(new Date('2026-10-20T10:00:00'));
+  const fin = Timestamp.fromDate(new Date('2026-10-20T11:00:00'));
+  const valida = { tipo: 'cita', titulo: 'Cardiólogo', inicio, fin, lugar: 'Hospital', notas: '', responsableUid: 'pedro', avisarMin: 60 };
+
+  await assertSucceeds(setDoc(cita(ana()), valida));
+  await assertSucceeds(updateDoc(cita(pedro()), { titulo: 'Cardiólogo — control', avisarMin: 1440 }));
+  await assertFails(setDoc(cita(marta(), 'c2'), valida));
+  await assertFails(setDoc(cita(luis(), 'c3'), valida));
+  await assertSucceeds(getDoc(cita(marta())));
+  await assertSucceeds(getDoc(cita(luis())));
+
+  // Datos inválidos: termina antes de empezar, sin título, tipo desconocido, aviso negativo, notas largas, fecha como texto
+  await assertFails(setDoc(cita(ana(), 'c4'), { ...valida, fin: Timestamp.fromDate(new Date('2026-10-20T09:00:00')) }));
+  await assertFails(setDoc(cita(ana(), 'c5'), { ...valida, titulo: '' }));
+  await assertFails(setDoc(cita(ana(), 'c6'), { ...valida, tipo: 'fiesta' }));
+  await assertFails(setDoc(cita(ana(), 'c7'), { ...valida, avisarMin: -5 }));
+  await assertFails(setDoc(cita(ana(), 'c8'), { ...valida, notas: 'x'.repeat(301) }));
+  await assertFails(setDoc(cita(ana(), 'c9'), { ...valida, inicio: '2026-10-20' }));
+
+  await assertFails(deleteDoc(cita(marta())));
+  await assertSucceeds(deleteDoc(cita(pedro())));
 });

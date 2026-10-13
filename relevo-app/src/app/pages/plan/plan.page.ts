@@ -15,17 +15,20 @@ import {
   IonToolbar,
 } from '@ionic/angular';
 import { map } from 'rxjs';
-import { PUEDE_EDITAR_MEDICAMENTOS } from '../../core/models';
+import { PUEDE_EDITAR_CITAS, PUEDE_EDITAR_MEDICAMENTOS } from '../../core/models';
 import { personaActual } from '../../core/utils/persona-actual';
 import { FabAsistente } from '../../shared/fab-asistente.component';
+import { CitasPlan } from '../citas/citas-plan.component';
 import { MedicamentosPlan } from '../medicamentos/medicamentos-plan.component';
 import { RutinaPlan } from '../rutina/rutina-plan.component';
 
-export type SeccionPlan = 'medicamentos' | 'rutina';
+export type SeccionPlan = 'medicamentos' | 'rutina' | 'citas';
+
+const SECCIONES: SeccionPlan[] = ['medicamentos', 'rutina', 'citas'];
 
 /**
- * Plan: lo que el responsable define para la persona (medicamentos y rutina), en una sola pestaña
- * con un segmento. Lo del día a día (tomas y tareas de hoy) vive en Hoy.
+ * Plan: lo que se define para la persona (medicamentos, rutina y citas), en una sola pestaña con
+ * un segmento. Lo del día a día (tomas y tareas de hoy, próximas citas) vive en Hoy.
  */
 @Component({
   selector: 'app-plan',
@@ -33,6 +36,7 @@ export type SeccionPlan = 'medicamentos' | 'rutina';
     FabAsistente,
     MedicamentosPlan,
     RutinaPlan,
+    CitasPlan,
     IonHeader,
     IonToolbar,
     IonButtons,
@@ -53,8 +57,8 @@ export type SeccionPlan = 'medicamentos' | 'rutina';
         </ion-buttons>
         <ion-title>Plan</ion-title>
         <ion-buttons slot="end">
-          @if (puedeEditar()) {
-            <ion-button (click)="nuevo()" [attr.aria-label]="seccion() === 'rutina' ? 'Nueva tarea' : 'Nuevo medicamento'">
+          @if (puedeAgregar()) {
+            <ion-button (click)="nuevo()" [attr.aria-label]="textoNuevo()">
               <ion-icon slot="icon-only" name="add" />
             </ion-button>
           }
@@ -68,15 +72,24 @@ export type SeccionPlan = 'medicamentos' | 'rutina';
           <ion-segment-button value="rutina">
             <ion-label>Rutina</ion-label>
           </ion-segment-button>
+          <ion-segment-button value="citas">
+            <ion-label>Citas</ion-label>
+          </ion-segment-button>
         </ion-segment>
       </ion-toolbar>
     </ion-header>
 
     <ion-content>
-      @if (seccion() === 'rutina') {
-        <app-rutina-plan />
-      } @else {
-        <app-medicamentos-plan />
+      @switch (seccion()) {
+        @case ('rutina') {
+          <app-rutina-plan />
+        }
+        @case ('citas') {
+          <app-citas-plan />
+        }
+        @default {
+          <app-medicamentos-plan />
+        }
       }
       <app-fab-asistente />
     </ion-content>
@@ -97,28 +110,56 @@ export class PlanPage {
   private readonly ctx = personaActual();
   private readonly medicamentos = viewChild(MedicamentosPlan);
   private readonly rutina = viewChild(RutinaPlan);
+  private readonly citas = viewChild(CitasPlan);
 
-  /** Sección abierta: viene de la ruta (plan/medicamentos | plan/rutina); sin ella, medicinas */
+  /** Sección abierta: viene de la ruta (plan/medicamentos | plan/rutina | plan/citas); sin ella, medicinas */
   readonly seccion = toSignal(
-    this.route.paramMap.pipe(map((p): SeccionPlan => (p.get('seccion') === 'rutina' ? 'rutina' : 'medicamentos'))),
+    this.route.paramMap.pipe(map((p) => aSeccion(p.get('seccion')))),
     { initialValue: 'medicamentos' as SeccionPlan },
   );
 
-  readonly puedeEditar = computed(() => {
+  /** El responsable edita medicinas y rutina; las citas también los familiares */
+  readonly puedeAgregar = computed(() => {
     const r = this.ctx.rol();
-    return !!r && PUEDE_EDITAR_MEDICAMENTOS.includes(r);
+    if (!r) return false;
+    return this.seccion() === 'citas'
+      ? PUEDE_EDITAR_CITAS.includes(r)
+      : PUEDE_EDITAR_MEDICAMENTOS.includes(r);
+  });
+
+  readonly textoNuevo = computed(() => {
+    switch (this.seccion()) {
+      case 'rutina':
+        return 'Nueva tarea';
+      case 'citas':
+        return 'Nueva cita';
+      default:
+        return 'Nuevo medicamento';
+    }
   });
 
   cambiar(valor: unknown) {
     const id = this.ctx.personaId();
-    const seccion: SeccionPlan = valor === 'rutina' ? 'rutina' : 'medicamentos';
+    const seccion = aSeccion(typeof valor === 'string' ? valor : null);
     if (!id || seccion === this.seccion()) return;
     void this.router.navigate(['/personas', id, 'plan', seccion], { replaceUrl: true });
   }
 
   /** El + de la barra da de alta en la sección abierta. */
   nuevo() {
-    if (this.seccion() === 'rutina') void this.rutina()?.nueva();
-    else void this.medicamentos()?.nuevo();
+    switch (this.seccion()) {
+      case 'rutina':
+        void this.rutina()?.nueva();
+        break;
+      case 'citas':
+        void this.citas()?.nueva();
+        break;
+      default:
+        void this.medicamentos()?.nuevo();
+    }
   }
+}
+
+function aSeccion(valor: string | null): SeccionPlan {
+  return SECCIONES.includes(valor as SeccionPlan) ? (valor as SeccionPlan) : 'medicamentos';
 }

@@ -331,7 +331,12 @@ export interface TipoTareaInfo {
   color: string;
 }
 
-export const TIPOS_TAREA: TipoTareaInfo[] = [
+/**
+ * Todos los tipos que han existido, para mostrar tareas antiguas. "cita" ya no se ofrece en tareas
+ * nuevas desde el 13/10/2026: una cita tiene fecha y hora concretas y va en el calendario
+ * (EventoCalendario); lo que se repite cada semana (una terapia fija) es "terapia".
+ */
+export const TIPOS_TAREA_TODOS: TipoTareaInfo[] = [
   { valor: 'comida', etiqueta: 'Comida', icono: 'restaurant-outline', color: 'success' },
   { valor: 'bano', etiqueta: 'Baño', icono: 'water-outline', color: 'tertiary' },
   { valor: 'ejercicio', etiqueta: 'Ejercicio', icono: 'walk-outline', color: 'warning' },
@@ -342,8 +347,11 @@ export const TIPOS_TAREA: TipoTareaInfo[] = [
   { valor: 'otro', etiqueta: 'Otra', icono: 'checkmark-circle-outline', color: 'medium' },
 ];
 
+/** Tipos que se ofrecen al crear una tarea */
+export const TIPOS_TAREA: TipoTareaInfo[] = TIPOS_TAREA_TODOS.filter((t) => t.valor !== 'cita');
+
 export const TIPO_TAREA_INFO: Record<TipoTarea, TipoTareaInfo> = Object.fromEntries(
-  TIPOS_TAREA.map((t) => [t.valor, t]),
+  TIPOS_TAREA_TODOS.map((t) => [t.valor, t]),
 ) as Record<TipoTarea, TipoTareaInfo>;
 
 /** Días de la semana en orden de calendario (valor = Date.getDay()). */
@@ -409,17 +417,61 @@ export interface RegistroTarea {
   nota?: string;
 }
 
+// ---------------------------------------------------------------------------
+// Calendario: citas, terapias y estudios de una sola vez (fecha y hora concretas), a diferencia de
+// la rutina, que se repite por semana
+// ---------------------------------------------------------------------------
 export type TipoEvento = 'cita' | 'terapia' | 'turno';
 
-/** personas_cuidadas/{id}/eventos_calendario/{id} */
+export interface TipoEventoInfo {
+  valor: TipoEvento;
+  etiqueta: string;
+  icono: string;
+  color: string;
+}
+
+/** Tipos que se agendan desde la app (los turnos de los cuidadores se definen en Equipo, no aquí) */
+export const TIPOS_EVENTO: TipoEventoInfo[] = [
+  { valor: 'cita', etiqueta: 'Cita médica', icono: 'calendar-outline', color: 'primary' },
+  { valor: 'terapia', etiqueta: 'Terapia o estudio', icono: 'fitness-outline', color: 'secondary' },
+];
+
+export const TIPO_EVENTO_INFO: Record<TipoEvento, TipoEventoInfo> = {
+  ...(Object.fromEntries(TIPOS_EVENTO.map((t) => [t.valor, t])) as Record<
+    'cita' | 'terapia',
+    TipoEventoInfo
+  >),
+  turno: { valor: 'turno', etiqueta: 'Turno', icono: 'time-outline', color: 'medium' },
+};
+
+/** Quién agenda y edita citas: el responsable y los familiares (mismos roles en firestore.rules) */
+export const PUEDE_EDITAR_CITAS: Rol[] = ['cuidador_principal', 'familiar'];
+/** Cuánto dura una cita (minutos) */
+export const OPCIONES_DURACION_CITA_MIN = [30, 60, 90, 120, 180, 240];
+/** Con cuánta anticipación se avisa de una cita (minutos); 0 = sin aviso, 1440 = un día antes */
+export const OPCIONES_AVISO_CITA_MIN = [0, 30, 60, 120, 1440];
+/** Anticipación cuando la cita no dice (también en functions/logica.js) */
+export const AVISO_CITA_MIN_POR_DEFECTO = 60;
+
+/**
+ * personas_cuidadas/{id}/eventos_calendario/{id}. Las Cloud Functions avisan `avisarMin` minutos
+ * antes del inicio (functions/index.js → avisarProximas).
+ */
 export interface EventoCalendario {
   id?: string;
   tipo: TipoEvento;
   titulo: string;
   inicio: Timestamp;
   fin: Timestamp;
+  /** Quién acompaña o se encarga (uid de un miembro); null = nadie en particular */
   responsableUid?: string | null;
+  /** Dónde: consultorio, hospital, laboratorio… */
+  lugar?: string;
   notas?: string;
+  /** Minutos antes del inicio en que se avisa al equipo; sin valor = 60, 0 = sin aviso */
+  avisarMin?: number;
+  creadoPor?: string;
+  creadoEn?: Timestamp;
 }
 
 export type TipoSigno = 'presion' | 'glucosa' | 'temperatura' | 'oxigenacion' | 'pulso' | 'peso';

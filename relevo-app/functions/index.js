@@ -18,7 +18,8 @@
  *   - notificarToma: una toma se marca "no tomada", o se registra una según necesidad (o "tomada"
  *     si NOTIFICAR_TOMAS_REALIZADAS) → los demás.
  *   - recordarTomasPendientes: cada 10 min, dosis ya pasadas de su hora sin registro → quienes registran tomas.
- *   - avisarProximas: cada 5 min, tareas de la rutina y medicamentos cuya hora se acerca → quienes cuidan.
+ *   - avisarProximas: cada 5 min, tareas de la rutina y medicamentos cuya hora se acerca → quienes cuidan;
+ *     citas del calendario que se acercan → quien acompaña, familia y quien está de guardia.
  *   - notificarRegistroTarea: una tarea de la rutina se marca "no hecha" → los demás (alerta).
  *   - avisarInventarioBajo: el inventario de un medicamento baja a "queda poco" o se agota → responsables
  *     y familiares (una vez por nivel; resurtir rearma el aviso). Si ya estaba en 0, el "se acabó" sale
@@ -31,7 +32,7 @@
  * Parámetros en functions/.env (ver .env.example). Requiere plan Blaze (Cloud Functions).
  */
 import { initializeApp } from 'firebase-admin/app';
-import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
 import * as logger from 'firebase-functions/logger';
 import { defineBoolean, defineInt, defineSecret, defineString } from 'firebase-functions/params';
@@ -45,11 +46,14 @@ import nodemailer from 'nodemailer';
 import {
   INSTRUCCIONES_ASISTENTE,
   INSTRUCCIONES_RESUMEN,
+  AVISO_CITAS_MAX_MIN,
   avisoInventario,
+  citasProximas,
   correoHtml,
   correoTexto,
   deGuardia,
   destinatariosAlertas,
+  destinatariosCita,
   destinatariosInventario,
   entradaImportante,
   dosisVencidas,
@@ -57,6 +61,7 @@ import {
   estadoInventario,
   historialGemini,
   horarioDe,
+  mensajeCita,
   mensajeEntrada,
   mensajeInventario,
   mensajeProximo,
@@ -517,65 +522,132 @@ export const recordarTomasPendientes = onSchedule(
 
 /**
  * Cada 5 minutos avisa a quienes cuidan que se acerca una tarea de la rutina o una toma de
- * medicamento (tareas: `avisarMin` de cada una; medicamentos: AVISO_MEDICAMENTOS_MIN). Una sola vez
- * por horario y solo si todavía no se registró (se anota en `recordatorios`).
+ * medicamento (tareas: `avisarMin` de cada una; medicamentos: AVISO_MEDICAMENTOS_MIN), y al equipo
+ * que se acerca una cita del calendario (`avisarMin` de la cita; 1 h si no dice). Una sola vez por
+ * horario o cita y, en la rutina, solo si todavía no se registró (se anota en `recordatorios`).
  */
 export const avisarProximas = onSchedule({ schedule: 'every 5 minutes', ...opciones }, async () => {
-  const ahora = partesEnZona(new Date(), ZONA_HORARIA.value());
+  const instante = new Date();
+  const ahora = partesEnZona(instante, ZONA_HORARIA.value());
   const personas = await db().collection('personas_cuidadas').get();
   let enviados = 0;
+  let citas = 0;
 
   for (const pSnap of personas.docs) {
-    const [medsSnap, tareasSnap] = await Promise.all([
-      pSnap.ref.collection('medicamentos').get(),
-      pSnap.ref.collection('tareas').get(),
-    ]);
-    const elementos = elementosAgenda(
-      medsSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
-      tareasSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
-      AVISO_MEDICAMENTOS_MIN.value(),
-    );
-    const candidatos = proximos(elementos, ahora);
-    if (!candidatos.length) continue;
-
-    // Por cada horario próximo: ¿ya se registró? ¿ya se avisó?
-    const coleccionDe = (c) => (c.elemento.clase === 'medicamento' ? 'medicamentos' : 'tareas');
-    const registrosDe = (c) => (c.elemento.clase === 'medicamento' ? 'tomas' : 'registros');
-    const idAviso = (c) => `prox-${c.elemento.clase}-${c.elemento.id}-${c.idHorario}`;
-    const refs = candidatos.flatMap((c) => [
-      pSnap.ref
-        .collection(coleccionDe(c))
-        .doc(c.elemento.id)
-        .collection(registrosDe(c))
-        .doc(c.idHorario),
-      pSnap.ref.collection('recordatorios').doc(idAviso(c)),
-    ]);
-    const snaps = await db().getAll(...refs);
-    const pendientes = candidatos.filter(
-      (_, i) => !snaps[2 * i].exists && !snaps[2 * i + 1].exists,
-    );
-    if (!pendientes.length) continue;
-
-    const p = { id: pSnap.id, ...pSnap.data() };
-    const uids = deGuardia(await miembros(p.id), ahora);
-    for (const c of pendientes) {
-      await notificar(uids, {
-        ...mensajeProximo({ personaNombre: p.nombre, ...c }),
-        url: `/personas/${p.id}/hoy`,
-        personaId: p.id,
-      });
-      await pSnap.ref.collection('recordatorios').doc(idAviso(c)).set({
-        clase: c.elemento.clase,
-        elementoId: c.elemento.id,
-        idHorario: c.idHorario,
-        horario: c.horario,
-        enviadoEn: FieldValue.serverTimestamp(),
-      });
-      enviados += 1;
-    }
+    enviados += await avisarRutinaDe(pSnap, ahora);
+    citas += await avisarCitasDe(pSnap, instante, ahora);
   }
-  logger.info('Avisos previos', { enviados });
+  logger.info('Avisos previos', { enviados, citas });
 });
+
+/** Tomas y tareas de la rutina de una persona cuya hora se acerca. Devuelve cuántos avisos mandó. */
+async function avisarRutinaDe(pSnap, ahora) {
+  const [medsSnap, tareasSnap] = await Promise.all([
+    pSnap.ref.collection('medicamentos').get(),
+    pSnap.ref.collection('tareas').get(),
+  ]);
+  const elementos = elementosAgenda(
+    medsSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+    tareasSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+    AVISO_MEDICAMENTOS_MIN.value(),
+  );
+  const candidatos = proximos(elementos, ahora);
+  if (!candidatos.length) return 0;
+
+  // Por cada horario próximo: ¿ya se registró? ¿ya se avisó?
+  const coleccionDe = (c) => (c.elemento.clase === 'medicamento' ? 'medicamentos' : 'tareas');
+  const registrosDe = (c) => (c.elemento.clase === 'medicamento' ? 'tomas' : 'registros');
+  const idAviso = (c) => `prox-${c.elemento.clase}-${c.elemento.id}-${c.idHorario}`;
+  const refs = candidatos.flatMap((c) => [
+    pSnap.ref
+      .collection(coleccionDe(c))
+      .doc(c.elemento.id)
+      .collection(registrosDe(c))
+      .doc(c.idHorario),
+    pSnap.ref.collection('recordatorios').doc(idAviso(c)),
+  ]);
+  const snaps = await db().getAll(...refs);
+  const pendientes = candidatos.filter(
+    (_, i) => !snaps[2 * i].exists && !snaps[2 * i + 1].exists,
+  );
+  if (!pendientes.length) return 0;
+
+  const p = { id: pSnap.id, ...pSnap.data() };
+  const uids = deGuardia(await miembros(p.id), ahora);
+  let enviados = 0;
+  for (const c of pendientes) {
+    await notificar(uids, {
+      ...mensajeProximo({ personaNombre: p.nombre, ...c }),
+      url: `/personas/${p.id}/hoy`,
+      personaId: p.id,
+    });
+    await pSnap.ref.collection('recordatorios').doc(idAviso(c)).set({
+      clase: c.elemento.clase,
+      elementoId: c.elemento.id,
+      idHorario: c.idHorario,
+      horario: c.horario,
+      enviadoEn: FieldValue.serverTimestamp(),
+    });
+    enviados += 1;
+  }
+  return enviados;
+}
+
+/**
+ * Citas y terapias del calendario que se acercan: `avisarMin` minutos antes (1 h si la cita no
+ * dice; 0 = sin aviso), una sola vez por cita y hora de inicio (si la mueven, vuelve a avisar).
+ * Reciben el aviso quien acompaña, el responsable y los familiares que quieren avisos, y quien
+ * está de guardia (destinatariosCita). Devuelve cuántos avisos mandó.
+ */
+async function avisarCitasDe(pSnap, instante, ahora) {
+  const hasta = new Date(instante.getTime() + AVISO_CITAS_MAX_MIN * 60_000);
+  const snap = await pSnap.ref
+    .collection('eventos_calendario')
+    .where('inicio', '>', Timestamp.fromDate(instante))
+    .where('inicio', '<=', Timestamp.fromDate(hasta))
+    .get();
+  if (snap.empty) return 0;
+  const candidatos = citasProximas(
+    snap.docs.map((d) => ({ id: d.id, ...d.data() })),
+    instante.getTime(),
+  );
+  if (!candidatos.length) return 0;
+
+  const idAviso = (c) => `prox-evento-${c.evento.id}-${c.evento.inicio.toMillis()}`;
+  const avisos = await db().getAll(
+    ...candidatos.map((c) => pSnap.ref.collection('recordatorios').doc(idAviso(c))),
+  );
+  const pendientes = candidatos.filter((_, i) => !avisos[i].exists);
+  if (!pendientes.length) return 0;
+
+  const p = { id: pSnap.id, ...pSnap.data() };
+  const equipo = await miembros(p.id);
+  const zona = ZONA_HORARIA.value();
+  let enviados = 0;
+  for (const c of pendientes) {
+    const acompana = equipo.find((m) => m.uid === c.evento.responsableUid)?.nombre;
+    await notificar(destinatariosCita(equipo, c.evento, ahora), {
+      ...mensajeCita({
+        personaNombre: p.nombre,
+        evento: c.evento,
+        faltanMin: c.faltanMin,
+        inicio: partesEnZona(c.evento.inicio.toDate(), zona),
+        ahora,
+        acompana,
+      }),
+      url: `/personas/${p.id}/hoy`,
+      personaId: p.id,
+    });
+    await pSnap.ref.collection('recordatorios').doc(idAviso(c)).set({
+      clase: 'evento',
+      elementoId: c.evento.id,
+      inicio: c.evento.inicio,
+      enviadoEn: FieldValue.serverTimestamp(),
+    });
+    enviados += 1;
+  }
+  return enviados;
+}
 
 /**
  * Al eliminar una cuenta en Firebase Auth (desde "Mi perfil"): quita al usuario de cada equipo y

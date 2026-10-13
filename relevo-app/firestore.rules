@@ -119,6 +119,18 @@ service cloud.firestore {
         && (!('nota' in d) || (d.nota is string && d.nota.size() <= 200));
     }
 
+    // Una cita, terapia o estudio del calendario (o un turno de versiones anteriores): tipo conocido,
+    // título, inicio y fin como fechas (termina después de empezar), textos con tope y aviso previo
+    // en minutos (hasta una semana antes). Mismos topes que el formulario de la app.
+    function eventoValido(d) {
+      return d.tipo in ['cita', 'terapia', 'turno']
+        && d.titulo is string && d.titulo.size() > 0 && d.titulo.size() <= 80
+        && d.inicio is timestamp && d.fin is timestamp && d.fin >= d.inicio
+        && (!('lugar' in d) || (d.lugar is string && d.lugar.size() <= 120))
+        && (!('notas' in d) || (d.notas is string && d.notas.size() <= 300))
+        && (!('avisarMin' in d) || (d.avisarMin is int && d.avisarMin >= 0 && d.avisarMin <= 10080));
+    }
+
     // Último resurtido (lo que propone el botón Resurtir): opcional; si viene, un entero de 1 a 9999
     function resurtidoValido(d) {
       return !('ultimoResurtido' in d)
@@ -334,10 +346,13 @@ service cloud.firestore {
       // recordatorios/{id}: qué dosis, tareas y avisos previos ya se enviaron. Solo lo escriben las Cloud Functions
       // (Admin SDK, no pasa por estas reglas); desde la app no hay acceso (denegado por defecto).
 
-      // eventos_calendario: familiares y cuidadores coordinan citas y turnos
+      // eventos_calendario: citas, terapias y estudios de una sola vez. Los agendan, editan y borran
+      // el responsable y los familiares (PUEDE_EDITAR_CITAS en la app); enfermeros y médicos los ven.
       match /eventos_calendario/{eventoId} {
         allow read: if esMiembro(personaId);
-        allow write: if tieneRol(personaId, ['familiar', 'cuidador_principal', 'cuidador_turno']);
+        allow create, update: if tieneRol(personaId, ['cuidador_principal', 'familiar'])
+          && eventoValido(request.resource.data);
+        allow delete: if tieneRol(personaId, ['cuidador_principal', 'familiar']);
       }
 
       // signos_vitales: los registran (firmados) quienes marcan tareas de la rutina, porque se

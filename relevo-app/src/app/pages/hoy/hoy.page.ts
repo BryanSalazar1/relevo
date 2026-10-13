@@ -24,13 +24,18 @@ import {
 } from '@ionic/angular';
 import { combineLatest, map, of, switchMap } from 'rxjs';
 import {
+  EventoCalendario,
   Medicamento,
+  PUEDE_EDITAR_CITAS,
   PUEDE_EDITAR_MEDICAMENTOS,
   PUEDE_REGISTRAR_TAREAS,
   PUEDE_REGISTRAR_TOMAS,
+  TIPO_EVENTO_INFO,
+  TipoEvento,
 } from '../../core/models';
 import { AuthService } from '../../core/services/auth.service';
 import { BitacoraService } from '../../core/services/bitacora.service';
+import { EventosService, detalleCita } from '../../core/services/eventos.service';
 import {
   EstadoInventario,
   MedicamentosService,
@@ -57,17 +62,26 @@ import {
   novedadesEntrega,
   textoDesde,
 } from '../../core/utils/entrega-turno';
-import { claveDia, etiquetaDia, inicioDeDia, sumarDias } from '../../core/utils/fechas';
+import {
+  claveDia,
+  etiquetaDia,
+  inicioDeDia,
+  sumarDias,
+  textoFechaRelativa,
+} from '../../core/utils/fechas';
 import { personaActual } from '../../core/utils/persona-actual';
 import { estadoSemaforo } from '../../core/utils/semaforo';
 import { FabAsistente } from '../../shared/fab-asistente.component';
 import { FiltroBitacora } from '../bitacora/bitacora.page';
+import { EditarCitaService } from '../citas/editar-cita.service';
 import { MarcarTomaService } from '../medicamentos/marcar-toma.service';
 import { ResurtirService } from '../medicamentos/resurtir.service';
 import { MarcarTareaService } from '../rutina/marcar-tarea.service';
 
 /** Cada cuánto se vuelve a calcular el estado del día (ms). */
 const REFRESCO_MS = 30_000;
+/** Cuántas citas próximas se muestran en Hoy (todas están en Plan › Citas). */
+const MAX_CITAS_HOY = 3;
 
 /** Última vez que este usuario abrió Hoy de esa persona en este dispositivo (para la Entrega de turno). */
 function claveVisita(personaId: string) {
@@ -132,6 +146,8 @@ export class HoyPage {
   private readonly marcarToma = inject(MarcarTomaService);
   private readonly marcarTarea = inject(MarcarTareaService);
   private readonly resurtirSvc = inject(ResurtirService);
+  private readonly eventosSvc = inject(EventosService);
+  private readonly editarCita = inject(EditarCitaService);
   private readonly toast = inject(ToastController);
   private readonly router = inject(Router);
 
@@ -264,6 +280,25 @@ export class HoyPage {
   );
   readonly hayAgotados = computed(() => this.porResurtir().some((x) => x.estado.nivel === 'agotado'));
 
+  // ---------------------------------------------------------------- Próximas citas
+  /** Citas desde hoy (una de hoy ya pasada sigue hasta mañana); se pide una de más para saber si hay más */
+  private readonly citas = toSignal(
+    this.ctx.personaId$.pipe(
+      switchMap((id) => this.eventosSvc.proximos(id, inicioDeDia(new Date()), MAX_CITAS_HOY + 1)),
+    ),
+  );
+  readonly citasVisibles = computed(() => (this.citas() ?? []).slice(0, MAX_CITAS_HOY));
+  readonly hayMasCitas = computed(() => (this.citas()?.length ?? 0) > MAX_CITAS_HOY);
+  /** El equipo, para mostrar quién acompaña a cada cita */
+  private readonly miembros = toSignal(
+    this.ctx.personaId$.pipe(switchMap((id) => this.miembrosSvc.miembros(id))),
+  );
+  /** Responsable y familiares agendan y editan citas */
+  readonly puedeEditarCitas = computed(() => {
+    const r = this.rol();
+    return !!r && PUEDE_EDITAR_CITAS.includes(r);
+  });
+
   readonly puedeRegistrarTomas = computed(() => {
     const r = this.rol();
     return !!r && PUEDE_REGISTRAR_TOMAS.includes(r);
@@ -326,6 +361,32 @@ export class HoyPage {
     const tipos = new Set((this.entrega() ?? []).map((n) => n.tipo));
     const filtro: FiltroBitacora | null = tipos.has('incidente') ? 'incidente' : tipos.has('sintoma') ? 'sintoma' : null;
     void this.router.navigate(['/personas', id, 'bitacora'], { queryParams: filtro ? { filtro } : {} });
+  }
+
+  // ---------------------------------------------------------------- Citas
+  infoEvento(tipo: TipoEvento) {
+    return TIPO_EVENTO_INFO[tipo] ?? TIPO_EVENTO_INFO.cita;
+  }
+
+  /** "hoy 10:00", "mañana 10:00", "jue 15 oct, 10:00" */
+  cuandoCita(c: EventoCalendario): string {
+    return textoFechaRelativa(c.inicio.toDate(), this.ahora());
+  }
+
+  /** "1 h · Hospital Ángeles · acompaña Sofía" */
+  detalleCita(c: EventoCalendario): string {
+    return detalleCita(c, (uid) => this.miembros()?.find((m) => m.uid === uid)?.nombre);
+  }
+
+  /** Una cita de hoy que ya terminó se ve atenuada */
+  citaPasada(c: EventoCalendario): boolean {
+    return c.fin.toDate().getTime() < this.ahora().getTime();
+  }
+
+  opcionesCita(c: EventoCalendario) {
+    const id = this.ctx.personaId();
+    if (!id || !this.puedeEditarCitas()) return;
+    void this.editarCita.opciones(id, c);
   }
 
   puedeMarcar(f: FilaDia): boolean {

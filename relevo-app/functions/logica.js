@@ -580,3 +580,102 @@ SÍNTOMAS E INCIDENTES
 RUTINA Y ALIMENTACIÓN
 SIGNOS VITALES
 PARA COMENTAR CON EL MÉDICO`;
+
+// ---------------------------------------------------------------------------
+// Citas del calendario (eventos_calendario): aviso previo
+// ---------------------------------------------------------------------------
+
+/** Anticipación del aviso cuando la cita no dice (AVISO_CITA_MIN_POR_DEFECTO en la app) */
+export const AVISO_CITAS_MIN = 60;
+/** Anticipación máxima que se admite (una semana): acota la consulta del calendario */
+export const AVISO_CITAS_MAX_MIN = 7 * 24 * 60;
+
+const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+/** Milisegundos de un Timestamp de Firestore, Date o número; null si no es una fecha. */
+function milisDe(valor) {
+  if (valor == null) return null;
+  if (typeof valor.toMillis === 'function') return valor.toMillis();
+  if (valor instanceof Date) return valor.getTime();
+  if (typeof valor === 'number') return valor;
+  if (typeof valor.seconds === 'number') return valor.seconds * 1000;
+  return null;
+}
+
+/**
+ * Citas y terapias cuyo inicio se acerca: faltan entre 1 y `avisarMin` minutos (AVISO_CITAS_MIN si
+ * la cita no dice; 0 = sin aviso). Los turnos (versiones anteriores) no avisan.
+ * Devuelve [{ evento, faltanMin }].
+ */
+export function citasProximas(eventos, ahoraMs) {
+  const salida = [];
+  for (const ev of eventos ?? []) {
+    if (!ev?.id || ev.tipo === 'turno') continue;
+    const inicioMs = milisDe(ev.inicio);
+    if (inicioMs === null) continue;
+    const avisar = ev.avisarMin == null ? AVISO_CITAS_MIN : Number(ev.avisarMin);
+    if (!(avisar > 0)) continue;
+    const faltan = Math.ceil((inicioMs - ahoraMs) / 60000);
+    if (faltan <= 0 || faltan > avisar) continue;
+    salida.push({ evento: ev, faltanMin: faltan });
+  }
+  return salida;
+}
+
+/** "en 1 min", "en 45 min", "en 1 h", "en 1 h 30 min", "en 1 día", "en 2 días". */
+export function textoFaltan(min) {
+  if (min <= 1) return 'en 1 min';
+  if (min < 60) return `en ${min} min`;
+  if (min < 1440) {
+    const h = Math.floor(min / 60);
+    const resto = min % 60;
+    return resto ? `en ${h} h ${resto} min` : `en ${h} h`;
+  }
+  const dias = Math.round(min / 1440);
+  return `en ${dias} ${dias === 1 ? 'día' : 'días'}`;
+}
+
+/** "hoy a las 10:00", "mañana a las 10:00" o "el 27 oct a las 10:00" (partes de partesEnZona). */
+export function cuandoCita(inicio, ahora) {
+  const hhmm = `${String(inicio.hora).padStart(2, '0')}:${String(inicio.minuto).padStart(2, '0')}`;
+  if (inicio.fecha === ahora.fecha) return `hoy a las ${hhmm}`;
+  if (inicio.fecha === sumarDiasIso(ahora.fecha, 1)) return `mañana a las ${hhmm}`;
+  return `el ${Number(inicio.d)} ${MESES_CORTOS[Number(inicio.m) - 1]} a las ${hhmm}`;
+}
+
+/**
+ * Aviso de cita: "Lupe: en 1 h · Cita" / "Cardiólogo hoy a las 10:00 · Hospital Ángeles · acompaña
+ * Sofía · Llevar el reporte". `inicio` y `ahora` son partes de partesEnZona.
+ */
+export function mensajeCita({ personaNombre, evento, faltanMin, inicio, ahora, acompana }) {
+  const clase = evento.tipo === 'terapia' ? 'Terapia' : 'Cita';
+  const partes = [`${evento.titulo} ${cuandoCita(inicio, ahora)}`];
+  if (evento.lugar) partes.push(evento.lugar);
+  if (acompana) partes.push(`acompaña ${acompana}`);
+  if (evento.notas) partes.push(evento.notas);
+  return {
+    titulo: `${personaNombre}: ${textoFaltan(faltanMin)} · ${clase}`,
+    cuerpo: recortar(partes.join(' · ')),
+  };
+}
+
+/**
+ * Quién recibe el aviso de una cita: quien está de guardia (como los demás recordatorios), más
+ * quien acompaña (siempre) y el responsable y los familiares que reciben avisos del equipo (una
+ * cita cuenta como importante), para que la familia se entere aunque no esté de guardia.
+ */
+export function destinatariosCita(miembros, evento, ahora) {
+  const uids = new Set(deGuardia(miembros, ahora));
+  for (const m of miembros) {
+    if (!m.uid) continue;
+    if (m.uid === evento.responsableUid) {
+      uids.add(m.uid);
+    } else if (
+      ['cuidador_principal', 'familiar'].includes(m.rol) &&
+      quiereAviso(m, { importante: true, ahora })
+    ) {
+      uids.add(m.uid);
+    }
+  }
+  return [...uids];
+}

@@ -110,6 +110,28 @@ export function aIsoLocal(d: Date): string {
   return formatDate(d, "yyyy-MM-dd'T'HH:mm", 'es');
 }
 
+/** "hoy 10:00", "mañana 10:00", "ayer 16:30", "jue 15 oct, 10:00" o "15 ene 2027, 10:00", para citas. */
+export function textoFechaRelativa(d: Date, ahora = new Date()): string {
+  const hora = formatDate(d, 'HH:mm', 'es');
+  const clave = claveDia(d);
+  if (clave === claveDia(ahora)) return `hoy ${hora}`;
+  if (clave === claveDia(sumarDias(ahora, 1))) return `mañana ${hora}`;
+  if (clave === claveDia(sumarDias(ahora, -1))) return `ayer ${hora}`;
+  const fecha =
+    d.getFullYear() === ahora.getFullYear()
+      ? formatDate(d, 'EEE d MMM', 'es')
+      : formatDate(d, 'd MMM y', 'es');
+  return `${fecha.replace(/\./g, '')}, ${hora}`;
+}
+
+/** "Sin aviso", "30 min antes", "1 h antes", "1 día antes", para la anticipación de una cita. */
+export function textoAnticipacion(min?: number | null): string {
+  if (!min || min <= 0) return 'Sin aviso';
+  if (min < 1440) return `${textoDuracion(min)} antes`;
+  const dias = Math.round(min / 1440);
+  return `${dias} ${dias === 1 ? 'día' : 'días'} antes`;
+}
+
 export interface GrupoDia<T> {
   clave: string;
   dia: Date;

@@ -3,8 +3,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   avisoInventario,
+  AVISO_CITAS_MIN,
+  citasProximas,
   correoHtml,
+  cuandoCita,
   deGuardia,
+  destinatariosCita,
+  mensajeCita,
+  textoFaltan,
   destinatarios,
   destinatariosAlertas,
   destinatariosInventario,
@@ -957,4 +963,88 @@ test('deGuardia: quien apagó los recordatorios no los recibe, ni como respaldo'
   assert.deepEqual(deGuardia(miembros, martes2330), []);
   // Sin turnos en el equipo, todos los que registran... salvo quien los apagó
   assert.deepEqual(deGuardia([{ uid: 'a', rol: 'familiar' }, { uid: 'b', rol: 'familiar', recordatorios: false }], martes0830), ['a']);
+});
+
+test('citasProximas: citas por llegar dentro de su anticipación (1 h si no dicen); 0 = sin aviso; los turnos no', () => {
+  const ahora = Date.UTC(2026, 9, 20, 15, 0); // 2026-10-20 09:00 CDMX
+  const en = (min) => ({ toMillis: () => ahora + min * 60000 });
+  const eventos = [
+    { id: 'c1', tipo: 'cita', titulo: 'Cardiólogo', inicio: en(45) },
+    { id: 'c2', tipo: 'cita', titulo: 'Lejos todavía', inicio: en(90) },
+    { id: 'c3', tipo: 'terapia', titulo: 'Fisioterapia', inicio: en(100), avisarMin: 120 },
+    { id: 'c4', tipo: 'cita', titulo: 'Sin aviso', inicio: en(10), avisarMin: 0 },
+    { id: 'c5', tipo: 'cita', titulo: 'Ya empezó', inicio: en(-5) },
+    { id: 't1', tipo: 'turno', titulo: 'Turno de Marta', inicio: en(30) },
+    { id: 'c6', tipo: 'cita', titulo: 'Un día antes, justo', inicio: en(1440), avisarMin: 1440 },
+    { id: 'c7', tipo: 'cita', titulo: 'Sin fecha' },
+  ];
+  assert.deepEqual(
+    citasProximas(eventos, ahora).map((c) => [c.evento.id, c.faltanMin]),
+    [
+      ['c1', 45],
+      ['c3', 100],
+      ['c6', 1440],
+    ],
+  );
+  assert.equal(AVISO_CITAS_MIN, 60);
+});
+
+test('textoFaltan y cuandoCita', () => {
+  assert.equal(textoFaltan(1), 'en 1 min');
+  assert.equal(textoFaltan(45), 'en 45 min');
+  assert.equal(textoFaltan(60), 'en 1 h');
+  assert.equal(textoFaltan(90), 'en 1 h 30 min');
+  assert.equal(textoFaltan(1440), 'en 1 día');
+  assert.equal(textoFaltan(2880), 'en 2 días');
+  const ahora = partesEnZona(new Date('2026-10-20T15:00:00Z'), ZONA); // mar 20 oct, 09:00 CDMX
+  const partes = (iso) => partesEnZona(new Date(iso), ZONA);
+  assert.equal(cuandoCita(partes('2026-10-20T16:00:00Z'), ahora), 'hoy a las 10:00');
+  assert.equal(cuandoCita(partes('2026-10-21T13:30:00Z'), ahora), 'mañana a las 07:30');
+  assert.equal(cuandoCita(partes('2026-10-27T16:00:00Z'), ahora), 'el 27 oct a las 10:00');
+});
+
+test('mensajeCita: anticipación y tipo en el título; cuándo, lugar, quién acompaña y notas en el cuerpo', () => {
+  const ahora = partesEnZona(new Date('2026-10-20T15:00:00Z'), ZONA);
+  const m = mensajeCita({
+    personaNombre: 'Lupe',
+    evento: { tipo: 'cita', titulo: 'Cardiólogo', lugar: 'Hospital Ángeles', notas: 'Llevar el reporte' },
+    faltanMin: 60,
+    inicio: partesEnZona(new Date('2026-10-20T16:00:00Z'), ZONA),
+    ahora,
+    acompana: 'Sofía',
+  });
+  assert.equal(m.titulo, 'Lupe: en 1 h · Cita');
+  assert.equal(m.cuerpo, 'Cardiólogo hoy a las 10:00 · Hospital Ángeles · acompaña Sofía · Llevar el reporte');
+  const t = mensajeCita({
+    personaNombre: 'Lupe',
+    evento: { tipo: 'terapia', titulo: 'Fisioterapia' },
+    faltanMin: 1440,
+    inicio: partesEnZona(new Date('2026-10-21T16:00:00Z'), ZONA),
+    ahora,
+  });
+  assert.equal(t.titulo, 'Lupe: en 1 día · Terapia');
+  assert.equal(t.cuerpo, 'Fisioterapia mañana a las 10:00');
+});
+
+test('destinatariosCita: quien acompaña siempre; responsable y familiares según sus avisos; cuidadores solo de guardia; el médico no', () => {
+  const ahora = partesEnZona(new Date('2026-10-20T15:00:00Z'), ZONA); // martes 09:00
+  const todos = [0, 1, 2, 3, 4, 5, 6];
+  const miembros = [
+    { uid: 'ana', rol: 'cuidador_principal' },
+    { uid: 'marta', rol: 'cuidador_turno', turnos: [{ dias: todos, desde: '20:00', hasta: '08:00' }] },
+    { uid: 'pedro', rol: 'cuidador_turno', turnos: [{ dias: [2], desde: '08:00', hasta: '14:00' }] },
+    { uid: 'sofia', rol: 'familiar', avisos: 'ninguno' },
+    { uid: 'raul', rol: 'familiar', avisos: 'importantes' },
+    { uid: 'lupe', rol: 'familiar', avisos: 'ninguno' },
+    { uid: 'luis', rol: 'medico' },
+  ];
+  const cita = { id: 'c1', tipo: 'cita', titulo: 'Cardiólogo', responsableUid: 'sofia' };
+  assert.deepEqual(destinatariosCita(miembros, cita, ahora).sort(), ['ana', 'pedro', 'raul', 'sofia']);
+  // Sin turnos definidos nadie está "de guardia" en particular: reciben el recordatorio todos los
+  // que registran (como las tomas), salvo quien apagó los recordatorios
+  const sinTurnos = miembros.filter((m) => !m.turnos).map((m) => (m.uid === 'lupe' ? { ...m, recordatorios: false } : m));
+  assert.deepEqual(
+    destinatariosCita(sinTurnos, { ...cita, responsableUid: null }, ahora).sort(),
+    ['ana', 'raul', 'sofia'],
+  );
 });

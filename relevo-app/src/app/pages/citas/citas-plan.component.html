@@ -1,0 +1,71 @@
+<ion-list inset class="lista-citas">
+  <ion-list-header>
+    <ion-label>Próximas citas</ion-label>
+  </ion-list-header>
+  @if (proximas(); as lista) {
+    @for (c of lista; track c.id) {
+      <ion-item [button]="puedeEditar()" [detail]="false" (click)="opcionesCita(c)">
+        <ion-icon slot="start" [name]="info(c.tipo).icono" [color]="info(c.tipo).color" />
+        <ion-label class="ion-text-wrap">
+          <h2>{{ c.titulo }}</h2>
+          <p>
+            <strong>{{ cuando(c) }}</strong> · {{ detalle(c) }}
+            @if (c.notas) {
+              · {{ c.notas }}
+            }
+          </p>
+        </ion-label>
+      </ion-item>
+    } @empty {
+      <ion-item lines="none">
+        <ion-label class="ion-text-wrap" color="medium">
+          Sin citas próximas.
+          @if (puedeEditar()) {
+            Toca <strong>+</strong> para agendar una consulta, un análisis o una terapia.
+          }
+        </ion-label>
+      </ion-item>
+    }
+  } @else {
+    <ion-item lines="none"><ion-spinner name="crescent" /></ion-item>
+  }
+</ion-list>
+
+@if (anteriores(); as pasadas) {
+  @if (pasadas.length > 0) {
+    <ion-list inset class="lista-citas anteriores">
+      <ion-list-header>
+        <ion-label>Anteriores</ion-label>
+      </ion-list-header>
+      @for (c of pasadas; track c.id) {
+        <ion-item [button]="puedeEditar()" [detail]="false" (click)="opcionesCita(c)">
+          <ion-icon slot="start" [name]="info(c.tipo).icono" color="medium" />
+          <ion-label class="ion-text-wrap">
+            <h2>{{ c.titulo }}</h2>
+            <p>
+              <strong>{{ cuando(c) }}</strong> · {{ detalle(c) }}
+              @if (c.notas) {
+                · {{ c.notas }}
+              }
+            </p>
+          </ion-label>
+        </ion-item>
+      }
+    </ion-list>
+  }
+}
+
+@if (rol()) {
+  <div class="ion-padding ion-text-center">
+    <ion-text color="medium">
+      <p>
+        @if (puedeEditar()) {
+          Toca una cita para editarla o eliminarla. El equipo recibe un aviso antes de cada una y las
+          próximas se ven en <strong>Hoy</strong>.
+        } @else {
+          Las citas las agendan el responsable y los familiares. Recibes un aviso antes de cada una.
+        }
+      </p>
+    </ion-text>
+  </div>
+}

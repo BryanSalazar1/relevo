@@ -181,7 +181,8 @@ async function main() {
   console.log('5) Cita agendada por Sofía (familiar)');
   await signInWithEmailAndPassword(auth, 'sofia@relevo.test', PASSWORD);
   b = writeBatch(db);
-  b.set(doc(personaRef, 'eventos_calendario', 'cita-cardio'), { tipo: 'cita', titulo: 'Cardiólogo — control de presión', inicio: hace(-6, 10), fin: hace(-6, 11), responsableUid: sofia, notas: 'Llevar reporte de presión de la semana' });
+  b.set(doc(personaRef, 'eventos_calendario', 'cita-cardio'), { tipo: 'cita', titulo: 'Cardiólogo — control de presión', inicio: hace(-6, 10), fin: hace(-6, 11), responsableUid: sofia, lugar: 'Hospital Ángeles, consultorio 12', notas: 'Llevar reporte de presión de la semana', avisarMin: 60 });
+  b.set(doc(personaRef, 'eventos_calendario', 'cita-laboratorio'), { tipo: 'cita', titulo: 'Análisis de sangre', inicio: hace(-1, 7, 30), fin: hace(-1, 8), responsableUid: ana, lugar: 'Laboratorio del Centro Médico', notas: 'En ayunas desde las 22:00', avisarMin: 1440 });
   b.update(doc(db, 'usuarios', sofia), { personas: arrayUnion(PERSONA_ID) });
   await b.commit();
 

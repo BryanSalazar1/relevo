@@ -123,6 +123,39 @@
       </ion-list>
     }
 
+    @if (esHoy() && citasVisibles().length > 0) {
+      <ion-list inset class="citas">
+        <ion-list-header>
+          <ion-label>Próximas citas</ion-label>
+          @if (hayMasCitas()) {
+            <ion-button fill="clear" size="small" routerLink="../plan/citas">Ver todas</ion-button>
+          }
+        </ion-list-header>
+        @for (c of citasVisibles(); track c.id) {
+          <ion-item
+            [button]="puedeEditarCitas()"
+            [detail]="false"
+            (click)="opcionesCita(c)"
+            [class.pasada]="citaPasada(c)"
+          >
+            <ion-icon slot="start" [name]="infoEvento(c.tipo).icono" [color]="infoEvento(c.tipo).color" />
+            <ion-label class="ion-text-wrap">
+              <h2>{{ c.titulo }}</h2>
+              <p>
+                <strong>{{ cuandoCita(c) }}</strong>
+                @if (detalleCita(c); as d) {
+                  · {{ d }}
+                }
+                @if (c.notas) {
+                  · {{ c.notas }}
+                }
+              </p>
+            </ion-label>
+          </ion-item>
+        }
+      </ion-list>
+    }
+
     <ion-list inset class="agenda">
       <ion-list-header>
         <ion-label>{{ esHoy() ? 'Hoy' : etiquetaDia(dia()) }}</ion-label>

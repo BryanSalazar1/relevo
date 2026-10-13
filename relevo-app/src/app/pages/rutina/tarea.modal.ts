@@ -24,9 +24,11 @@ import {
   OPCIONES_DURACION_MIN,
   TIPOS_SIGNO,
   TIPOS_TAREA,
+  TIPOS_TAREA_TODOS,
   Tarea,
   TipoSigno,
   TipoTarea,
+  TipoTareaInfo,
 } from '../../core/models';
 import { DatosTarea } from '../../core/services/tareas.service';
 import { rangoHorario, textoDias, textoDuracion } from '../../core/utils/fechas';
@@ -248,7 +250,8 @@ export class TareaModal implements OnInit {
   /** Se rellena desde componentProps al editar */
   tarea: Tarea | null = null;
 
-  readonly tipos = TIPOS_TAREA;
+  /** Tipos que se ofrecen; al editar una tarea de un tipo que ya no se ofrece (cita), ese también */
+  tipos: TipoTareaInfo[] = TIPOS_TAREA;
   readonly tiposSigno = TIPOS_SIGNO;
   readonly diasSemana = DIAS_SEMANA;
   readonly textoDias = textoDias;
@@ -270,6 +273,10 @@ export class TareaModal implements OnInit {
 
   ngOnInit() {
     if (this.tarea) {
+      const actual = this.tarea.tipo;
+      if (!TIPOS_TAREA.some((t) => t.valor === actual)) {
+        this.tipos = TIPOS_TAREA_TODOS.filter((t) => TIPOS_TAREA.includes(t) || t.valor === actual);
+      }
       this.tipo.set(this.tarea.tipo);
       this.nombre = this.tarea.nombre;
       this.horarios.set([...(this.tarea.horarios ?? [])]);

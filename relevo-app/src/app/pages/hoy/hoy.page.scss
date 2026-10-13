@@ -211,6 +211,19 @@ ion-list.por-resurtir ion-item {
   }
 }
 
+// Próximas citas: "Ver todas" en la cabecera y las de hoy ya pasadas atenuadas
+ion-list.citas {
+  ion-list-header ion-button {
+    margin-right: 8px;
+    font-size: 0.85rem;
+    text-transform: none;
+  }
+
+  ion-item.pasada ion-label {
+    opacity: 0.6;
+  }
+}
+
 ion-item.registrada ion-label {
   opacity: 0.75;
 }
