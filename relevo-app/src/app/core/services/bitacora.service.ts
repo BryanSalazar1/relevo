@@ -16,9 +16,10 @@ import {
   where,
 } from '@angular/fire/firestore';
 import { Observable, catchError, combineLatest, map, of } from 'rxjs';
-import { EntradaBitacora, TipoEntrada } from '../models';
+import { EntradaBitacora, SignoVital, TipoEntrada } from '../models';
 import { AuthService } from './auth.service';
 import { MedicamentosService, TomaRegistrada } from './medicamentos.service';
+import { SignosService } from './signos.service';
 import { RegistroReciente, TareasService } from './tareas.service';
 
 export interface DatosEntrada {
@@ -31,7 +32,25 @@ export interface DatosEntrada {
 export type ItemBitacora =
   | { clase: 'entrada'; id: string; fecha: Date; entrada: EntradaBitacora }
   | { clase: 'toma'; id: string; fecha: Date; toma: TomaRegistrada }
-  | { clase: 'tarea'; id: string; fecha: Date; registro: RegistroReciente };
+  | { clase: 'tarea'; id: string; fecha: Date; registro: RegistroReciente }
+  /** Mediciones sueltas tomadas en el mismo momento (las de una tarea van en su registro) */
+  | { clase: 'signo'; id: string; fecha: Date; signos: SignoVital[] };
+
+/** Agrupa las mediciones sueltas por instante y autor: una línea por cada vez que se midió. */
+export function agruparSignosSueltos(signos: SignoVital[]): ItemBitacora[] {
+  const grupos = new Map<string, SignoVital[]>();
+  for (const s of signos) {
+    if (s.tareaId) continue;
+    const clave = `${s.fecha.toMillis()}-${s.autorUid}`;
+    grupos.set(clave, [...(grupos.get(clave) ?? []), s]);
+  }
+  return [...grupos.entries()].map(([clave, lista]) => ({
+    clase: 'signo',
+    id: `s-${clave}`,
+    fecha: lista[0].fecha.toDate(),
+    signos: lista,
+  }));
+}
 
 @Injectable({ providedIn: 'root' })
 export class BitacoraService {
@@ -39,6 +58,7 @@ export class BitacoraService {
   private readonly authSvc = inject(AuthService);
   private readonly medsSvc = inject(MedicamentosService);
   private readonly tareasSvc = inject(TareasService);
+  private readonly signosSvc = inject(SignosService);
 
   private ref(personaId: string) {
     return collection(this.db, `personas_cuidadas/${personaId}/entradas_bitacora`);
@@ -62,9 +82,11 @@ export class BitacoraService {
       this.entradas(personaId),
       this.medsSvc.tomasRecientes(personaId),
       this.tareasSvc.registrosRecientes(personaId),
+      this.signosSvc.ultimos(personaId),
     ]).pipe(
-      map(([entradas, tomas, registros]) =>
+      map(([entradas, tomas, registros, signos]) =>
         [
+          ...agruparSignosSueltos(signos),
           ...entradas.map((e): ItemBitacora => ({
             clase: 'entrada',
             id: `e-${e.id}`,

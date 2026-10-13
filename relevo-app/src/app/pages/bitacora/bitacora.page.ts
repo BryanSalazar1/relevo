@@ -27,15 +27,20 @@ import {
 import { switchMap } from 'rxjs';
 import {
   EntradaBitacora,
+  INFO_SIGNO_BITACORA,
   INFO_TAREA_BITACORA,
   INFO_TOMA,
   PUEDE_ESCRIBIR_BITACORA,
+  PUEDE_REGISTRAR_TAREAS,
+  SignoVital,
   TIPO_TAREA_INFO,
   TipoTarea,
   TIPOS_ENTRADA,
   TIPO_ENTRADA_INFO,
   TipoEntrada,
 } from '../../core/models';
+import { textoSigno } from '../../core/utils/entrega-turno';
+import { MarcarTareaService } from '../rutina/marcar-tarea.service';
 import { AuthService } from '../../core/services/auth.service';
 import { BitacoraService, DatosEntrada, ItemBitacora } from '../../core/services/bitacora.service';
 import { TomaRegistrada } from '../../core/services/medicamentos.service';
@@ -46,12 +51,12 @@ import { EntradaModal } from './entrada.modal';
 import { FabAsistente } from '../../shared/fab-asistente.component';
 
 /** Qué se muestra: un tipo de entrada, solo tomas de medicamentos, solo tareas, o todo (null). */
-export type FiltroBitacora = TipoEntrada | 'toma' | 'tarea';
+export type FiltroBitacora = TipoEntrada | 'toma' | 'tarea' | 'signo';
 
 /** El filtro pedido en la URL (?filtro=...), solo si es uno conocido. */
 function filtroDeRuta(route: ActivatedRoute): FiltroBitacora | null {
   const f = route.snapshot.queryParamMap.get('filtro');
-  const validos: string[] = ['toma', 'tarea', ...TIPOS_ENTRADA.map((t) => t.valor)];
+  const validos: string[] = ['toma', 'tarea', 'signo', ...TIPOS_ENTRADA.map((t) => t.valor)];
   return f && validos.includes(f) ? (f as FiltroBitacora) : null;
 }
 
@@ -84,6 +89,7 @@ function filtroDeRuta(route: ActivatedRoute): FiltroBitacora | null {
 export class BitacoraPage {
   private readonly auth = inject(AuthService);
   private readonly bitacoraSvc = inject(BitacoraService);
+  private readonly marcarTareaSvc = inject(MarcarTareaService);
   private readonly modalCtrl = inject(ModalController);
   private readonly actionSheetCtrl = inject(ActionSheetController);
   private readonly alertCtrl = inject(AlertController);
@@ -109,7 +115,7 @@ export class BitacoraPage {
     const f = this.filtro();
     const filtradas = !f
       ? lista
-      : f === 'toma' || f === 'tarea'
+      : f === 'toma' || f === 'tarea' || f === 'signo'
         ? lista.filter((i) => i.clase === f)
         : lista.filter((i) => i.clase === 'entrada' && i.entrada.tipo === f);
     return agruparPorDia(filtradas, (i) => i.fecha);
@@ -121,11 +127,30 @@ export class BitacoraPage {
     const r = this.rol();
     return !!r && PUEDE_ESCRIBIR_BITACORA.includes(r);
   });
+  /** Quienes marcan tareas también registran signos sueltos (mismos roles en firestore.rules) */
+  readonly puedeRegistrarSignos = computed(() => {
+    const r = this.rol();
+    return !!r && PUEDE_REGISTRAR_TAREAS.includes(r);
+  });
+  readonly infoSigno = INFO_SIGNO_BITACORA;
 
   info(tipo: FiltroBitacora) {
     if (tipo === 'toma') return INFO_TOMA;
     if (tipo === 'tarea') return INFO_TAREA_BITACORA;
+    if (tipo === 'signo') return INFO_SIGNO_BITACORA;
     return TIPO_ENTRADA_INFO[tipo];
+  }
+
+  /** "Presión 130/85 mmHg · Glucosa 110 mg/dL" para una línea de mediciones sueltas. */
+  textoSignos(signos: SignoVital[]): string {
+    return signos.map(textoSigno).join(' · ');
+  }
+
+  /** Signos vitales ahora mismo, sin tarea de por medio (el botón del pulso en la barra). */
+  async registrarSignos() {
+    const personaId = this.ctx.personaId();
+    if (!personaId || !this.puedeRegistrarSignos()) return;
+    await this.marcarTareaSvc.registrarSueltos(personaId);
   }
 
   /** Icono y color del tipo de tarea (comida, baño…) para el registro en la bitácora. */
@@ -181,6 +206,13 @@ export class BitacoraPage {
           icon: INFO_TAREA_BITACORA.icono,
           handler: () => {
             this.filtro.set('tarea');
+          },
+        },
+        {
+          text: 'Signos vitales',
+          icon: INFO_SIGNO_BITACORA.icono,
+          handler: () => {
+            this.filtro.set('signo');
           },
         },
         {

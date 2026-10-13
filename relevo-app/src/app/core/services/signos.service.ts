@@ -43,6 +43,45 @@ export class SignosService {
     return doc(this.db, `personas_cuidadas/${personaId}/signos_vitales/${id}`);
   }
 
+  /**
+   * Mediciones sueltas (sin tarea), en cualquier momento. Id `suelto-{instante}-{tipo}`, todas con la
+   * misma `fecha` para que la bitácora las muestre como una sola línea.
+   */
+  async guardarSueltas(personaId: string, mediciones: Medicion[], nota?: string): Promise<void> {
+    const uid = this.authSvc.uid;
+    if (!uid) throw new Error('No hay sesión iniciada');
+    if (!mediciones.length) throw new Error('Sin mediciones');
+    const fecha = new Date();
+    const instante = fecha.getTime();
+    const batch = writeBatch(this.db);
+    for (const m of mediciones) {
+      const info = TIPOS_SIGNO.find((t) => t.valor === m.tipo);
+      batch.set(this.ref(personaId, `suelto-${instante}-${m.tipo}`), {
+        tipo: m.tipo,
+        valor: m.valor,
+        valorSecundario: m.valorSecundario ?? null,
+        unidad: info?.unidad ?? '',
+        fecha: Timestamp.fromDate(fecha),
+        autorUid: uid,
+        autorNombre: this.authSvc.nombreActual,
+        ...(nota?.trim() ? { nota: nota.trim().slice(0, 200) } : {}),
+      });
+    }
+    await batch.commit();
+  }
+
+  /** Las últimas mediciones, de la más reciente a la más antigua (para la bitácora). */
+  ultimos(personaId: string, maximo = 300): Observable<SignoVital[]> {
+    const q = query(
+      collection(this.db, `personas_cuidadas/${personaId}/signos_vitales`),
+      orderBy('fecha', 'desc'),
+      limit(maximo),
+    );
+    return (collectionData(q, { idField: 'id' }) as Observable<SignoVital[]>).pipe(
+      catchError(() => of([] as SignoVital[])),
+    );
+  }
+
   /** Mediciones desde una fecha, de la más reciente a la más antigua (para la Entrega de turno). */
   recientes(personaId: string, desde: Date, maximo = 100): Observable<SignoVital[]> {
     const q = query(

@@ -32,6 +32,12 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/unirse/unirse.page').then((m) => m.UnirsePage),
   },
   {
+    // Ficha de emergencia: pantalla completa de lectura rápida, fuera de las pestañas
+    path: 'personas/:id/ficha',
+    canActivate: [authGuard],
+    loadComponent: () => import('./pages/ficha/ficha.page').then((m) => m.FichaPage),
+  },
+  {
     // Pantalla completa, fuera de las pestañas: va antes de personas/:id
     path: 'personas/:id/semaforo',
     canActivate: [authGuard],

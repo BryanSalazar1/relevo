@@ -193,6 +193,16 @@ ion-card.estado {
   }
 }
 
+.acciones-hoy {
+  display: flex;
+  justify-content: center;
+  margin: 4px 16px 8px;
+
+  ion-button {
+    --border-width: 1.5px;
+  }
+}
+
 ion-list.por-resurtir ion-item {
   --min-height: 52px;
 

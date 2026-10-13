@@ -1,0 +1,202 @@
+// Ficha de emergencia: letra grande, alto contraste, nada decorativo
+.pantalla {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: calc(var(--ion-safe-area-top, 0px) + 8px) 20px
+    calc(var(--ion-safe-area-bottom, 0px) + 24px);
+}
+
+.barra {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: -10px;
+
+  ion-button {
+    --background: var(--relevo-primario-suave);
+    --border-radius: 999px;
+    --padding-start: 0;
+    --padding-end: 0;
+    width: 42px;
+    height: 42px;
+  }
+
+  .titulo-barra {
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ion-color-danger);
+  }
+}
+
+h1 {
+  margin: 10px 0 2px;
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.datos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 0 0 14px;
+  font-size: 1.2rem;
+  font-weight: 600;
+
+  .sangre {
+    padding: 2px 12px;
+    border-radius: 999px;
+    background: rgba(229, 72, 77, 0.12);
+    color: var(--ion-color-danger);
+
+    &.vacio {
+      background: var(--relevo-superficie-alta);
+      color: var(--relevo-texto-2);
+      font-weight: 500;
+    }
+  }
+}
+
+section {
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  border-radius: var(--relevo-radio);
+  background: var(--relevo-superficie);
+  border: 1px solid var(--relevo-borde);
+  box-shadow: var(--relevo-sombra);
+
+  h2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 6px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--relevo-texto-2);
+
+    ion-icon {
+      font-size: 18px;
+    }
+  }
+
+  p,
+  li {
+    margin: 0;
+    font-size: 1.15rem;
+    line-height: 1.45;
+  }
+
+  p + p {
+    margin-top: 4px;
+  }
+
+  ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  li + li {
+    margin-top: 6px;
+  }
+
+  a {
+    color: var(--ion-color-primary);
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .suave {
+    color: var(--relevo-texto-2);
+    font-weight: 400;
+  }
+
+  .notas {
+    white-space: pre-wrap;
+  }
+}
+
+// Las alergias son lo primero que se busca: en rojo y más grandes
+section.alergias {
+  border-color: rgba(229, 72, 77, 0.45);
+  background: rgba(229, 72, 77, 0.07);
+
+  h2 {
+    color: var(--ion-color-danger);
+  }
+
+  .grande {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--ion-color-danger);
+  }
+
+  &.ninguna {
+    border-color: var(--relevo-borde);
+    background: var(--relevo-superficie);
+
+    h2 {
+      color: var(--relevo-texto-2);
+    }
+  }
+}
+
+// Cada contacto es un botón grande que marca: nombre arriba, teléfono abajo, el auricular a la derecha
+.contacto {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: 12px;
+  align-items: center;
+  margin-top: 8px;
+  padding: 12px 14px;
+  border-radius: var(--relevo-radio-medio);
+  background: var(--relevo-primario-degradado);
+  color: #ffffff !important;
+  box-shadow: var(--relevo-primario-sombra);
+
+  .nombre {
+    grid-column: 1;
+    min-width: 0;
+    font-size: 1.05rem;
+  }
+
+  .nombre .suave {
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  .telefono {
+    grid-column: 1;
+    font-size: 1.3rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  ion-icon {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    font-size: 26px;
+  }
+
+  &.sin-tel {
+    background: var(--relevo-superficie-alta);
+    color: var(--relevo-texto) !important;
+    box-shadow: none;
+    font-weight: 500;
+  }
+}
+
+.pie {
+  margin: 16px 4px 0;
+  font-size: 0.85rem;
+  color: var(--relevo-texto-3);
+  text-align: center;
+}
+
+.centro {
+  display: grid;
+  place-items: center;
+  padding: 48px;
+}

@@ -145,11 +145,13 @@ service cloud.firestore {
     }
 
     // Una medición: tipo conocido y números con sentido (la presión lleva la diastólica en valorSecundario)
+    // Vale con o sin tarea (`tareaId`): también se miden signos sueltos en cualquier momento
     function signoValido(d) {
       return d.tipo in ['presion', 'glucosa', 'temperatura', 'oxigenacion', 'pulso', 'peso']
         && d.valor is number && d.valor > 0 && d.valor <= 1000
         && (!('valorSecundario' in d) || d.valorSecundario == null
-            || (d.valorSecundario is number && d.valorSecundario > 0 && d.valorSecundario <= 1000));
+            || (d.valorSecundario is number && d.valorSecundario > 0 && d.valorSecundario <= 1000))
+        && (!('nota' in d) || (d.nota is string && d.nota.size() <= 200));
     }
 
     function tomaValida(d) {

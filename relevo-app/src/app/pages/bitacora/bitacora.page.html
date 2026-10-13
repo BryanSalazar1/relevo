@@ -11,6 +11,11 @@
       <ion-button (click)="abrirFiltro()" aria-label="Filtrar por tipo">
         <ion-icon slot="icon-only" [name]="filtro() ? 'funnel' : 'funnel-outline'" />
       </ion-button>
+      @if (puedeRegistrarSignos()) {
+        <ion-button (click)="registrarSignos()" aria-label="Registrar signos vitales">
+          <ion-icon slot="icon-only" name="pulse-outline" />
+        </ion-button>
+      }
       @if (puedeEscribir()) {
         <ion-button (click)="nueva()" aria-label="Nuevo registro">
           <ion-icon slot="icon-only" name="add" />
@@ -70,6 +75,27 @@
                     }
                   </p>
                   <p class="texto">{{ e.texto }}</p>
+                </ion-label>
+              </ion-item>
+            } @else if (item.clase === 'signo') {
+              <ion-item class="toma" [detail]="false">
+                <ion-avatar slot="start" class="tipo" [style.background]="'var(--ion-color-' + infoSigno.color + ')'">
+                  <ion-icon [name]="infoSigno.icono" />
+                </ion-avatar>
+                <ion-label class="ion-text-wrap">
+                  <p class="meta">
+                    <strong>{{ infoSigno.etiqueta }}</strong>
+                    · {{ item.fecha | date: 'HH:mm' }}
+                    @if (item.signos[0].autorNombre) {
+                      · {{ item.signos[0].autorNombre }}
+                    }
+                  </p>
+                  <p class="texto">
+                    {{ textoSignos(item.signos) }}
+                    @if (item.signos[0].nota) {
+                      · {{ item.signos[0].nota }}
+                    }
+                  </p>
                 </ion-label>
               </ion-item>
             } @else if (item.clase === 'tarea') {

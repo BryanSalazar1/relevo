@@ -67,8 +67,8 @@ ion-card.unirse {
   .fila {
     display: flex;
     align-items: center;
-    gap: 14px;
-    padding: 14px 10px 14px 16px;
+    gap: 12px;
+    padding: 14px 8px 14px 16px;
   }
 
   .texto {
@@ -144,6 +144,7 @@ ion-card.persona {
 
   .semaforo {
     flex: none;
+    margin-inline-start: -4px;
     --color: var(--ion-color-primary);
     --background: var(--relevo-primario-suave);
 

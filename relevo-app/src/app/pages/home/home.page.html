@@ -77,6 +77,15 @@
               </div>
               <ion-button
                 fill="clear"
+                class="boton-redondo semaforo ficha"
+                (click)="abrirFicha(p, $event)"
+                [attr.aria-label]="'Ficha de emergencia de ' + p.nombre"
+                title="Ficha de emergencia"
+              >
+                <ion-icon slot="icon-only" name="id-card-outline" />
+              </ion-button>
+              <ion-button
+                fill="clear"
                 class="boton-redondo semaforo"
                 (click)="abrirSemaforo(p, $event)"
                 [attr.aria-label]="'Semáforo de ' + p.nombre"

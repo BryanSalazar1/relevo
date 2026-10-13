@@ -350,6 +350,23 @@ test('roles: el familiar coordina el calendario, escribe en la bitácora y regis
   );
 });
 
+test('signos vitales sueltos (sin tarea): los registra quien marca tareas, con nota corta; el médico no', async () => {
+  await anaCreaPersona();
+  await agregarLuisComo('cuidador_turno');
+  const suelto = { tipo: 'glucosa', valor: 110, valorSecundario: null, unidad: 'mg/dL', fecha: Timestamp.now(), autorUid: 'luis', autorNombre: 'Luis', nota: 'en ayunas' };
+  await assertSucceeds(setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/signos_vitales/suelto-1-glucosa`), suelto));
+  await assertFails(setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/signos_vitales/suelto-2-glucosa`), { ...suelto, nota: 'x'.repeat(201) }));
+  await assertFails(setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/signos_vitales/suelto-3-glucosa`), { ...suelto, autorUid: 'ana' }));
+  await perfil(pedro(), 'pedro', 'medico');
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, `personas_cuidadas/${PERSONA_ID}/miembros/pedro`), { uid: 'pedro', rol: 'medico', nombre: 'Pedro' });
+    await updateDoc(doc(db, `personas_cuidadas/${PERSONA_ID}`), { miembrosUids: arrayUnion('pedro') });
+  });
+  await assertFails(setDoc(doc(pedro(), `personas_cuidadas/${PERSONA_ID}/signos_vitales/suelto-4-glucosa`), { ...suelto, autorUid: 'pedro' }));
+  await assertSucceeds(getDoc(doc(pedro(), `personas_cuidadas/${PERSONA_ID}/signos_vitales/suelto-1-glucosa`)));
+});
+
 test('signos vitales: los registra quien marca tareas (también el familiar), firmados y con valores válidos; el médico solo lee', async () => {
   await anaCreaPersona();
   const signo = (db, id) => doc(db, `personas_cuidadas/${PERSONA_ID}/signos_vitales/${id}`);

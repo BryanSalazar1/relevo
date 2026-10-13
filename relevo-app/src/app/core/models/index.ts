@@ -492,6 +492,16 @@ export interface SignoVital {
   unidad: string;
   fecha: Timestamp;
   autorUid: string;
+  autorNombre?: string;
   /** Si se midió al marcar una tarea de la rutina: de cuál (su id es `{tareaId}-{idRegistro}-{tipo}`) */
   tareaId?: string;
+  /** Solo en mediciones sueltas (sin tarea): observación de quien midió */
+  nota?: string;
 }
+
+/** Cómo se muestran en la bitácora las mediciones sueltas (las de una tarea van con su registro). */
+export const INFO_SIGNO_BITACORA: Omit<TipoEntradaInfo, 'valor'> = {
+  etiqueta: 'Signos vitales',
+  icono: 'pulse-outline',
+  color: 'danger',
+};

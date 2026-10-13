@@ -407,6 +407,18 @@ export class HoyPage {
     return this.marcarToma.ultimaTomaTexto(m.id ? this.ultimas()?.[m.id] : undefined);
   }
 
+  /** Signos vitales ahora mismo, sin tarea de por medio (presión, glucosa… lo que se haya medido). */
+  async registrarSignos() {
+    const personaId = this.ctx.personaId();
+    if (!personaId || !this.puedeRegistrarTareas() || this.marcando) return;
+    this.marcando = true;
+    try {
+      await this.marcarTarea.registrarSueltos(personaId);
+    } finally {
+      this.marcando = false;
+    }
+  }
+
   /** El responsable suma al inventario desde el aviso "Por resurtir". */
   async resurtir(m: Medicamento) {
     const personaId = this.ctx.personaId();

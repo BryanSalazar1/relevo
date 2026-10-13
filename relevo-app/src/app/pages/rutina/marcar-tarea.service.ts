@@ -62,6 +62,35 @@ export class MarcarTareaService {
     return true;
   }
 
+  /**
+   * Registrar signos vitales en cualquier momento, sin tarea de por medio (desde Hoy o la
+   * Bitácora). Devuelve false si se canceló; los errores se muestran aquí.
+   */
+  async registrarSueltos(personaId: string): Promise<boolean> {
+    const modal = await this.modalCtrl.create({
+      component: SignosModal,
+      componentProps: { titulo: 'Signos vitales de ahora', tipos: [] },
+    });
+    await modal.present();
+    const { data, role } = await modal.onWillDismiss<DatosSignos>();
+    if (role !== 'guardar' || !data?.mediciones.length) return false;
+    try {
+      await this.signosSvc.guardarSueltas(personaId, data.mediciones, data.nota);
+      const t = await this.toast.create({
+        message: `Registrado: ${resumenMediciones(data.mediciones)}.`,
+        color: 'success',
+        duration: 3000,
+        position: 'top',
+      });
+      await t.present();
+      return true;
+    } catch (error) {
+      console.error(error);
+      await this.aviso('No se pudieron guardar las mediciones.');
+      return false;
+    }
+  }
+
   /** Hoja de opciones de una tarea programada: marcar, nota y quitar el registro. */
   async opciones(personaId: string, p: TareaProgramada) {
     const sheet = await this.actionSheetCtrl.create({

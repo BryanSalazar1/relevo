@@ -5,6 +5,9 @@
     </ion-buttons>
     <ion-title>{{ persona()?.nombre || 'Hoy' }}</ion-title>
     <ion-buttons slot="end">
+      <ion-button routerLink="../ficha" aria-label="Ficha de emergencia">
+        <ion-icon slot="icon-only" name="id-card-outline" />
+      </ion-button>
       <ion-button routerLink="../semaforo" aria-label="Abrir el semáforo en pantalla completa">
         <ion-icon slot="icon-only" name="semaforo" />
       </ion-button>
@@ -193,6 +196,15 @@
         </ion-item>
       }
     </ion-list>
+
+    @if (puedeRegistrarTareas() && esHoy()) {
+      <div class="acciones-hoy">
+        <ion-button fill="outline" (click)="registrarSignos()">
+          <ion-icon slot="start" name="pulse-outline" />
+          Registrar signos vitales
+        </ion-button>
+      </div>
+    }
 
     @if (segunNecesidad().length > 0) {
       <ion-list inset class="segun-necesidad">

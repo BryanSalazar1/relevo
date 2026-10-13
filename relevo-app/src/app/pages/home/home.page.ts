@@ -133,6 +133,12 @@ export class HomePage {
     if (p.id) void this.router.navigate(['/personas', p.id]);
   }
 
+  /** La ficha de emergencia (alergias, medicamentos, contactos), directo desde el inicio. */
+  abrirFicha(p: PersonaCuidada, event: Event) {
+    event.stopPropagation();
+    if (p.id) void this.router.navigate(['/personas', p.id, 'ficha']);
+  }
+
   /** El semáforo del día, directo desde el inicio (sin pasar por las pestañas). */
   abrirSemaforo(p: PersonaCuidada, event: Event) {
     event.stopPropagation();

@@ -1,0 +1,105 @@
+<ion-content [fullscreen]="true">
+  <div class="pantalla">
+    <header class="barra">
+      <ion-button fill="clear" (click)="salir()" aria-label="Cerrar la ficha de emergencia">
+        <ion-icon slot="icon-only" name="close-outline" />
+      </ion-button>
+      <span class="titulo-barra">Ficha de emergencia</span>
+    </header>
+
+    @if (persona(); as p) {
+      <h1>{{ p.nombre }}</h1>
+      <p class="datos">
+        @if (edad() !== null) {
+          <span>{{ edad() }} años</span>
+        }
+        <span class="sangre" [class.vacio]="!p.tipoSangre">
+          Sangre: {{ p.tipoSangre || 'sin registrar' }}
+        </span>
+      </p>
+
+      <section class="alergias" [class.ninguna]="!p.alergias?.length">
+        <h2><ion-icon name="warning-outline" aria-hidden="true" /> Alergias</h2>
+        @if (p.alergias?.length) {
+          <p class="grande">{{ p.alergias!.join(' · ') }}</p>
+        } @else {
+          <p>Ninguna registrada</p>
+        }
+      </section>
+
+      <section>
+        <h2><ion-icon name="medical-outline" aria-hidden="true" /> Condiciones</h2>
+        <p>{{ p.condiciones?.length ? p.condiciones!.join(' · ') : 'Ninguna registrada' }}</p>
+      </section>
+
+      <section>
+        <h2><ion-icon name="medkit-outline" aria-hidden="true" /> Medicamentos que toma</h2>
+        @if (activos().length) {
+          <ul>
+            @for (m of activos(); track m.id) {
+              <li>
+                <strong>{{ m.nombre }}</strong> {{ m.dosis }}
+                <span class="suave">
+                  · {{ m.segunNecesidad ? 'según necesidad' : m.horarios.join(', ') }}
+                </span>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p>Ninguno activo</p>
+        }
+      </section>
+
+      @if (p.medicoTratante || p.telefonoMedico || p.seguro || p.hospital) {
+        <section>
+          <h2><ion-icon name="people-outline" aria-hidden="true" /> Atención médica</h2>
+          @if (p.medicoTratante || p.telefonoMedico) {
+            <p>
+              <strong>Médico:</strong> {{ p.medicoTratante || 'sin nombre' }}
+              @if (p.telefonoMedico) {
+                · <a [href]="tel(p.telefonoMedico)">{{ p.telefonoMedico }}</a>
+              }
+            </p>
+          }
+          @if (p.seguro) {
+            <p><strong>Seguro:</strong> {{ p.seguro }}</p>
+          }
+          @if (p.hospital) {
+            <p><strong>Hospital:</strong> {{ p.hospital }}</p>
+          }
+        </section>
+      }
+
+      @if (p.notasMedicas) {
+        <section>
+          <h2><ion-icon name="information-circle-outline" aria-hidden="true" /> Notas médicas</h2>
+          <p class="notas">{{ p.notasMedicas }}</p>
+        </section>
+      }
+
+      <section class="contactos">
+        <h2><ion-icon name="call-outline" aria-hidden="true" /> Contactos de emergencia</h2>
+        @for (c of p.contactosEmergencia; track $index) {
+          <a class="contacto" [href]="c.telefono ? tel(c.telefono) : null" [class.sin-tel]="!c.telefono">
+            <span class="nombre">
+              {{ c.nombre || 'Sin nombre' }}
+              @if (c.relacion) {
+                <span class="suave">· {{ c.relacion }}</span>
+              }
+            </span>
+            <span class="telefono">{{ c.telefono || 'sin teléfono' }}</span>
+            @if (c.telefono) {
+              <ion-icon name="call-outline" aria-hidden="true" />
+            }
+          </a>
+        } @empty {
+          <p>Sin contactos registrados. Se agregan en Equipo → Editar ficha médica.</p>
+        }
+      </section>
+
+      <p class="pie">Datos capturados por la familia; en una urgencia confírmalos con el médico tratante.</p>
+    } @else {
+      <div class="centro"><ion-spinner name="crescent" /></div>
+    }
+  </div>
+</ion-content>

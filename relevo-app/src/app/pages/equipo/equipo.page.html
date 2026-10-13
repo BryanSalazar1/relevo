@@ -27,48 +27,27 @@
           <ion-icon name="medical-outline" color="danger" />
           Ficha médica
         </h3>
-        <p><strong>Tipo de sangre:</strong> {{ p.tipoSangre || 'Sin registrar' }}</p>
-        <p><strong>Condiciones:</strong> {{ p.condiciones?.join(', ') || 'Ninguna registrada' }}</p>
-        <p><strong>Alergias:</strong> {{ p.alergias?.join(', ') || 'Ninguna registrada' }}</p>
-        @if (p.medicoTratante || p.telefonoMedico) {
-          <p>
-            <strong>Médico:</strong> {{ p.medicoTratante || 'Sin nombre' }}
-            @if (p.telefonoMedico) {
-              · <a [href]="'tel:' + p.telefonoMedico">{{ p.telefonoMedico }}</a>
-            }
-          </p>
-        }
-        @if (p.seguro) {
-          <p><strong>Seguro:</strong> {{ p.seguro }}</p>
-        }
-        @if (p.hospital) {
-          <p><strong>Hospital:</strong> {{ p.hospital }}</p>
-        }
-        @if (p.notasMedicas) {
-          <p class="notas-medicas"><strong>Notas médicas:</strong> {{ p.notasMedicas }}</p>
-        }
-        @for (c of p.contactosEmergencia; track $index) {
-          <p>
-            <strong>Emergencia:</strong> {{ c.nombre }}@if (c.relacion) { ({{ c.relacion }})}
-            @if (c.telefono) {
-              · <a [href]="'tel:' + c.telefono">{{ c.telefono }}</a>
-            }
-          </p>
-        } @empty {
-          <p><strong>Emergencia:</strong> sin contactos registrados</p>
-        }
-        @if (esPrincipal()) {
-          <div class="acciones-persona">
+        <p>
+          <strong>Alergias:</strong> {{ p.alergias?.join(', ') || 'ninguna registrada' }}
+          · <strong>Condiciones:</strong> {{ p.condiciones?.join(', ') || 'ninguna registrada' }}
+          · <strong>Contactos:</strong> {{ p.contactosEmergencia?.length || 'ninguno' }}
+        </p>
+        <div class="acciones-persona">
+          <ion-button fill="outline" size="small" routerLink="../ficha">
+            <ion-icon slot="start" name="id-card-outline" />
+            Ver ficha de emergencia
+          </ion-button>
+          @if (esPrincipal()) {
+            <ion-button fill="clear" size="small" (click)="editarFicha()">
+              <ion-icon slot="start" name="medical-outline" />
+              Editar ficha
+            </ion-button>
             <ion-button fill="clear" size="small" (click)="editarDatos()">
               <ion-icon slot="start" name="create-outline" />
               Editar datos
             </ion-button>
-            <ion-button fill="outline" size="small" (click)="editarFicha()">
-              <ion-icon slot="start" name="medical-outline" />
-              Editar ficha médica
-            </ion-button>
-          </div>
-        }
+          }
+        </div>
       </ion-card-content>
     </ion-card>
 
