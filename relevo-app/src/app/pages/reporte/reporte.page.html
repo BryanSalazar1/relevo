@@ -5,7 +5,7 @@
     </ion-buttons>
     <ion-title>Reporte</ion-title>
     <ion-buttons slot="end">
-      <ion-button (click)="exportar()" [disabled]="!reporte() || exportando()" aria-label="Exportar PDF">
+      <ion-button (click)="exportarHoja()" [disabled]="!reporte() || exportando()" aria-label="Exportar hoja para la consulta">
         <ion-icon slot="icon-only" name="share-social-outline" />
       </ion-button>
     </ion-buttons>
@@ -75,6 +75,69 @@
       </ion-card-content>
     </ion-card>
 
+    <ion-card class="hoja">
+      <ion-card-header>
+        <ion-card-subtitle>Para la consulta</ion-card-subtitle>
+        <ion-card-title>Hoja para el médico</ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <p class="etiqueta">Para comentar con el médico</p>
+        @if (r.hoja.banderas.length) {
+          <ul class="banderas">
+            @for (b of r.hoja.banderas; track b.texto) {
+              <li [class.alta]="b.nivel === 'alta'">
+                <ion-icon [name]="b.nivel === 'alta' ? 'alert-circle-outline' : 'information-circle-outline'" aria-hidden="true" />
+                <span>{{ b.texto }}</span>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="sin-banderas"><ion-text color="medium">Sin banderas en este periodo según los registros.</ion-text></p>
+        }
+
+        <ion-textarea
+          label="Preguntas de la familia"
+          labelPlacement="stacked"
+          fill="outline"
+          name="preguntas"
+          [autoGrow]="true"
+          rows="2"
+          maxlength="1000"
+          [readonly]="!puedeEditarPreguntas()"
+          placeholder="Ej. ¿Conviene cambiar la hora de la Metformina? ¿Le hace falta fisioterapia?"
+          [(ngModel)]="textoPreguntas"
+        />
+        @if (puedeEditarPreguntas()) {
+          <div class="acciones">
+            <ion-button fill="clear" size="small" (click)="guardarPreguntas()" [disabled]="guardandoPreguntas()">
+              Guardar preguntas
+            </ion-button>
+          </div>
+        }
+
+        <p class="etiqueta">Anexos del PDF</p>
+        <div class="anexos">
+          <ion-checkbox labelPlacement="end" name="anexoSintomas" [(ngModel)]="anexoSintomas">
+            Síntomas e incidentes ({{ r.alertas.length }})
+          </ion-checkbox>
+          <ion-checkbox labelPlacement="end" name="anexoResumen" [(ngModel)]="anexoResumen" [disabled]="!r.resumenIA">
+            Resumen con IA{{ r.resumenIA ? '' : ' (genéralo abajo)' }}
+          </ion-checkbox>
+          <ion-checkbox labelPlacement="end" name="anexoBitacora" [(ngModel)]="anexoBitacora">
+            Bitácora completa ({{ r.entradas.length }})
+          </ion-checkbox>
+        </div>
+        <ion-button expand="block" (click)="exportarHoja()" [disabled]="exportando()">
+          <ion-icon slot="start" name="document-text-outline" />
+          Exportar hoja para la consulta
+        </ion-button>
+        <ion-note color="medium">
+          Una página con lo que el médico usa: preguntas y banderas, medicamentos, signos resumidos, caídas e
+          indicaciones previas.
+        </ion-note>
+      </ion-card-content>
+    </ion-card>
+
     <app-graficas-reporte [reporte]="r" />
 
     <ion-card class="resumen-ia">
@@ -137,13 +200,15 @@
 
     <ion-list inset>
       <ion-list-header><ion-label>Signos vitales</ion-label></ion-list-header>
-      @for (s of r.signos; track s.tipo) {
+      @for (fila of r.hoja.filasSignos; track fila.etiqueta) {
         <ion-item>
-          <ion-icon slot="start" name="pulse-outline" color="primary" />
+          <ion-icon slot="start" name="pulse-outline" [color]="fila.alerta ? 'danger' : 'primary'" />
           <ion-label class="ion-text-wrap">
-            <h3>{{ s.etiqueta }}</h3>
-            <p>Última: <strong>{{ textoSigno(s.ultimo) }}</strong> ({{ s.ultimo.fecha.toDate() | date: 'd MMM' }})</p>
-            <p>{{ s.n }} registro(s) · mín {{ s.min }} · prom {{ s.promedio }} · máx {{ s.max }} {{ s.unidad }}</p>
+            <h3>{{ fila.etiqueta }}</h3>
+            <p>{{ fila.resumen }}</p>
+            @if (fila.fuera) {
+              <p class="fuera" [class.alerta]="fila.alerta">{{ fila.fuera }}</p>
+            }
           </ion-label>
         </ion-item>
       } @empty {
@@ -161,7 +226,12 @@
             @if (m.segunNecesidad) {
               <p>Según necesidad · {{ m.tomadas }} toma(s) en el periodo</p>
             } @else {
-              <p>{{ m.horarios.join(', ') || 'Sin horario' }} · {{ m.tomadas }}/{{ m.programadas }} tomas</p>
+              <p>
+                {{ m.horarios.join(', ') || 'Sin horario' }} · {{ m.tomadas }}/{{ m.programadas }} tomas
+                @if (m.omitidas) {
+                  · {{ m.omitidas }} omitida(s){{ m.patronOmision ? ' (' + m.patronOmision + ')' : '' }}
+                }
+              </p>
             }
           </ion-label>
           @if (m.segunNecesidad) {
@@ -180,13 +250,13 @@
     </ion-list>
 
     <div class="ion-padding">
-      <ion-button expand="block" (click)="exportar()" [disabled]="exportando()">
+      <ion-button expand="block" fill="outline" (click)="exportar()" [disabled]="exportando()">
         <ion-icon slot="start" name="document-text-outline" />
-        Exportar PDF para el médico
+        Reporte completo (PDF)
       </ion-button>
       <ion-text color="medium">
         <p class="ion-text-center">
-          <small>El PDF incluye la bitácora completa del periodo; en la app está en <strong>Bitácora</strong>.</small>
+          <small>Todas las secciones y la bitácora completa del periodo. Para la consulta conviene la hoja de arriba.</small>
         </p>
       </ion-text>
       <ion-text color="medium">

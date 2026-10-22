@@ -1,20 +1,37 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import {
   IonButton,
   IonButtons,
+  IonChip,
   IonContent,
   IonHeader,
   IonInput,
+  IonLabel,
   IonNote,
   IonTextarea,
   IonTitle,
   IonToolbar,
   ModalController,
 } from '@ionic/angular';
-import { LIMITES_DIASTOLICA, TIPOS_SIGNO, TipoSigno, TipoSignoInfo } from '../../core/models';
+import {
+  LIMITES_DIASTOLICA,
+  MOMENTOS_GLUCOSA,
+  MomentoGlucosa,
+  TIPOS_SIGNO,
+  TipoSigno,
+  TipoSignoInfo,
+} from '../../core/models';
 import { Medicion, resumenMediciones } from '../../core/services/signos.service';
 import { NOTA_MAX } from '../../core/utils/notas';
+
+/** Momento de la glucosa que se propone según la hora: antes de las 10, en ayunas; desde las 21, antes de dormir. */
+export function momentoSugerido(ahora = new Date()): MomentoGlucosa | null {
+  const h = ahora.getHours();
+  if (h < 10) return 'ayunas';
+  if (h >= 21) return 'antes_dormir';
+  return null;
+}
 
 /** Lo que devuelve el modal con rol 'guardar'. */
 export interface DatosSignos {
@@ -40,6 +57,8 @@ export interface DatosSignos {
     IonInput,
     IonTextarea,
     IonNote,
+    IonChip,
+    IonLabel,
   ],
   template: `
     <ion-header>
@@ -98,6 +117,19 @@ export interface DatosSignos {
             />
             <span class="unidad">{{ s.unidad }}</span>
           </div>
+          @if (s.valor === 'glucosa') {
+            <div class="momento">
+              @for (m of momentos; track m.valor) {
+                <ion-chip
+                  [outline]="momento() !== m.valor"
+                  color="primary"
+                  (click)="momento.set(momento() === m.valor ? null : m.valor)"
+                >
+                  <ion-label>{{ m.etiqueta }}</ion-label>
+                </ion-chip>
+              }
+            </div>
+          }
         }
         @if (error(s); as e) {
           <ion-note color="danger" class="error">{{ e }}</ion-note>
@@ -143,6 +175,12 @@ export interface DatosSignos {
         font-weight: 600;
         color: var(--ion-text-color);
       }
+      .momento {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin: 6px 0 0;
+      }
       .barra {
         font-size: 1.6rem;
         color: var(--ion-color-medium);
@@ -174,9 +212,12 @@ export class SignosModal implements OnInit {
 
   signos: TipoSignoInfo[] = TIPOS_SIGNO;
   readonly notaMax = NOTA_MAX;
+  readonly momentos = MOMENTOS_GLUCOSA;
   /** Lo escrito en cada campo (ion-input entrega texto o número) */
   valores: Partial<Record<TipoSigno, number | string | null>> = {};
   diastolica: number | string | null = null;
+  /** Momento de la glucosa (propuesto por la hora; se puede cambiar o quitar) */
+  readonly momento = signal<MomentoGlucosa | null>(momentoSugerido());
   nota = '';
 
   ngOnInit() {
@@ -217,9 +258,11 @@ export class SignosModal implements OnInit {
       const v = this.numero(this.valores[s.valor]);
       if (v === null || this.error(s)) return [];
       const valor = redondear(v, s.decimales);
-      return s.valor === 'presion'
-        ? [{ tipo: s.valor, valor, valorSecundario: redondear(this.numero(this.diastolica)!, 0) }]
-        : [{ tipo: s.valor, valor }];
+      if (s.valor === 'presion') {
+        return [{ tipo: s.valor, valor, valorSecundario: redondear(this.numero(this.diastolica)!, 0) }];
+      }
+      if (s.valor === 'glucosa') return [{ tipo: s.valor, valor, momento: this.momento() }];
+      return [{ tipo: s.valor, valor }];
     });
   }
 

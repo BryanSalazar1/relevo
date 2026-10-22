@@ -17,8 +17,8 @@ código/QR, reportes en PDF y un asistente con IA que responde preguntas sobre l
 Cada persona cuidada tiene cinco pestañas: **Hoy** (tomas y tareas del día para marcar, semáforo,
 "Desde tu último turno", próximas citas e indicación del médico), **Bitácora** (registros, tomas,
 tareas y signos vitales en una sola línea de tiempo), **Plan** (Medicinas · Rutina · Citas),
-**Equipo** (ficha médica, miembros, turnos, código de acceso) y **Reporte** (resumen y PDF para el
-médico). La **ficha de emergencia** se abre desde el inicio, Hoy y Equipo. Cada quien elige sus
+**Equipo** (ficha médica, miembros, turnos, código de acceso) y **Reporte** (hoja para la consulta de
+una página con banderas, preguntas de la familia, medicamentos y signos resumidos; y el PDF completo). La **ficha de emergencia** se abre desde el inicio, Hoy y Equipo. Cada quien elige sus
 notificaciones en `/notificaciones`. Roles: el familiar responsable administra el plan; familiares
 y enfermeros registran; el médico lee todo y escribe indicaciones médicas.
 

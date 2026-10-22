@@ -6,6 +6,7 @@ import {
   collection,
   collectionData,
   deleteDoc,
+  deleteField,
   doc,
   getDocs,
   limit,
@@ -26,6 +27,18 @@ export interface DatosEntrada {
   tipo: TipoEntrada;
   texto: string;
   fecha: Date;
+  /** Solo incidentes: fue una caída (sin valor = no se contestó) */
+  caida?: boolean;
+  /** Solo si fue caída: hubo lesión */
+  lesion?: boolean;
+}
+
+/** Campos de caída que se guardan: solo en incidentes con la pregunta contestada; si no, se quitan. */
+function camposCaida(datos: DatosEntrada, alActualizar: boolean) {
+  if (datos.tipo === 'incidente' && typeof datos.caida === 'boolean') {
+    return { caida: datos.caida, lesion: datos.caida && datos.lesion === true };
+  }
+  return alActualizar ? { caida: deleteField(), lesion: deleteField() } : {};
 }
 
 /** Un elemento de la línea de tiempo: algo que alguien escribió o una toma de medicamento registrada. */
@@ -132,6 +145,7 @@ export class BitacoraService {
       autorNombre: this.authSvc.nombreActual,
       fecha: Timestamp.fromDate(datos.fecha),
       creadoEn: serverTimestamp(),
+      ...camposCaida(datos, false),
     });
     return ref.id;
   }
@@ -141,6 +155,7 @@ export class BitacoraService {
       tipo: datos.tipo,
       texto: datos.texto,
       fecha: Timestamp.fromDate(datos.fecha),
+      ...camposCaida(datos, true),
     });
   }
 

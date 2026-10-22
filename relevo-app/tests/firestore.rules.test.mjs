@@ -353,6 +353,33 @@ test('indicaciones: solo el médico escribe y edita indicaciones médicas, y no 
   await assertSucceeds(deleteDoc(entrada(ana(), 'i1')));
 });
 
+test('consulta: preguntas para el médico compartidas (las escribe quien escribe en la bitácora); momento de la glucosa y caída con valores válidos', async () => {
+  await anaCreaPersona();
+  await agregarComo('pedro', 'familiar');
+  await agregarComo('luis', 'medico');
+  const preguntas = (db, id = 'preguntas') => doc(db, `personas_cuidadas/${PERSONA_ID}/consulta/${id}`);
+  const firmada = (uid, texto) => ({ texto, actualizadoPor: uid, actualizadoNombre: uid, actualizadoEn: serverTimestamp() });
+  await assertSucceeds(setDoc(preguntas(pedro()), firmada('pedro', '¿Conviene bajar la dosis?')));
+  await assertSucceeds(setDoc(preguntas(ana()), firmada('ana', 'Otra pregunta')));
+  await assertFails(setDoc(preguntas(luis()), firmada('luis', 'El médico no escribe preguntas')));
+  await assertFails(setDoc(preguntas(pedro()), firmada('pedro', 'x'.repeat(1001))));
+  await assertFails(setDoc(preguntas(pedro()), firmada('ana', 'firma ajena')));
+  await assertFails(setDoc(preguntas(pedro(), 'otro'), firmada('pedro', 'solo el documento preguntas')));
+  await assertSucceeds(getDoc(preguntas(luis())));
+  await assertFails(deleteDoc(preguntas(pedro())));
+  await assertSucceeds(deleteDoc(preguntas(ana())));
+
+  const signo = (db, id) => doc(db, `personas_cuidadas/${PERSONA_ID}/signos_vitales/${id}`);
+  const glucosa = (extra) => ({ tipo: 'glucosa', valor: 110, valorSecundario: null, unidad: 'mg/dL', fecha: Timestamp.now(), autorUid: 'pedro', ...extra });
+  await assertSucceeds(setDoc(signo(pedro(), 's1'), glucosa({ momento: 'ayunas' })));
+  await assertSucceeds(setDoc(signo(pedro(), 's2'), glucosa({})));
+  await assertFails(setDoc(signo(pedro(), 's3'), glucosa({ momento: 'madrugada' })));
+
+  const entrada = (db, id) => doc(db, `personas_cuidadas/${PERSONA_ID}/entradas_bitacora/${id}`);
+  await assertSucceeds(setDoc(entrada(pedro(), 'e1'), { tipo: 'incidente', texto: 'Se cayó en el baño', autorUid: 'pedro', caida: true, lesion: false }));
+  await assertFails(setDoc(entrada(pedro(), 'e2'), { tipo: 'incidente', texto: 'Se cayó', autorUid: 'pedro', caida: 'sí' }));
+});
+
 test('roles: el familiar coordina el calendario, escribe en la bitácora y registra tomas, pero no define medicamentos', async () => {
   await anaCreaPersona();
   await agregarLuisComo('familiar');

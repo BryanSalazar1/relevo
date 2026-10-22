@@ -74,6 +74,9 @@
                 <ion-label class="ion-text-wrap">
                   <p class="meta">
                     <strong>{{ info(e.tipo).etiqueta }}</strong>
+                    @if (e.caida) {
+                      · <strong>{{ e.lesion ? 'Caída con lesión' : 'Caída' }}</strong>
+                    }
                     · {{ item.fecha | date: 'HH:mm' }} · {{ e.autorNombre }}
                     @if (ocurrio(item); as hecho) {
                       · ocurrió a las {{ hecho | date: 'HH:mm' }}

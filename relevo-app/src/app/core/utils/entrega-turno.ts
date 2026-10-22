@@ -193,7 +193,9 @@ export function novedadesEntrega({ desde, ahora, filas, entradas, signos, miUid 
 
   for (const e of entradas) {
     const hora = e.fecha.toDate();
-    if (!enVentana(hora, desde, ahora)) continue;
+    // Cuenta también cuándo se escribió: una caída de la mañana anotada en la tarde entra por su registro
+    const escrita = e.creadoEn?.toDate() ?? hora;
+    if (!enVentana(hora, desde, ahora) && !enVentana(escrita, desde, ahora)) continue;
     if (e.tipo === 'indicacion') {
       lista.push({
         tipo: 'indicacion',
@@ -206,10 +208,12 @@ export function novedadesEntrega({ desde, ahora, filas, entradas, signos, miUid 
       continue;
     }
     if (e.tipo !== 'sintoma' && e.tipo !== 'incidente') continue;
+    const clase =
+      e.tipo === 'sintoma' ? 'Síntoma' : e.caida ? (e.lesion ? 'Caída con lesión' : 'Caída') : 'Incidente';
     lista.push({
       tipo: e.tipo,
       hora,
-      texto: `${e.tipo === 'incidente' ? 'Incidente' : 'Síntoma'}: ${recortar(e.texto)}`,
+      texto: `${clase}: ${recortar(e.texto)}`,
       quien: e.autorNombre,
       icono: e.tipo === 'incidente' ? 'warning-outline' : 'medical-outline',
       color: 'danger',

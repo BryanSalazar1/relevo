@@ -102,7 +102,10 @@ service cloud.firestore {
     // Una entrada de bitácora: tipo conocido y texto con algo escrito (la app limita a 2000 caracteres)
     function entradaValida(d) {
       return d.tipo in ['sintoma', 'animo', 'comida', 'sueno', 'incidente', 'nota', 'indicacion']
-        && d.texto is string && d.texto.size() > 0 && d.texto.size() <= 2000;
+        && d.texto is string && d.texto.size() > 0 && d.texto.size() <= 2000
+        // Solo incidentes: si fue una caída y si hubo lesión
+        && (!('caida' in d) || d.caida is bool)
+        && (!('lesion' in d) || d.lesion is bool);
     }
 
     // Las indicaciones médicas son solo del médico, y el médico solo escribe indicaciones
@@ -169,7 +172,15 @@ service cloud.firestore {
         && d.valor is number && d.valor > 0 && d.valor <= 1000
         && (!('valorSecundario' in d) || d.valorSecundario == null
             || (d.valorSecundario is number && d.valorSecundario > 0 && d.valorSecundario <= 1000))
-        && (!('nota' in d) || (d.nota is string && d.nota.size() <= 200));
+        && (!('nota' in d) || (d.nota is string && d.nota.size() <= 200))
+        // Solo glucosa: en qué momento se midió (MOMENTOS_GLUCOSA en la app)
+        && (!('momento' in d) || d.momento in ['ayunas', 'despues_comer', 'antes_dormir', 'otro']);
+    }
+
+    // Preguntas de la familia para el médico: un solo texto compartido, firmado por quien lo guardó
+    function preguntasValidas(d) {
+      return d.texto is string && d.texto.size() <= 1000
+        && d.actualizadoPor == request.auth.uid;
     }
 
     function tomaValida(d) {
@@ -289,6 +300,16 @@ service cloud.firestore {
           && tipoPermitido(personaId, request.resource.data);
         allow delete: if tieneRol(personaId, ['cuidador_principal'])
           || (esMiembro(personaId) && resource.data.autorUid == request.auth.uid);
+      }
+
+      // consulta/preguntas: las preguntas de la familia para el médico (hoja para la consulta).
+      // Las escriben quienes escriben en la bitácora; el médico las lee.
+      match /consulta/{docId} {
+        allow read: if esMiembro(personaId);
+        allow create, update: if docId == 'preguntas'
+          && tieneRol(personaId, ['cuidador_principal', 'cuidador_turno', 'familiar'])
+          && preguntasValidas(request.resource.data);
+        allow delete: if tieneRol(personaId, ['cuidador_principal']);
       }
 
       // medicamentos: solo el responsable los define (con datos válidos); quienes registran tomas

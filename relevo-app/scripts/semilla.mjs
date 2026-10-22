@@ -158,8 +158,9 @@ async function main() {
 
   b.set(doc(personaRef, 'signos_vitales', 'sv1'), { tipo: 'presion', valor: 130, valorSecundario: 85, unidad: 'mmHg', fecha: hace(0, 8, 30), autorUid: ana });
   b.set(doc(personaRef, 'signos_vitales', 'sv2'), { tipo: 'presion', valor: 138, valorSecundario: 90, unidad: 'mmHg', fecha: hace(1, 8, 30), autorUid: ana });
-  b.set(doc(personaRef, 'signos_vitales', 'sv3'), { tipo: 'glucosa', valor: 128, valorSecundario: null, unidad: 'mg/dL', fecha: hace(0, 7, 45), autorUid: ana });
-  b.set(doc(personaRef, 'signos_vitales', 'sv4'), { tipo: 'glucosa', valor: 142, valorSecundario: null, unidad: 'mg/dL', fecha: hace(1, 7, 45), autorUid: ana });
+  b.set(doc(personaRef, 'signos_vitales', 'sv3'), { tipo: 'glucosa', valor: 128, valorSecundario: null, unidad: 'mg/dL', fecha: hace(0, 7, 45), autorUid: ana, momento: 'ayunas' });
+  b.set(doc(personaRef, 'signos_vitales', 'sv4'), { tipo: 'glucosa', valor: 142, valorSecundario: null, unidad: 'mg/dL', fecha: hace(1, 7, 45), autorUid: ana, momento: 'ayunas' });
+  b.set(doc(personaRef, 'consulta', 'preguntas'), { texto: '¿Conviene juntar la Metformina en una sola toma? Se le olvida la de la noche.\n¿Le hace falta fisioterapia para la rodilla?', actualizadoPor: ana, actualizadoNombre: 'Ana García', actualizadoEn: hace(0, 9) });
   b.set(doc(personaRef, 'signos_vitales', 'sv5'), { tipo: 'peso', valor: 68.2, valorSecundario: null, unidad: 'kg', fecha: hace(2, 9), autorUid: ana });
   b.set(doc(personaRef, 'signos_vitales', 'sv6'), { tipo: 'temperatura', valor: 36.6, valorSecundario: null, unidad: '°C', fecha: hace(0, 8, 35), autorUid: ana });
 
@@ -173,7 +174,7 @@ async function main() {
   await signInWithEmailAndPassword(auth, 'marta@relevo.test', PASSWORD);
   b = writeBatch(db);
   b.set(doc(personaRef, 'entradas_bitacora', 'e4'), { tipo: 'sintoma', texto: 'Se quejó de dolor en la rodilla derecha al caminar. Se aplicó compresa tibia.', autorUid: marta, autorNombre: 'Marta López', fecha: hace(1, 22, 15) });
-  b.set(doc(personaRef, 'entradas_bitacora', 'e5'), { tipo: 'incidente', texto: 'Casi resbala en el baño; sin golpe. Revisar tapete antiderrapante.', autorUid: marta, autorNombre: 'Marta López', fecha: hace(2, 23, 5) });
+  b.set(doc(personaRef, 'entradas_bitacora', 'e5'), { tipo: 'incidente', texto: 'Se resbaló en el baño; sin golpe. Revisar tapete antiderrapante.', autorUid: marta, autorNombre: 'Marta López', fecha: hace(2, 23, 5), caida: true, lesion: false });
   b.set(doc(personaRef, 'medicamentos/metformina/tomas', 'antier-2000'), { horaProgramada: hace(2, 20), horaReal: hace(2, 20, 5), tomado: true, registradoPor: marta });
   b.update(doc(db, 'usuarios', marta), { personas: arrayUnion(PERSONA_ID) });
   await b.commit();

@@ -309,7 +309,25 @@ export interface EntradaBitacora {
   fecha: Timestamp;
   /** Cuándo se registró; ordena la bitácora. Entradas antiguas no lo tienen (se usa `fecha`) */
   creadoEn?: Timestamp;
+  /** Solo incidentes (22/10/2026): fue una caída; las caídas son lo primero que pregunta el médico */
+  caida?: boolean;
+  /** Solo si fue caída: hubo golpe, herida o dolor después */
+  lesion?: boolean;
 }
+
+/**
+ * personas_cuidadas/{id}/consulta/preguntas: las preguntas que la familia quiere hacerle al médico
+ * en la próxima consulta (un solo texto compartido; va al principio de la hoja para la consulta).
+ */
+export interface PreguntasMedico {
+  texto: string;
+  actualizadoPor: string;
+  actualizadoNombre?: string;
+  actualizadoEn: Timestamp;
+}
+
+/** Largo máximo de las preguntas para el médico (mismo tope en firestore.rules) */
+export const PREGUNTAS_MEDICO_MAX = 1000;
 
 /** personas_cuidadas/{id}/medicamentos/{id} */
 export interface Medicamento {
@@ -565,6 +583,23 @@ export const RANGOS_SIGNO: Partial<Record<TipoSigno, RangoSigno>> = {
   pulso: { min: 50, max: 100 },
 };
 
+/**
+ * En qué momento se midió la glucosa: es lo que el médico necesita para leer el valor (una
+ * glucosa de 160 en ayunas no es lo mismo que después de comer). Mismos valores en firestore.rules.
+ */
+export type MomentoGlucosa = 'ayunas' | 'despues_comer' | 'antes_dormir' | 'otro';
+
+export const MOMENTOS_GLUCOSA: { valor: MomentoGlucosa; etiqueta: string }[] = [
+  { valor: 'ayunas', etiqueta: 'En ayunas' },
+  { valor: 'despues_comer', etiqueta: 'Después de comer' },
+  { valor: 'antes_dormir', etiqueta: 'Antes de dormir' },
+  { valor: 'otro', etiqueta: 'Otro momento' },
+];
+
+export const MOMENTO_GLUCOSA_ETIQUETA: Record<MomentoGlucosa, string> = Object.fromEntries(
+  MOMENTOS_GLUCOSA.map((m) => [m.valor, m.etiqueta]),
+) as Record<MomentoGlucosa, string>;
+
 /** personas_cuidadas/{id}/signos_vitales/{id} */
 export interface SignoVital {
   id?: string;
@@ -580,6 +615,8 @@ export interface SignoVital {
   tareaId?: string;
   /** Solo en mediciones sueltas (sin tarea): observación de quien midió */
   nota?: string;
+  /** Solo glucosa: en qué momento se midió (22/10/2026); sin valor en mediciones anteriores */
+  momento?: MomentoGlucosa;
 }
 
 /** Cómo se muestran en la bitácora las mediciones sueltas (las de una tarea van con su registro). */

@@ -12,7 +12,13 @@ import {
   writeBatch,
 } from '@angular/fire/firestore';
 import { Observable, catchError, of } from 'rxjs';
-import { SignoVital, TIPOS_SIGNO, TipoSigno } from '../models';
+import {
+  MOMENTO_GLUCOSA_ETIQUETA,
+  MomentoGlucosa,
+  SignoVital,
+  TIPOS_SIGNO,
+  TipoSigno,
+} from '../models';
 import { AuthService } from './auth.service';
 
 /** Una medición capturada; en la presión, `valor` es la sistólica y `valorSecundario` la diastólica. */
@@ -20,17 +26,26 @@ export interface Medicion {
   tipo: TipoSigno;
   valor: number;
   valorSecundario?: number | null;
+  /** Solo glucosa: en qué momento se midió */
+  momento?: MomentoGlucosa | null;
 }
 
-/** "Presión 130/85 mmHg · Glucosa 110 mg/dL": las mediciones en una línea, para la nota de la tarea. */
+/** "Presión 130/85 mmHg · Glucosa 110 mg/dL (en ayunas)": las mediciones en una línea, para la nota de la tarea. */
 export function resumenMediciones(mediciones: Medicion[]): string {
   return mediciones
     .map((m) => {
       const info = TIPOS_SIGNO.find((t) => t.valor === m.tipo);
       const valor = m.valorSecundario != null ? `${m.valor}/${m.valorSecundario}` : `${m.valor}`;
-      return `${info?.corto ?? m.tipo} ${valor} ${info?.unidad ?? ''}`.trim();
+      const momento =
+        m.tipo === 'glucosa' && m.momento ? ` (${MOMENTO_GLUCOSA_ETIQUETA[m.momento].toLowerCase()})` : '';
+      return `${info?.corto ?? m.tipo} ${valor} ${info?.unidad ?? ''}`.trim() + momento;
     })
     .join(' · ');
+}
+
+/** Campos extra de una medición al guardarla (hoy solo el momento de la glucosa). */
+function extrasDe(m: Medicion) {
+  return m.tipo === 'glucosa' && m.momento ? { momento: m.momento } : {};
 }
 
 /** Signos vitales: personas_cuidadas/{id}/signos_vitales (los leen el reporte y el asistente). */
@@ -65,6 +80,7 @@ export class SignosService {
         autorUid: uid,
         autorNombre: this.authSvc.nombreActual,
         ...(nota?.trim() ? { nota: nota.trim().slice(0, 200) } : {}),
+        ...extrasDe(m),
       });
     }
     await batch.commit();
@@ -125,6 +141,7 @@ export class SignosService {
         fecha: Timestamp.fromDate(fecha),
         autorUid: uid,
         tareaId,
+        ...extrasDe(m),
       });
     }
     await batch.commit();

@@ -411,6 +411,46 @@ decisión: en la web se avisa por correo.
 
 ## 10. Funcionalidades implementadas (10 de septiembre de 2026)
 
+### Hoja para la consulta — 22/10/2026
+El reporte completo era demasiada información para una consulta corta. Siguiendo lo que piden las
+guías clínicas y los estudios con médicos (abajo), el PDF que se lleva al médico es ahora una
+**hoja de una página** (`ReporteService.exportarHojaPdf`, `core/utils/hoja-consulta.ts`):
+
+1. Encabezado: nombre, edad, condiciones, alergias, sangre y médico.
+2. **Para comentar con el médico**: las **banderas** que detecta el sistema por reglas y las
+   **preguntas de la familia** (`consulta/preguntas`, un texto compartido que escriben quienes
+   escriben en la bitácora; el médico lo lee). Umbrales (`UMBRALES_HOJA`): caídas; pérdida de peso
+   ≥ 5 % en el periodo (aviso desde 3 %); glucosa < 70 (hipoglucemia) o > 250; presión promedio de la
+   última semana con lecturas ≥ 135/85 y lecturas ≥ 180/110; fiebre ≥ 38 °C; oxigenación < 92 %;
+   pulso fuera de 50–100; adherencia < 80 % o la misma dosis omitida casi siempre.
+3. **Medicamentos vigentes**: dosis y horario, tomas del periodo, dosis omitidas y su patrón
+   ("3 de 4 a las 20:00"), si es nuevo en el periodo.
+4. **Signos vitales del periodo** resumidos como los lee el médico: presión promedio de los últimos
+   7 días con lecturas; glucosa con promedio por momento (ayunas, después de comer, antes de dormir)
+   y conteo de bajas y altas; peso inicial, final y porcentaje; temperatura máxima; oxigenación
+   mínima; pulso.
+5. **Caídas, incidentes y síntomas** en una línea (el detalle va al anexo).
+6. **Indicaciones médicas previas** (hasta 3 de los últimos 90 días), para comentar si se cumplieron.
+7. Anexos opcionales, cada uno con su casilla: síntomas e incidentes, resumen con IA, bitácora
+   completa. El **Reporte completo** anterior sigue disponible como segundo botón.
+
+Para que la hoja sea buena se capturan dos datos nuevos: el **momento de la glucosa**
+(`SignoVital.momento`, chips en el formulario de signos; se propone "en ayunas" antes de las 10 y
+"antes de dormir" desde las 21) y si un incidente fue una **caída** y si hubo **lesión**
+(`EntradaBitacora.caida`, `lesion`; la bitácora, la Entrega y la hoja las etiquetan así). Para la
+tendencia de peso basta con una tarea semanal de signos "peso" en la rutina. Rules: `momento`,
+`caida` y `lesion` validados; `consulta/preguntas` con tope de 1000 caracteres y firma de quien
+guarda (29 pruebas). Pantalla de Reporte: tarjeta "Hoja para el médico" con banderas, preguntas y
+anexos; la lista de signos usa el mismo resumen clínico.
+
+Fuentes de los umbrales: [AAFP, pérdida de peso involuntaria (2021)](https://aafp.org/afp/2021/0700/p34.html);
+[CDC STEADI](https://www.cdc.gov/steadi/media/pdfs/steadi-pocketguide-508.pdf) y [AAFP, caídas (2024)](https://www.aafp.org/afp/2024/0500/falls-older-adults);
+[ADA Standards of Care, adultos mayores](https://pmc.ncbi.nlm.nih.gov/articles/PMC12690186);
+[RACGP, presión en casa](https://www.racgp.org.au/afp/2016/januaryfebruary/how-to-measure-home-blood-pressure-recommendations-for-healthcare-professionals-and-patients/) y [guía ESH 2023 (resumen ACC)](https://www.acc.org/latest-in-cardiology/articles/2024/02/05/11/43/2023-esh-hypertension-guideline-update);
+[IMSS, valoración geriátrica integral](https://revistamedica.imss.gob.mx/index.php/revista_medica/article/view/1749);
+[PQA, umbral de adherencia del 80 %](https://www.pqaalliance.org/assets/docs/PQA_PDC-CMP-PH_Rationale.pdf);
+[IHI, SBAR](https://forms.ihi.org/tools/sbar-toolkit).
+
 ### Rediseño para uso diario — 13/10/2026
 Cinco fases en la rama `mejoras-uso-diario` (commits "Fase 1" a "Fase 5"). Las pestañas de una
 persona quedan en **Hoy · Bitácora · Plan · Equipo · Reporte**; el asistente sigue en el botón

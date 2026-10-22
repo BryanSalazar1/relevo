@@ -160,6 +160,21 @@ describe('entrega de turno', () => {
       expect(lista[0].texto).toBe('Losartán 08:00: no tomada');
     });
 
+    it('un incidente fechado antes de la ventana pero escrito dentro de ella sí entra, como caída si lo es', () => {
+      const lista = novedadesEntrega({
+        desde: a('10:00'),
+        ahora: a('12:00'),
+        filas: [],
+        entradas: [
+          { ...entrada('incidente', '09:30', 'otro', 'Se cayó en el patio'), creadoEn: Timestamp.fromDate(a('10:30')), caida: true, lesion: true },
+          entrada('incidente', '08:00', 'otro', 'De ayer, escrito ayer'),
+        ],
+        signos: [],
+        miUid: 'yo',
+      });
+      expect(lista.map((n) => n.texto)).toEqual(['Caída con lesión: Se cayó en el patio']);
+    });
+
     it('una indicación médica dentro de la ventana va primero, con quién la escribió', () => {
       const lista = novedadesEntrega({
         desde: a('06:00'),

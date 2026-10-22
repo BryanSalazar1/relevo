@@ -24,7 +24,18 @@ import {
   TipoSigno,
   Toma,
 } from '../models';
-import { edad, etiquetaRango } from '../utils/fechas';
+import { edad, etiquetaRango, sumarDias } from '../utils/fechas';
+import {
+  Bandera,
+  FilaSigno,
+  ResumenCaidas,
+  ResumenClinico,
+  banderasHoja,
+  filasSignos,
+  patronOmisiones,
+  resumenCaidas,
+  resumenClinico,
+} from '../utils/hoja-consulta';
 import { AuthService } from './auth.service';
 import { BitacoraService } from './bitacora.service';
 
@@ -49,6 +60,36 @@ export interface ResumenMedicamento {
   tomadas: number;
   /** 0-100, null si no hubo tomas programadas */
   adherencia: number | null;
+  /** Dosis programadas que se marcaron como no tomadas */
+  omitidas: number;
+  /** "3 de 4 a las 20:00" cuando casi siempre se omite la misma dosis */
+  patronOmision: string | null;
+  /** Se dio de alta dentro del periodo */
+  nuevo: boolean;
+}
+
+/** Días hacia atrás en los que se buscan indicaciones médicas previas al periodo */
+const DIAS_INDICACIONES_PREVIAS = 90;
+
+/** Lo que la hoja para la consulta agrega al reporte (core/utils/hoja-consulta.ts). */
+export interface HojaConsulta {
+  resumen: ResumenClinico;
+  filasSignos: FilaSigno[];
+  caidas: ResumenCaidas;
+  banderas: Bandera[];
+  /** Las últimas indicaciones del médico (hasta 3, del periodo o de los 90 días anteriores) */
+  indicaciones: EntradaBitacora[];
+  /** Preguntas de la familia (consulta/preguntas) */
+  preguntas: string;
+  incidentes: number;
+  sintomas: number;
+}
+
+/** Qué anexos lleva la hoja para la consulta después de la primera página */
+export interface AnexosHoja {
+  sintomas: boolean;
+  resumenIA: boolean;
+  bitacora: boolean;
 }
 
 export interface Reporte {
@@ -66,6 +107,7 @@ export interface Reporte {
   medicamentos: ResumenMedicamento[];
   /** Resumen narrativo generado con IA (opcional; lo pide el usuario en la pantalla de reporte) */
   resumenIA?: string;
+  hoja: HojaConsulta;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -76,7 +118,7 @@ export class ReporteService {
 
   async generar(personaId: string, desde: Date, hasta: Date): Promise<Reporte> {
     const base = `personas_cuidadas/${personaId}`;
-    const [personaSnap, entradas, signosSnap, medsSnap] = await Promise.all([
+    const [personaSnap, entradas, signosSnap, medsSnap, entradasPrevias, preguntasSnap] = await Promise.all([
       getDoc(doc(this.db, base)),
       this.bitacoraSvc.entre(personaId, desde, hasta),
       getDocs(
@@ -88,6 +130,9 @@ export class ReporteService {
         ),
       ),
       getDocs(collection(this.db, `${base}/medicamentos`)),
+      // Indicaciones del médico anteriores al periodo, para "qué pasó con lo que indicó"
+      this.bitacoraSvc.entre(personaId, sumarDias(desde, -DIAS_INDICACIONES_PREVIAS), desde),
+      getDoc(doc(this.db, `${base}/consulta/preguntas`)),
     ]);
     if (!personaSnap.exists()) throw new Error('La persona no existe o no tienes acceso');
     const persona = { id: personaSnap.id, ...(personaSnap.data() as PersonaCuidada) };
@@ -108,6 +153,37 @@ export class ReporteService {
       }),
     );
 
+    // Las tomas van por índice del medicamento: se emparejan antes de filtrar los suspendidos
+    const resumenMeds = medicamentos
+      .map((m, i) => ({ m, tomas: tomasPorMed[i] }))
+      .filter((x) => x.m.activo !== false)
+      .map((x) => this.resumirMedicamento(x.m, x.tomas, desde));
+
+    const resumen = resumenClinico(signos);
+    const caidas = resumenCaidas(entradas);
+    const indicaciones = [...entradasPrevias, ...entradas]
+      .filter((e) => e.tipo === 'indicacion')
+      .sort((a, b) => b.fecha.toMillis() - a.fecha.toMillis())
+      .slice(0, 3);
+    const hoja: HojaConsulta = {
+      resumen,
+      filasSignos: filasSignos(resumen),
+      caidas,
+      banderas: banderasHoja({
+        resumen,
+        caidas,
+        medicamentos: resumenMeds.map((m) => ({
+          nombre: m.nombre,
+          adherencia: m.adherencia,
+          omisiones: { omitidas: m.omitidas, patron: m.patronOmision },
+        })),
+      }),
+      indicaciones,
+      preguntas: preguntasSnap.exists() ? String(preguntasSnap.get('texto') ?? '') : '',
+      incidentes: entradas.filter((e) => e.tipo === 'incidente').length,
+      sintomas: entradas.filter((e) => e.tipo === 'sintoma').length,
+    };
+
     return {
       persona,
       desde,
@@ -122,9 +198,8 @@ export class ReporteService {
       })).filter((c) => c.cantidad > 0),
       alertas: entradas.filter((e) => e.tipo === 'incidente' || e.tipo === 'sintoma'),
       signos: this.resumirSignos(signos),
-      medicamentos: medicamentos
-        .filter((m) => m.activo !== false)
-        .map((m, i) => this.resumirMedicamento(m, tomasPorMed[i])),
+      medicamentos: resumenMeds,
+      hoja,
     };
   }
 
@@ -146,9 +221,10 @@ export class ReporteService {
     });
   }
 
-  private resumirMedicamento(m: Medicamento, tomas: Toma[]): ResumenMedicamento {
+  private resumirMedicamento(m: Medicamento, tomas: Toma[], desde: Date): ResumenMedicamento {
     const tomadas = tomas.filter((t) => t.tomado).length;
     const segunNecesidad = m.segunNecesidad === true;
+    const omisiones = segunNecesidad ? { omitidas: 0, patron: null } : patronOmisiones(tomas);
     return {
       nombre: m.nombre,
       dosis: m.dosis,
@@ -157,6 +233,9 @@ export class ReporteService {
       programadas: segunNecesidad ? 0 : tomas.length,
       tomadas,
       adherencia: !segunNecesidad && tomas.length ? Math.round((tomadas / tomas.length) * 100) : null,
+      omitidas: omisiones.omitidas,
+      patronOmision: omisiones.patron,
+      nuevo: !!m.creadoEn && m.creadoEn.toDate().getTime() >= desde.getTime(),
     };
   }
 
@@ -171,6 +250,224 @@ export class ReporteService {
       'yyyyMMdd',
       'es',
     )}.pdf`;
+  }
+
+  nombreArchivoHoja(r: Reporte): string {
+    return this.nombreArchivo(r).replace('Relevo_', 'Relevo_consulta_');
+  }
+
+  /**
+   * Hoja para la consulta: una página con lo que el médico usa en una consulta corta (preguntas de
+   * la familia y banderas, medicamentos vigentes con sus omisiones, signos resumidos, caídas e
+   * indicaciones previas) y, en páginas aparte, los anexos que se pidan.
+   */
+  async exportarHojaPdf(r: Reporte, anexos: AnexosHoja): Promise<Blob> {
+    const { jsPDF } = await import('jspdf');
+    const { default: autoTable } = await import('jspdf-autotable');
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+    const teal: [number, number, number] = [15, 157, 138];
+    const rojo: [number, number, number] = [200, 56, 56];
+    const gris = 110;
+    const ancho = 182;
+    const f = (d: Date, fmt = 'dd/MM/yyyy') => formatDate(d, fmt, 'es');
+    const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
+    const p = r.persona;
+    const h = r.hoja;
+    const anios = edad(p.fechaNacimiento);
+    let y = 15;
+
+    const salto = (alto: number) => {
+      if (y + alto > 282) {
+        pdf.addPage();
+        y = 18;
+      }
+    };
+    const seccion = (titulo: string) => {
+      salto(14);
+      y += 3;
+      pdf.setFontSize(10.5);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(...teal);
+      pdf.text(titulo.toUpperCase(), 14, y);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(0);
+      y += 4.5;
+    };
+    const linea = (
+      texto: string,
+      opciones: { tam?: number; color?: number | [number, number, number]; negrita?: boolean; sangria?: number } = {},
+    ) => {
+      const tam = opciones.tam ?? 9;
+      const sangria = opciones.sangria ?? 0;
+      pdf.setFontSize(tam);
+      pdf.setFont('helvetica', opciones.negrita ? 'bold' : 'normal');
+      if (Array.isArray(opciones.color)) pdf.setTextColor(...opciones.color);
+      else pdf.setTextColor(opciones.color ?? 0);
+      for (const parte of pdf.splitTextToSize(texto, ancho - sangria) as string[]) {
+        salto(5);
+        pdf.text(parte, 14 + sangria, y);
+        y += tam * 0.5;
+      }
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(0);
+    };
+    const vineta = (texto: string, color?: [number, number, number]) => {
+      salto(5);
+      pdf.setFontSize(9);
+      if (color) pdf.setTextColor(...color);
+      pdf.text('•', 15, y);
+      pdf.setTextColor(0);
+      linea(texto, { sangria: 5, color });
+    };
+    const tabla = (head: string[], body: (string | number)[][], columnStyles = {}) => {
+      autoTable(pdf, {
+        startY: y,
+        head: [head],
+        body: body.length ? body : [['—']],
+        styles: { fontSize: 8.5, cellPadding: 1.6 },
+        headStyles: { fillColor: teal, fontSize: 8.5 },
+        columnStyles,
+        margin: { left: 14, right: 14 },
+      });
+      y = (pdf as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 5;
+    };
+    const nuevaPagina = (titulo: string) => {
+      pdf.addPage();
+      y = 18;
+      seccion(titulo);
+    };
+
+    // Encabezado
+    pdf.setFontSize(15);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(...teal);
+    pdf.text('Hoja para la consulta', 14, y);
+    pdf.setFontSize(8);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(gris);
+    pdf.text(`Relevo · ${r.rango} · preparada por ${r.generadoPor} el ${f(r.generadoEn)}`, 196, y, { align: 'right' });
+    y += 7;
+    pdf.setTextColor(0);
+    linea(`${p.nombre}${anios !== null ? ` · ${anios} años` : ''}`, { tam: 12, negrita: true });
+    linea(
+      [
+        p.condiciones?.length ? `Condiciones: ${p.condiciones.join(', ')}` : '',
+        `Alergias: ${p.alergias?.length ? p.alergias.join(', ') : 'ninguna registrada'}`,
+        p.tipoSangre ? `Sangre: ${p.tipoSangre}` : '',
+        p.medicoTratante ? `Médico: ${p.medicoTratante}` : '',
+      ]
+        .filter(Boolean)
+        .join('  ·  '),
+      { color: 60 },
+    );
+
+    // Lo primero: qué comentar
+    seccion('Para comentar con el médico');
+    const preguntas = h.preguntas
+      .split(/\r?\n/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+    if (!preguntas.length && !h.banderas.length) {
+      linea('Sin banderas en el periodo según los registros; la familia no dejó preguntas.', { color: gris });
+    }
+    for (const b of h.banderas) vineta(b.texto, b.nivel === 'alta' ? rojo : undefined);
+    for (const q of preguntas) vineta(`Pregunta de la familia: ${q}`);
+
+    seccion('Medicamentos vigentes');
+    tabla(
+      ['Medicamento', 'Dosis y horario', 'Tomas del periodo', 'Omitidas'],
+      r.medicamentos.map((m) => [
+        `${m.nombre}${m.nuevo ? ' (nuevo en el periodo)' : ''}`,
+        `${m.dosis} · ${m.segunNecesidad ? 'según necesidad' : m.horarios.join(', ') || 'sin horario'}`,
+        m.segunNecesidad
+          ? plural(m.tomadas, 'uso', 'usos')
+          : `${m.tomadas} de ${m.programadas}${m.adherencia !== null ? ` (${m.adherencia} %)` : ''}`,
+        m.segunNecesidad ? '—' : m.omitidas ? `${m.omitidas}${m.patronOmision ? ` · ${m.patronOmision}` : ''}` : '0',
+      ]),
+      { 0: { cellWidth: 46, fontStyle: 'bold' }, 3: { cellWidth: 40 } },
+    );
+
+    seccion('Signos vitales del periodo');
+    if (h.filasSignos.length) {
+      tabla(
+        ['Medición', 'Resumen', 'Fuera de rango'],
+        h.filasSignos.map((fila) => [fila.etiqueta, fila.resumen, fila.fuera || '—']),
+        { 0: { cellWidth: 30, fontStyle: 'bold' }, 2: { cellWidth: 52 } },
+      );
+    } else {
+      linea('Sin mediciones en el periodo.', { color: gris });
+    }
+
+    seccion('Caídas, incidentes y síntomas');
+    const c = h.caidas;
+    linea(
+      [
+        `${plural(c.total, 'caída', 'caídas')}${c.conLesion ? ` (${c.conLesion} con lesión)` : ''}`,
+        c.posibles ? `${plural(c.posibles, 'posible caída', 'posibles caídas')} por el texto` : '',
+        plural(h.incidentes, 'incidente', 'incidentes'),
+        plural(h.sintomas, 'síntoma', 'síntomas'),
+      ]
+        .filter(Boolean)
+        .join(' · ') + (anexos.sintomas && h.incidentes + h.sintomas > 0 ? ' · detalle en el anexo' : ''),
+    );
+
+    seccion('Indicaciones médicas previas');
+    if (!h.indicaciones.length) {
+      linea(`Sin indicaciones registradas en los últimos ${DIAS_INDICACIONES_PREVIAS} días.`, { color: gris });
+    }
+    for (const e of h.indicaciones) vineta(`${f(e.fecha.toDate())} · ${e.autorNombre}: ${e.texto}`);
+    if (h.indicaciones.length) linea('Comentar en la consulta si se cumplieron y cómo le fue.', { color: gris, tam: 8 });
+
+    // Anexos
+    const tipoAlerta = (e: EntradaBitacora) =>
+      e.tipo === 'sintoma' ? 'Síntoma' : e.caida ? (e.lesion ? 'Caída con lesión' : 'Caída') : 'Incidente';
+    if (anexos.sintomas && r.alertas.length) {
+      nuevaPagina('Anexo: síntomas e incidentes');
+      tabla(
+        ['Fecha', 'Tipo', 'Descripción', 'Registró'],
+        r.alertas.map((e) => [f(e.fecha.toDate(), 'dd/MM HH:mm'), tipoAlerta(e), e.texto, e.autorNombre]),
+        { 0: { cellWidth: 24 }, 1: { cellWidth: 28 }, 3: { cellWidth: 30 } },
+      );
+    }
+    if (anexos.resumenIA && r.resumenIA) {
+      nuevaPagina('Anexo: resumen con IA');
+      for (const cruda of r.resumenIA.split(/\r?\n/)) {
+        const l = cruda.trim();
+        if (!l) {
+          y += 2;
+          continue;
+        }
+        const esTitulo = /^[A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ0-9 ,:]{2,}$/.test(l);
+        linea(l, { negrita: esTitulo, tam: 9.5 });
+      }
+      linea('Resumen generado con inteligencia artificial a partir de los registros. No sustituye el criterio médico.', { tam: 8, color: gris });
+    }
+    if (anexos.bitacora && r.entradas.length) {
+      nuevaPagina('Anexo: bitácora completa');
+      tabla(
+        ['Fecha', 'Tipo', 'Registro', 'Autor'],
+        r.entradas.map((e) => [
+          f(e.fecha.toDate(), 'dd/MM HH:mm'),
+          TIPO_ENTRADA_INFO[e.tipo]?.etiqueta ?? e.tipo,
+          e.texto,
+          e.autorNombre,
+        ]),
+        { 0: { cellWidth: 24 }, 1: { cellWidth: 26 }, 3: { cellWidth: 30 } },
+      );
+    }
+
+    const paginas = pdf.getNumberOfPages();
+    for (let i = 1; i <= paginas; i++) {
+      pdf.setPage(i);
+      pdf.setFontSize(7.5);
+      pdf.setTextColor(130);
+      pdf.text(
+        `Relevo · Hoja para la consulta de ${p.nombre} · página ${i} de ${paginas} · Preparada por la familia con los registros de Relevo; no sustituye el expediente clínico.`,
+        14,
+        291,
+      );
+    }
+    return pdf.output('blob');
   }
 
   async exportarPdf(r: Reporte): Promise<Blob> {

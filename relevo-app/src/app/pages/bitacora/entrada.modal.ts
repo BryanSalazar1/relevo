@@ -89,6 +89,29 @@ export function ventanaRegistro(ahora = new Date()): { min: Date; max: Date } {
         }
       </div>
 
+      @if (tipo() === 'incidente') {
+        <ion-note>¿Fue una caída?</ion-note>
+        <div class="tipos">
+          <ion-chip [outline]="caida() !== true" color="danger" (click)="caida.set(true)">
+            <ion-label>Sí, fue una caída</ion-label>
+          </ion-chip>
+          <ion-chip [outline]="caida() !== false" color="medium" (click)="caida.set(false)">
+            <ion-label>No</ion-label>
+          </ion-chip>
+        </div>
+        @if (caida()) {
+          <ion-note>¿Hubo lesión (golpe, herida o dolor después)?</ion-note>
+          <div class="tipos">
+            <ion-chip [outline]="lesion() !== true" color="danger" (click)="lesion.set(true)">
+              <ion-label>Sí</ion-label>
+            </ion-chip>
+            <ion-chip [outline]="lesion() !== false" color="medium" (click)="lesion.set(false)">
+              <ion-label>No</ion-label>
+            </ion-chip>
+          </div>
+        }
+      }
+
       <ion-textarea
         label="Descripción"
         labelPlacement="stacked"
@@ -172,6 +195,9 @@ export class EntradaModal implements OnInit {
 
   tipos: TipoEntradaInfo[] = TIPOS_ENTRADA;
   readonly tipo = signal<TipoEntrada>('nota');
+  /** Solo incidentes: si fue una caída y si hubo lesión (null = sin contestar) */
+  readonly caida = signal<boolean | null>(null);
+  readonly lesion = signal<boolean | null>(null);
   /** Límites del selector de hora (se refrescan cada vez que se abre). */
   readonly minIso = signal(aIsoLocal(ventanaRegistro().min));
   readonly maxIso = signal(aIsoLocal(new Date()));
@@ -186,6 +212,8 @@ export class EntradaModal implements OnInit {
       this.tipo.set(this.entrada.tipo);
       this.texto = this.entrada.texto;
       this.fechaOriginal = this.entrada.fecha.toDate();
+      if (typeof this.entrada.caida === 'boolean') this.caida.set(this.entrada.caida);
+      if (typeof this.entrada.lesion === 'boolean') this.lesion.set(this.entrada.lesion);
     } else if (!this.tipos.some((t) => t.valor === this.tipo())) {
       // El médico solo tiene "Indicación médica": queda elegida de entrada
       this.tipo.set(this.tipos[0]?.valor ?? 'nota');
@@ -207,10 +235,14 @@ export class EntradaModal implements OnInit {
   guardar() {
     const texto = this.texto.trim();
     if (!texto) return;
+    const incidente = this.tipo() === 'incidente';
+    const caida = incidente ? this.caida() : null;
     const datos: DatosEntrada = {
       tipo: this.tipo(),
       texto,
       fecha: this.fechaOriginal ?? this.fechaElegida(),
+      // Solo se guarda lo que se contestó; una caída sin contestar la lesión cuenta como sin lesión
+      ...(caida === null ? {} : { caida, lesion: caida && this.lesion() === true }),
     };
     void this.modalCtrl.dismiss(datos, 'guardar');
   }
