@@ -132,7 +132,11 @@ export class ReporteService {
       getDocs(collection(this.db, `${base}/medicamentos`)),
       // Indicaciones del médico anteriores al periodo, para "qué pasó con lo que indicó"
       this.bitacoraSvc.entre(personaId, sumarDias(desde, -DIAS_INDICACIONES_PREVIAS), desde),
-      getDoc(doc(this.db, `${base}/consulta/preguntas`)),
+      // Las preguntas no detienen el reporte: si no se pueden leer (reglas sin publicar, sin red), van vacías
+      getDoc(doc(this.db, `${base}/consulta/preguntas`)).catch((error: unknown) => {
+        console.warn('No se pudieron leer las preguntas para el médico', error);
+        return null;
+      }),
     ]);
     if (!personaSnap.exists()) throw new Error('La persona no existe o no tienes acceso');
     const persona = { id: personaSnap.id, ...(personaSnap.data() as PersonaCuidada) };
@@ -179,7 +183,7 @@ export class ReporteService {
         })),
       }),
       indicaciones,
-      preguntas: preguntasSnap.exists() ? String(preguntasSnap.get('texto') ?? '') : '',
+      preguntas: preguntasSnap?.exists() ? String(preguntasSnap.get('texto') ?? '') : '',
       incidentes: entradas.filter((e) => e.tipo === 'incidente').length,
       sintomas: entradas.filter((e) => e.tipo === 'sintoma').length,
     };
