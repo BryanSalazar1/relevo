@@ -51,6 +51,8 @@ npm run test:functions      # pruebas de la lógica de notificaciones (functions
 npm run semilla             # usuarios y datos de prueba en los EMULADORES (ver §6)
 npx ng test --watch=false --browsers=ChromeHeadless   # pruebas unitarias de la app (Karma)
 npm run deploy:functions    # sube las Cloud Functions de notificaciones (requiere plan Blaze, §8)
+# Si falla con "Cannot determine backend specification. Timeout after 10000" (la CLI tarda en
+# descubrir las funciones en esta máquina), amplía el tiempo: FUNCTIONS_DISCOVERY_TIMEOUT=60 npm run deploy:functions
 npm run semilla:real        # usuarios y datos de prueba en tu proyecto real
 npm run semilla:historial:real  # cuenta demo con 60 días de historial (ver "Datos de demostración")
 npm run test:e2e            # prueba de humo con navegador real contra la app publicada (Playwright)
