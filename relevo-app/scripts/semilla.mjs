@@ -75,6 +75,13 @@ const hace = (dias, hora = 9, min = 0) => {
   return Timestamp.fromDate(d);
 };
 
+/** Id de toma o registro de tarea como lo arma la app: yyyyMMdd-HHmm de la hora programada */
+const idDe = (ts) => {
+  const d = ts.toDate();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+};
+
 async function entrarComo(u) {
   try {
     const cred = await createUserWithEmailAndPassword(auth, u.email, PASSWORD);
@@ -144,18 +151,23 @@ async function main() {
   b = writeBatch(db);
   b.set(doc(personaRef, 'medicamentos', 'metformina'), { nombre: 'Metformina', dosis: '850 mg', horarios: ['08:00', '20:00'], inventario: 42, activo: true });
   b.set(doc(personaRef, 'medicamentos', 'losartan'), { nombre: 'Losartán', dosis: '50 mg', horarios: ['08:00'], inventario: 28, activo: true });
-  b.set(doc(personaRef, 'medicamentos/metformina/tomas', 'hoy-0800'), { horaProgramada: hace(0, 8), horaReal: hace(0, 8, 10), tomado: true, registradoPor: ana });
-  b.set(doc(personaRef, 'medicamentos/metformina/tomas', 'ayer-0800'), { horaProgramada: hace(1, 8), horaReal: hace(1, 8, 5), tomado: true, registradoPor: ana });
-  b.set(doc(personaRef, 'medicamentos/metformina/tomas', 'ayer-2000'), { horaProgramada: hace(1, 20), horaReal: null, tomado: false, registradoPor: ana });
-  b.set(doc(personaRef, 'medicamentos/metformina/tomas', 'antier-0800'), { horaProgramada: hace(2, 8), horaReal: hace(2, 8, 20), tomado: true, registradoPor: ana });
+  b.set(doc(personaRef, 'medicamentos/metformina/tomas', idDe(hace(0, 8))), { horaProgramada: hace(0, 8), horaReal: hace(0, 8, 10), tomado: true, registradoPor: ana });
+  b.set(doc(personaRef, 'medicamentos/metformina/tomas', idDe(hace(1, 8))), { horaProgramada: hace(1, 8), horaReal: hace(1, 8, 5), tomado: true, registradoPor: ana });
+  b.set(doc(personaRef, 'medicamentos/metformina/tomas', idDe(hace(1, 20))), { horaProgramada: hace(1, 20), horaReal: null, tomado: false, registradoPor: ana });
+  b.set(doc(personaRef, 'medicamentos/metformina/tomas', idDe(hace(2, 8))), { horaProgramada: hace(2, 8), horaReal: hace(2, 8, 20), tomado: true, registradoPor: ana });
   // Losartán (presión): dos tomas omitidas en la semana, para que el asistente tenga qué contar
-  b.set(doc(personaRef, 'medicamentos/losartan/tomas', 'hoy-0800'), { horaProgramada: hace(0, 8), horaReal: hace(0, 8, 12), tomado: true, registradoPor: ana });
-  b.set(doc(personaRef, 'medicamentos/losartan/tomas', 'ayer-0800'), { horaProgramada: hace(1, 8), horaReal: null, tomado: false, registradoPor: ana });
-  b.set(doc(personaRef, 'medicamentos/losartan/tomas', 'antier-0800'), { horaProgramada: hace(2, 8), horaReal: hace(2, 8, 30), tomado: true, registradoPor: ana });
-  b.set(doc(personaRef, 'medicamentos/losartan/tomas', 'hace3-0800'), { horaProgramada: hace(3, 8), horaReal: hace(3, 8, 15), tomado: true, registradoPor: ana });
-  b.set(doc(personaRef, 'medicamentos/losartan/tomas', 'hace4-0800'), { horaProgramada: hace(4, 8), horaReal: null, tomado: false, registradoPor: ana });
-  b.set(doc(personaRef, 'medicamentos/losartan/tomas', 'hace5-0800'), { horaProgramada: hace(5, 8), horaReal: hace(5, 8, 5), tomado: true, registradoPor: ana });
+  b.set(doc(personaRef, 'medicamentos/losartan/tomas', idDe(hace(0, 8))), { horaProgramada: hace(0, 8), horaReal: hace(0, 8, 12), tomado: true, registradoPor: ana });
+  b.set(doc(personaRef, 'medicamentos/losartan/tomas', idDe(hace(1, 8))), { horaProgramada: hace(1, 8), horaReal: null, tomado: false, registradoPor: ana });
+  b.set(doc(personaRef, 'medicamentos/losartan/tomas', idDe(hace(2, 8))), { horaProgramada: hace(2, 8), horaReal: hace(2, 8, 30), tomado: true, registradoPor: ana });
+  b.set(doc(personaRef, 'medicamentos/losartan/tomas', idDe(hace(3, 8))), { horaProgramada: hace(3, 8), horaReal: hace(3, 8, 15), tomado: true, registradoPor: ana });
+  b.set(doc(personaRef, 'medicamentos/losartan/tomas', idDe(hace(4, 8))), { horaProgramada: hace(4, 8), horaReal: null, tomado: false, registradoPor: ana });
+  b.set(doc(personaRef, 'medicamentos/losartan/tomas', idDe(hace(5, 8))), { horaProgramada: hace(5, 8), horaReal: hace(5, 8, 5), tomado: true, registradoPor: ana });
 
+  // Rutina: desayuno diario, caminata entre semana y signos por la mañana (con un registro de ayer)
+  b.set(doc(personaRef, 'tareas', 'desayuno'), { tipo: 'comida', nombre: 'Desayuno', horarios: ['08:30'], dias: [], duracionMin: 0, avisarMin: 15, signos: [], notas: 'Sin azúcar; avena o fruta', activo: true, creadoEn: hace(10, 9) });
+  b.set(doc(personaRef, 'tareas', 'caminata'), { tipo: 'ejercicio', nombre: 'Caminata en el patio', horarios: ['17:00'], dias: [1, 2, 3, 4, 5], duracionMin: 30, avisarMin: 15, signos: [], notas: 'Con andadera', activo: true, creadoEn: hace(10, 9) });
+  b.set(doc(personaRef, 'tareas', 'signos-manana'), { tipo: 'signos', nombre: 'Revisar signos vitales', horarios: ['08:00'], dias: [], duracionMin: 0, avisarMin: 10, signos: ['presion', 'glucosa'], notas: '', activo: true, creadoEn: hace(10, 9) });
+  b.set(doc(personaRef, 'tareas/desayuno/registros', idDe(hace(1, 8, 30))), { hecha: true, horaProgramada: hace(1, 8, 30), horaReal: hace(1, 8, 40), registradoPor: ana, registradoNombre: 'Ana García', registradoEn: hace(1, 8, 40), nota: 'Comió todo' });
   b.set(doc(personaRef, 'signos_vitales', 'sv1'), { tipo: 'presion', valor: 130, valorSecundario: 85, unidad: 'mmHg', fecha: hace(0, 8, 30), autorUid: ana });
   b.set(doc(personaRef, 'signos_vitales', 'sv2'), { tipo: 'presion', valor: 138, valorSecundario: 90, unidad: 'mmHg', fecha: hace(1, 8, 30), autorUid: ana });
   b.set(doc(personaRef, 'signos_vitales', 'sv3'), { tipo: 'glucosa', valor: 128, valorSecundario: null, unidad: 'mg/dL', fecha: hace(0, 7, 45), autorUid: ana, momento: 'ayunas' });
@@ -175,7 +187,7 @@ async function main() {
   b = writeBatch(db);
   b.set(doc(personaRef, 'entradas_bitacora', 'e4'), { tipo: 'sintoma', texto: 'Se quejó de dolor en la rodilla derecha al caminar. Se aplicó compresa tibia.', autorUid: marta, autorNombre: 'Marta López', fecha: hace(1, 22, 15) });
   b.set(doc(personaRef, 'entradas_bitacora', 'e5'), { tipo: 'incidente', texto: 'Se resbaló en el baño; sin golpe. Revisar tapete antiderrapante.', autorUid: marta, autorNombre: 'Marta López', fecha: hace(2, 23, 5), caida: true, lesion: false });
-  b.set(doc(personaRef, 'medicamentos/metformina/tomas', 'antier-2000'), { horaProgramada: hace(2, 20), horaReal: hace(2, 20, 5), tomado: true, registradoPor: marta });
+  b.set(doc(personaRef, 'medicamentos/metformina/tomas', idDe(hace(2, 20))), { horaProgramada: hace(2, 20), horaReal: hace(2, 20, 5), tomado: true, registradoPor: marta });
   b.update(doc(db, 'usuarios', marta), { personas: arrayUnion(PERSONA_ID) });
   await b.commit();
 

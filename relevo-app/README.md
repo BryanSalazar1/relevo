@@ -411,6 +411,32 @@ decisión: en la web se avisa por correo.
 
 ## 10. Funcionalidades implementadas (10 de septiembre de 2026)
 
+### Cierre: lo que faltaba para usarla con una familia real — 22/10/2026
+Tras recorrer la app completa con los cuatro roles y un usuario nuevo, se aplicaron estas
+recomendaciones:
+
+- **Recuperar y cambiar contraseña**: "¿Olvidaste tu contraseña?" en la pantalla de entrada
+  (`sendPasswordResetEmail`) y "Cambiar contraseña" en Mi perfil (pide la actual y la nueva).
+- **Aviso de privacidad** (`/privacidad`, `pages/privacidad`): texto en términos sencillos (quién
+  trata los datos, qué se guarda, para qué, con quién se comparte, cuánto tiempo, derechos ARCO).
+  Es obligatorio aceptarlo al registrarse (`usuarios.aceptoPrivacidadEn`) y se relee desde Mi perfil
+  y desde la pantalla de entrada. **Es un borrador para que el equipo lo revise antes de la entrega.**
+- **Eliminar persona y salir del equipo** (Equipo → "Zona de peligro"): el responsable elimina a la
+  persona con todo su historial escribiendo su nombre (Cloud Function `eliminarPersona`: borra
+  subcolecciones e invitaciones y la quita del perfil de cada miembro); cualquier otro miembro puede
+  salir del equipo por su cuenta (`MiembrosService.salir`; rules: `soloQuitaMiUid`, y el responsable
+  no puede borrar su propia membresía).
+- **App Check retirado** (ver §8): nada en el servidor lo exigía y solo producía errores 403.
+- **Semáforo**: lo pendiente de hace más de 2 h pasa de "atrasado" (rojo) a "sin registrar"
+  (amarillo), para que el rojo signifique "todavía puedes darlo" y la pantalla no quede roja toda la
+  noche por una dosis de la mañana (`SIN_REGISTRAR_MIN` en `core/utils/semaforo.ts`).
+- **Código permanente del equipo**: 90 días y 20 usos (antes un año y 100); "Renovar" sigue igual.
+  Las fechas de vencimiento llevan el año.
+- **Reporte**: se quitaron la gráfica "Entradas por tipo" (repetía las chips) y las fichas de
+  signos (repetían la lista clínica).
+- **Semilla del emulador**: las tomas usan los ids de la app (Hoy y bitácora cuentan lo mismo) y
+  hay tres tareas de rutina.
+
 ### Hoja para la consulta — 22/10/2026
 El reporte completo era demasiada información para una consulta corta. Siguiendo lo que piden las
 guías clínicas y los estudios con médicos (abajo), el PDF que se lleva al médico es ahora una
@@ -838,8 +864,9 @@ flotante de cada pantalla.
     (https://ai.studio/projects → proyecto → facturación); sin saldo responde "prepayment credits
     are depleted". `maxOutputTokens` va en 4096 porque el modelo gasta parte del presupuesto en razonar.
   Los mensajes de error del servidor se muestran tal cual en el chat para saber qué falta.
-- App Check sigue inicializado en `app.config.ts` (no afecta a Auth ni a Firestore); `vapidKey`,
-  `recaptchaSiteKey` y `modeloIA` de `firebase.config.ts` quedan solo como referencia.
+- App Check se retiró de `app.config.ts` el 22/10/2026: nada en el servidor lo exigía y su
+  reCAPTCHA solo producía errores 403 en la consola del navegador. `recaptchaSiteKey` y `modeloIA`
+  de `firebase.config.ts` quedan solo como referencia.
 
 ### Android
 - Carpeta `android/` generada con Capacitor 8 (`compileSdk 36`, JDK 21) y permiso `CAMERA`

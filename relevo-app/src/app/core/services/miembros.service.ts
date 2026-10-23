@@ -100,4 +100,18 @@ export class MiembrosService {
     });
     await batch.commit();
   }
+
+  /**
+   * Salir de un equipo por cuenta propia: borra mi membresía, me quita de miembrosUids y de mi lista
+   * de personas. Las rules no lo permiten al responsable (primero cede el rol o elimina a la persona).
+   */
+  async salir(personaId: string): Promise<void> {
+    const uid = this.authSvc.uid;
+    if (!uid) throw new Error('No hay sesión iniciada');
+    const batch = writeBatch(this.db);
+    batch.delete(doc(this.db, `personas_cuidadas/${personaId}/miembros/${uid}`));
+    batch.update(doc(this.db, `personas_cuidadas/${personaId}`), { miembrosUids: arrayRemove(uid) });
+    batch.update(doc(this.db, `usuarios/${uid}`), { personas: arrayRemove(personaId) });
+    await batch.commit();
+  }
 }

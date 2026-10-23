@@ -9,6 +9,11 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/login/login.page').then((m) => m.LoginPage),
   },
   {
+    // Aviso de privacidad: pública, se acepta al registrarse y se relee desde Mi perfil
+    path: 'privacidad',
+    loadComponent: () => import('./pages/privacidad/privacidad.page').then((m) => m.PrivacidadPage),
+  },
+  {
     path: 'home',
     canActivate: [authGuard],
     loadComponent: () => import('./pages/home/home.page').then((m) => m.HomePage),

@@ -1,5 +1,6 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import {
   AlertController,
   IonBadge,
@@ -87,6 +88,20 @@ import { AuthService } from '../../core/services/auth.service';
         equipos de los que formas parte.
       </ion-note>
 
+      <ion-list inset class="seguridad">
+        <ion-list-header>
+          <ion-label>Seguridad y privacidad</ion-label>
+        </ion-list-header>
+        <ion-item button [detail]="false" (click)="cambiarContrasena()" [disabled]="guardando">
+          <ion-icon slot="start" name="key-outline" color="primary" />
+          <ion-label>Cambiar contraseña</ion-label>
+        </ion-item>
+        <ion-item button detail (click)="verPrivacidad()">
+          <ion-icon slot="start" name="document-text-outline" color="primary" />
+          <ion-label>Aviso de privacidad</ion-label>
+        </ion-item>
+      </ion-list>
+
       <ion-list inset class="peligro">
         <ion-list-header>
           <ion-label color="danger">Zona de peligro</ion-label>
@@ -134,6 +149,7 @@ export class PerfilModal implements OnInit {
   private readonly modalCtrl = inject(ModalController);
   private readonly alertCtrl = inject(AlertController);
   private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
 
   nombre = '';
   email = '';
@@ -155,6 +171,61 @@ export class PerfilModal implements OnInit {
   guardar() {
     if (!this.nombre.trim()) return;
     void this.modalCtrl.dismiss({ nombre: this.nombre.trim() }, 'guardar');
+  }
+
+  /** Cierra el modal y abre el aviso de privacidad. */
+  async verPrivacidad() {
+    await this.modalCtrl.dismiss(null, 'cancelar');
+    await this.router.navigateByUrl('/privacidad');
+  }
+
+  /** Pide la contraseña actual y la nueva (Firebase exige sesión reciente para cambiarla). */
+  async cambiarContrasena() {
+    const alerta = await this.alertCtrl.create({
+      header: 'Cambiar contraseña',
+      inputs: [
+        { name: 'actual', type: 'password', placeholder: 'Contraseña actual', attributes: { autocomplete: 'current-password' } },
+        { name: 'nueva', type: 'password', placeholder: 'Nueva (mínimo 6 caracteres)', attributes: { autocomplete: 'new-password' } },
+      ],
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        { text: 'Cambiar', role: 'confirm' },
+      ],
+    });
+    await alerta.present();
+    const { role, data } = await alerta.onDidDismiss<{ values: { actual?: string; nueva?: string } }>();
+    if (role !== 'confirm') return;
+    const actual = data?.values?.actual ?? '';
+    const nueva = data?.values?.nueva ?? '';
+    if (!actual || nueva.length < 6) {
+      const aviso = await this.alertCtrl.create({
+        header: 'Revisa los datos',
+        message: 'Escribe tu contraseña actual y una nueva de al menos 6 caracteres.',
+        buttons: ['Entendido'],
+      });
+      await aviso.present();
+      return;
+    }
+    this.guardando = true;
+    try {
+      await this.auth.cambiarContrasena(actual, nueva);
+      const listo = await this.alertCtrl.create({
+        header: 'Contraseña actualizada',
+        message: 'Usa la nueva contraseña la próxima vez que entres.',
+        buttons: ['Entendido'],
+      });
+      await listo.present();
+    } catch (error) {
+      console.error(error);
+      const aviso = await this.alertCtrl.create({
+        header: 'No se pudo cambiar la contraseña',
+        message: this.auth.mensajeError(error),
+        buttons: ['Entendido'],
+      });
+      await aviso.present();
+    } finally {
+      this.guardando = false;
+    }
   }
 
   /** Pide la contraseña (Firebase exige sesión reciente) y borra la cuenta. */

@@ -92,6 +92,8 @@ export interface Usuario {
   /** IDs de personas_cuidadas a las que tiene acceso */
   personas: string[];
   creadoEn: Timestamp;
+  /** Cuándo aceptó el aviso de privacidad al registrarse (cuentas anteriores al 22/10/2026 no lo tienen) */
+  aceptoPrivacidadEn?: Timestamp;
 }
 
 /** Opciones del selector de tipo de sangre. */

@@ -18,6 +18,7 @@
  *   - notificarToma: una toma se marca "no tomada", o se registra una según necesidad (o "tomada"
  *     si NOTIFICAR_TOMAS_REALIZADAS) → los demás.
  *   - recordarTomasPendientes: cada 10 min, dosis ya pasadas de su hora sin registro → quienes registran tomas.
+ *   - eliminarPersona: el responsable borra a una persona cuidada con todo su historial (callable).
  *   - avisarProximas: cada 5 min, tareas de la rutina y medicamentos cuya hora se acerca → quienes cuidan;
  *     citas del calendario que se acercan → quien acompaña, familia y quien está de guardia.
  *   - notificarRegistroTarea: una tarea de la rutina se marca "no hecha" → los demás (alerta).
@@ -679,6 +680,37 @@ export const limpiarUsuarioEliminado = authV1.user().onDelete(async (user) => {
     equipos: equipos.size,
     personasBorradas,
   });
+});
+
+/**
+ * El responsable elimina a una persona cuidada con todo su historial. Va por Admin SDK porque las
+ * reglas no dejan borrar subcolecciones desde la app: borra las invitaciones de la persona, la quita
+ * del perfil de cada miembro y elimina el documento con todas sus subcolecciones. No se deshace.
+ */
+export const eliminarPersona = onCall({ cors: true }, async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Inicia sesión para eliminar a la persona.');
+  const personaId = req.data?.personaId;
+  if (typeof personaId !== 'string' || !personaId) {
+    throw new HttpsError('invalid-argument', 'Falta la persona.');
+  }
+  const ref = db().doc(`personas_cuidadas/${personaId}`);
+  const [pSnap, miembroSnap] = await Promise.all([ref.get(), ref.collection('miembros').doc(uid).get()]);
+  if (!pSnap.exists) throw new HttpsError('not-found', 'La persona ya no existe.');
+  if (miembroSnap.data()?.rol !== 'cuidador_principal') {
+    throw new HttpsError('permission-denied', 'Solo el responsable puede eliminar a la persona.');
+  }
+  const uids = pSnap.data().miembrosUids ?? [];
+  const invitaciones = await db().collection('invitaciones').where('personaId', '==', personaId).get();
+  const batch = db().batch();
+  for (const inv of invitaciones.docs) batch.delete(inv.ref);
+  for (const u of uids) {
+    batch.set(db().doc(`usuarios/${u}`), { personas: FieldValue.arrayRemove(personaId) }, { merge: true });
+  }
+  await batch.commit();
+  await db().recursiveDelete(ref);
+  logger.info('Persona eliminada por su responsable', { personaId, uid, miembros: uids.length });
+  return { eliminada: true };
 });
 
 /** Cliente de Gemini según IA_BACKEND (ver arriba). */

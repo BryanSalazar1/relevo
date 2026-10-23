@@ -49,14 +49,6 @@ async function cerrarSesion(page) {
 
 const browser = await chromium.launch();
 const contexto = await browser.newContext({ acceptDownloads: true, locale: 'es-MX' });
-// App Check: en un navegador automatizado reCAPTCHA no da puntaje; se usa el token de depuración
-// registrado en Firebase (tests/.appcheck-debug.json, fuera de git) para que el asistente responda.
-try {
-  const { debugToken } = JSON.parse(readFileSync(new URL('./.appcheck-debug.json', import.meta.url), 'utf8'));
-  await contexto.addInitScript((t) => { self.FIREBASE_APPCHECK_DEBUG_TOKEN = t; }, debugToken);
-} catch {
-  console.log('  (sin tests/.appcheck-debug.json: el paso del asistente puede fallar por App Check)');
-}
 const page = await contexto.newPage();
 const erroresConsola = [];
 page.on('pageerror', (e) => erroresConsola.push(String(e)));

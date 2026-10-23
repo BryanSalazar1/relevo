@@ -13,6 +13,7 @@ import {
   where,
   writeBatch,
 } from '@angular/fire/firestore';
+import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, catchError, map, of, switchMap } from 'rxjs';
 import { AVISOS_POR_DEFECTO, PersonaCuidada } from '../models';
 import { AuthService } from './auth.service';
@@ -20,7 +21,18 @@ import { AuthService } from './auth.service';
 @Injectable({ providedIn: 'root' })
 export class PersonasService {
   private readonly db = inject(Firestore);
+  private readonly fns = inject(Functions);
   private readonly authSvc = inject(AuthService);
+
+  /**
+   * Elimina a la persona con todo su historial. Lo hace la Cloud Function `eliminarPersona`
+   * (solo el responsable): borra las subcolecciones, las invitaciones y la quita del perfil de
+   * cada miembro. No se puede deshacer.
+   */
+  async eliminar(personaId: string): Promise<void> {
+    const llamar = httpsCallable<{ personaId: string }, { eliminada: boolean }>(this.fns, 'eliminarPersona');
+    await llamar({ personaId });
+  }
 
   /** Personas cuidadas a las que el usuario actual tiene acceso, en tiempo real. */
   misPersonas(): Observable<PersonaCuidada[]> {

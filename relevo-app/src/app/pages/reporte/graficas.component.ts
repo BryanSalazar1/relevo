@@ -1,26 +1,12 @@
 import { Component, computed, input } from '@angular/core';
-import { TIPOS_ENTRADA_TODOS } from '../../core/models';
 import { Reporte } from '../../core/services/reporte.service';
 
 /**
- * Paleta categórica del reporte.
- *
- * NO son los colores que la app usa en los chips. Se comprobaron y no sirven
- * para una gráfica: `sintoma` e `incidente` comparten el mismo rojo (dos
- * categorías indistinguibles), y el par comida/ánimo queda en ΔE 5.1 bajo
- * protanopia, o sea que quien no distingue rojo de verde no puede separarlas.
- *
- * Estos seis pasan las cinco comprobaciones sobre la superficie oscura:
- * banda de luminosidad, croma mínimo, separación CVD (peor par ΔE 8.4),
- * visión normal (ΔE 19.3) y contraste ≥ 3:1.
- *
- * El color sigue a la ENTIDAD, no a su posición en el ranking: el índice sale
- * del orden fijo de TIPOS_ENTRADA_TODOS, así que filtrar o reordenar por
- * cantidad nunca repinta las categorías que sobreviven.
+ * Paleta del reporte: azul para la actividad por día y verde para la adherencia. Los seis tonos
+ * pasan las comprobaciones de luminosidad, croma, separación para daltonismo y contraste ≥ 3:1
+ * sobre la superficie clara; se conservan por si vuelve una gráfica por categorías.
  */
 const PALETA = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300'];
-
-const COLOR_POR_TIPO = new Map(TIPOS_ENTRADA_TODOS.map((t, i) => [t.valor, PALETA[i % PALETA.length]]));
 
 /** Una barra de cualquiera de las gráficas, ya resuelta a coordenadas. */
 interface Barra {
@@ -34,12 +20,6 @@ interface Barra {
   y: number;
   ancho: number;
   alto: number;
-}
-
-interface Tile {
-  etiqueta: string;
-  valor: string;
-  detalle: string;
 }
 
 /** Convierte lo que venga de Firestore (Timestamp o Date) en Date. */
@@ -99,34 +79,9 @@ function aFecha(valor: unknown): Date {
         </figure>
       }
 
-      <!-- ---------- 2. Entradas por tipo ---------- -->
-      @if (porTipo().length) {
-        <figure class="grafica">
-          <figcaption>
-            <h3>Entradas por tipo</h3>
-            <p>Qué se registró más en el periodo</p>
-          </figcaption>
+      <!-- "Entradas por tipo" se quitó el 22/10/2026: repetía las chips de la tarjeta de arriba. -->
 
-          <!-- Barras horizontales: las etiquetas son palabras y se leen mejor así. -->
-          <div class="barras-h">
-            @for (b of porTipo(); track b.etiqueta) {
-              <div class="fila">
-                <span class="nombre">
-                  <i class="punto" [style.background]="b.color"></i>
-                  {{ b.etiqueta }}
-                </span>
-                <span class="pista">
-                  <i class="relleno" [style.width.%]="b.porcentaje" [style.background]="b.color"></i>
-                </span>
-                <!-- Etiqueta directa siempre visible: el valor no depende del hover. -->
-                <span class="valor">{{ b.valorTexto }}</span>
-              </div>
-            }
-          </div>
-        </figure>
-      }
-
-      <!-- ---------- 3. Adherencia a medicamentos ---------- -->
+      <!-- ---------- 2. Adherencia a medicamentos ---------- -->
       @if (adherencia().length) {
         <figure class="grafica">
           <figcaption>
@@ -148,27 +103,8 @@ function aFecha(valor: unknown): Date {
         </figure>
       }
 
-      <!-- ---------- 4. Signos vitales ----------
-           No es una gráfica a propósito: cada signo tiene su propia unidad
-           (mmHg, °C, lpm) y meterlos en un eje común sería mentir. Con una
-           medida por tarjeta, el número es más directo que cualquier barra. -->
-      @if (signos().length) {
-        <figure class="grafica">
-          <figcaption>
-            <h3>Signos vitales</h3>
-            <p>Promedio del periodo, con su rango</p>
-          </figcaption>
-          <div class="tiles">
-            @for (t of signos(); track t.etiqueta) {
-              <div class="tile">
-                <span class="tile-etiqueta">{{ t.etiqueta }}</span>
-                <strong class="tile-valor">{{ t.valor }}</strong>
-                <span class="tile-detalle">{{ t.detalle }}</span>
-              </div>
-            }
-          </div>
-        </figure>
-      }
+      <!-- Las fichas de signos vitales se quitaron el 22/10/2026: la lista "Signos vitales" de la
+           pantalla ya los resume como los lee el médico (promedio de la semana, fuera de rango). -->
     </div>
   `,
 })
@@ -240,22 +176,6 @@ export class GraficasReporte {
       }));
   });
 
-  protected readonly porTipo = computed<Barra[]>(() => {
-    const conteo = [...this.reporte().conteoPorTipo].sort((a, b) => b.cantidad - a.cantidad);
-    const maximo = Math.max(1, ...conteo.map((c) => c.cantidad));
-    return conteo.map((c) => ({
-      etiqueta: c.tipo.etiqueta,
-      valorTexto: String(c.cantidad),
-      cantidad: c.cantidad,
-      color: COLOR_POR_TIPO.get(c.tipo.valor) ?? PALETA[0],
-      porcentaje: (c.cantidad / maximo) * 100,
-      x: 0,
-      y: 0,
-      ancho: 0,
-      alto: 0,
-    }));
-  });
-
   /**
    * Los medicamentos "según necesidad" se excluyen: no tienen tomas programadas,
    * así que una adherencia del 0 % sería una acusación falsa.
@@ -275,13 +195,5 @@ export class GraficasReporte {
         ancho: 0,
         alto: 0,
       })),
-  );
-
-  protected readonly signos = computed<Tile[]>(() =>
-    this.reporte().signos.map((s) => ({
-      etiqueta: s.etiqueta,
-      valor: `${Math.round(s.promedio * 10) / 10} ${s.unidad}`,
-      detalle: `${s.min}–${s.max} · ${s.n} ${s.n === 1 ? 'medición' : 'mediciones'}`,
-    })),
   );
 }

@@ -51,8 +51,8 @@ export function extraerCodigo(texto: string): string | null {
 export type EstadoInvitacion = 'valida' | 'inexistente' | 'inactiva' | 'vencida' | 'agotada';
 
 /** Vigencia del código permanente que se muestra en la pestaña Equipo */
-export const DIAS_CODIGO_PERMANENTE = 365;
-export const USOS_CODIGO_PERMANENTE = 100;
+export const DIAS_CODIGO_PERMANENTE = 90;
+export const USOS_CODIGO_PERMANENTE = 20;
 
 @Injectable({ providedIn: 'root' })
 export class InvitacionesService {

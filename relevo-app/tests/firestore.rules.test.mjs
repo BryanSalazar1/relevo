@@ -14,6 +14,7 @@ import {
 } from '@firebase/rules-unit-testing';
 import {
   Timestamp,
+  arrayRemove,
   arrayUnion,
   collection,
   deleteDoc,
@@ -378,6 +379,28 @@ test('consulta: preguntas para el médico compartidas (las escribe quien escribe
   const entrada = (db, id) => doc(db, `personas_cuidadas/${PERSONA_ID}/entradas_bitacora/${id}`);
   await assertSucceeds(setDoc(entrada(pedro(), 'e1'), { tipo: 'incidente', texto: 'Se cayó en el baño', autorUid: 'pedro', caida: true, lesion: false }));
   await assertFails(setDoc(entrada(pedro(), 'e2'), { tipo: 'incidente', texto: 'Se cayó', autorUid: 'pedro', caida: 'sí' }));
+});
+
+test('equipo: un miembro sale por su cuenta (mismo batch que MiembrosService.salir); el responsable no, y nadie saca a otro así', async () => {
+  await anaCreaPersona();
+  await perfil(luis(), 'luis', 'familiar');
+  await perfil(marta(), 'marta', 'enfermero');
+  await agregarComo('luis', 'familiar');
+  await agregarComo('marta', 'cuidador_turno');
+  const salir = (db, uid) => {
+    const b = writeBatch(db);
+    b.delete(doc(db, `personas_cuidadas/${PERSONA_ID}/miembros/${uid}`));
+    b.update(doc(db, `personas_cuidadas/${PERSONA_ID}`), { miembrosUids: arrayRemove(uid) });
+    b.update(doc(db, `usuarios/${uid}`), { personas: arrayRemove(PERSONA_ID) });
+    return b.commit();
+  };
+  await assertFails(salir(luis(), 'marta')); // a otro no
+  await assertFails(salir(ana(), 'ana')); // el responsable no se va: cede el rol o elimina a la persona
+  await assertSucceeds(salir(luis(), 'luis'));
+  const p = await getDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}`));
+  assert.deepEqual(p.data().miembrosUids, ['ana', 'marta']);
+  // Ya fuera, no lee nada
+  await assertFails(getDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}`)));
 });
 
 test('roles: el familiar coordina el calendario, escribe en la bitácora y registra tomas, pero no define medicamentos', async () => {

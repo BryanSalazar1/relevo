@@ -27,12 +27,9 @@ import {
 } from '@angular/fire/firestore';
 import { connectStorageEmulator, getStorage, provideStorage } from '@angular/fire/storage';
 import { connectFunctionsEmulator, getFunctions, provideFunctions } from '@angular/fire/functions';
-import { initializeAppCheck, provideAppCheck } from '@angular/fire/app-check';
-import { ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 
 import { routes } from './app.routes';
 import { environment } from '../environments/environment';
-import { recaptchaSiteKey } from '../environments/firebase.config';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -93,18 +90,7 @@ export const appConfig: ApplicationConfig = {
       return fns;
     }),
 
-    // App Check: Google exige que la app demuestre ser legítima (reCAPTCHA Enterprise) para usar
-    // Firebase AI Logic (el asistente). No se usa con los emuladores. Para pruebas automatizadas
-    // se define `self.FIREBASE_APPCHECK_DEBUG_TOKEN` antes de cargar la app.
-    ...(environment.useEmulators
-      ? []
-      : [
-          provideAppCheck(() =>
-            initializeAppCheck(getApp(), {
-              provider: new ReCaptchaEnterpriseProvider(recaptchaSiteKey),
-              isTokenAutoRefreshEnabled: true,
-            }),
-          ),
-        ]),
+    // App Check se retiró el 22/10/2026: solo hacía falta para Firebase AI Logic desde el cliente y
+    // el asistente ya va por Cloud Functions con sesión; su reCAPTCHA solo producía errores 403.
   ],
 };

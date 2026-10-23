@@ -8,8 +8,10 @@ import {
   createUserWithEmailAndPassword,
   deleteUser,
   reauthenticateWithCredential,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
+  updatePassword,
   updateProfile,
 } from '@angular/fire/auth';
 import {
@@ -98,7 +100,22 @@ export class AuthService {
       fcmTokens: [],
       personas: [],
       creadoEn: serverTimestamp(),
+      // Al registrarse se acepta el aviso de privacidad (/privacidad); queda cuándo
+      aceptoPrivacidadEn: serverTimestamp(),
     });
+  }
+
+  /** Correo con enlace para crear una contraseña nueva (Firebase responde igual exista o no la cuenta). */
+  async recuperarContrasena(email: string): Promise<void> {
+    await sendPasswordResetEmail(this.auth, email);
+  }
+
+  /** Cambia la contraseña validando la actual (Firebase exige sesión reciente). */
+  async cambiarContrasena(actual: string, nueva: string): Promise<void> {
+    const user = this.auth.currentUser;
+    if (!user?.email) throw new Error('No hay sesión iniciada');
+    await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, actual));
+    await updatePassword(user, nueva);
   }
 
   /** ¿Existe el perfil de la sesión actual? (null si no hay sesión) */

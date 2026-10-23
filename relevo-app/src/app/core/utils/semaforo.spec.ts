@@ -36,6 +36,14 @@ describe('semáforo', () => {
       expect(faseDe(p('x', '14:00', { avisarMin: 0 }), a('13:59'))).toBe('despues');
     });
 
+    it('dos horas después de su hora pasa de "atrasado" a "sin registrar"', () => {
+      const pendiente = p('Losartán', '08:00');
+      expect(faseDe(pendiente, a('09:59'))).toBe('atrasado');
+      expect(faseDe(pendiente, a('10:00'))).toBe('sin_registrar');
+      expect(faseDe(p('Caminata', '10:00', { duracionMin: 30 }), a('12:29'))).toBe('atrasado');
+      expect(faseDe(p('Caminata', '10:00', { duracionMin: 30 }), a('12:30'))).toBe('sin_registrar');
+    });
+
     it('a su hora es "ahora" y tras la tolerancia pasa a "atrasado"', () => {
       expect(faseDe(p('x', '14:00'), a('14:00'))).toBe('ahora');
       expect(faseDe(p('x', '14:00'), a(`14:${GRACIA_MIN - 1}`))).toBe('ahora');
@@ -76,11 +84,12 @@ describe('semáforo', () => {
 
     it('rojo gana a todo y manda el atrasado más antiguo', () => {
       const e = estadoSemaforo(
-        [p('Comida', '14:00'), p('Baño', '10:00'), p('Desayuno', '08:30'), p('Cena', '19:30')],
-        a('14:05'),
+        [p('Comida', '10:30'), p('Baño', '10:00'), p('Desayuno', '08:45'), p('Cena', '19:30')],
+        a('10:35'),
       );
       expect(e.color).toBe('rojo');
       expect(e.atrasados).toBe(2);
+      expect(e.sinRegistrar).toBe(0);
       expect(e.principal?.nombre).toBe('Desayuno');
       // El resto va por hora, con su fase
       expect(e.resto.map((x) => `${x.pendiente.nombre}:${x.fase}`)).toEqual([
@@ -90,10 +99,35 @@ describe('semáforo', () => {
       ]);
     });
 
+    it('lo viejo (más de 2 h) ya no pone rojo: queda "sin registrar" en amarillo y manda lo que toca', () => {
+      const e = estadoSemaforo(
+        [p('Comida', '14:00'), p('Baño', '10:00'), p('Desayuno', '08:30'), p('Cena', '19:30')],
+        a('14:05'),
+      );
+      expect(e.color).toBe('amarillo');
+      expect(e.atrasados).toBe(0);
+      expect(e.sinRegistrar).toBe(2);
+      expect(e.principal?.nombre).toBe('Comida');
+      expect(e.fase).toBe('ahora');
+      expect(e.resto.map((x) => `${x.pendiente.nombre}:${x.fase}`)).toEqual([
+        'Desayuno:sin_registrar',
+        'Baño:sin_registrar',
+        'Cena:despues',
+      ]);
+    });
+
+    it('de noche, con solo dosis viejas sin anotar, es amarillo y manda la más antigua', () => {
+      const e = estadoSemaforo([p('Losartán', '08:00'), p('Metformina', '08:00')], a('22:30'));
+      expect(e.color).toBe('amarillo');
+      expect(e.fase).toBe('sin_registrar');
+      expect(e.sinRegistrar).toBe(2);
+      expect(e.principal?.nombre).toBe('Losartán');
+    });
+
     it('al registrar el atrasado (deja de ser pendiente) el color baja', () => {
       const pendientes = [p('Desayuno', '08:30'), p('Cena', '19:30')];
-      expect(estadoSemaforo(pendientes, a('12:00')).color).toBe('rojo');
-      expect(estadoSemaforo(pendientes.slice(1), a('12:00')).color).toBe('verde');
+      expect(estadoSemaforo(pendientes, a('09:00')).color).toBe('rojo');
+      expect(estadoSemaforo(pendientes.slice(1), a('09:00')).color).toBe('verde');
     });
   });
 

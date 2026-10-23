@@ -53,7 +53,7 @@
               <ion-text color="medium"> (cuenta de {{ tipo.toLowerCase() }})</ion-text>
             }
           </p>
-          <p><ion-text color="medium">Vence el {{ inv.expiraEn.toDate() | date: "d 'de' MMMM" }}</ion-text></p>
+          <p><ion-text color="medium">Vence el {{ inv.expiraEn.toDate() | date: "d 'de' MMMM 'de' y" }}</ion-text></p>
           <ion-button expand="block" class="ion-margin-top" (click)="unirme()" [disabled]="uniendo()">
             @if (uniendo()) {
               <ion-spinner name="crescent" />

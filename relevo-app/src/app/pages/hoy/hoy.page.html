@@ -78,7 +78,8 @@
             <p class="titulo">{{ titulo() }}</p>
             @if (e.principal; as p) {
               <p class="sigue">
-                {{ e.fase === 'despues' ? 'Sigue' : 'Toca' }}: <strong>{{ p.titulo }}</strong>
+                {{ e.fase === 'despues' ? 'Sigue' : e.fase === 'sin_registrar' ? 'Sin anotar' : 'Toca' }}:
+                <strong>{{ p.titulo }}</strong>
                 <span class="cuando">{{ cuando() }}</span>
               </p>
             } @else {

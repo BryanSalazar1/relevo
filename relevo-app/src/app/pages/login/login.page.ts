@@ -1,8 +1,9 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   IonButton,
+  IonCheckbox,
   IonContent,
   IonHeader,
   IonIcon,
@@ -27,12 +28,14 @@ type Modo = 'login' | 'registro';
   selector: 'app-login',
   imports: [
     FormsModule,
+    RouterLink,
     IonHeader,
     IonToolbar,
     IonTitle,
     IonContent,
     IonInput,
     IonInputPasswordToggle,
+    IonCheckbox,
     IonButton,
     IonSpinner,
     IonText,
@@ -62,6 +65,8 @@ export class LoginPage {
   nombre = '';
   email = '';
   password = '';
+  /** Al registrarse hay que aceptar el aviso de privacidad (/privacidad) */
+  aceptaPrivacidad = false;
 
   alternarModo() {
     this.modo.update((m) => (m === 'login' ? 'registro' : 'login'));
@@ -77,7 +82,32 @@ export class LoginPage {
     if (this.modo() === 'registro' && this.nombre.trim().length < 2) return 'Escribe tu nombre.';
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return 'Escribe un correo válido.';
     if (this.password.length < 6) return 'La contraseña debe tener al menos 6 caracteres.';
+    if (this.modo() === 'registro' && !this.aceptaPrivacidad) {
+      return 'Para crear tu cuenta acepta el aviso de privacidad.';
+    }
     return '';
+  }
+
+  /** Manda el correo de Firebase para crear una contraseña nueva. */
+  async recuperarContrasena() {
+    const email = this.email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+      await this.avisar('Escribe tu correo arriba y vuelve a tocar "¿Olvidaste tu contraseña?".');
+      return;
+    }
+    if (this.cargando()) return;
+    this.cargando.set(true);
+    try {
+      await this.auth.recuperarContrasena(email);
+      await this.avisar(
+        `Te enviamos un correo a ${email} con un enlace para crear una contraseña nueva. Revisa también la carpeta de spam.`,
+        'success',
+      );
+    } catch (error) {
+      await this.avisar(this.auth.mensajeError(error));
+    } finally {
+      this.cargando.set(false);
+    }
   }
 
   async enviar() {
@@ -106,8 +136,13 @@ export class LoginPage {
     }
   }
 
-  private async avisar(message: string) {
-    const t = await this.toast.create({ message, duration: 3500, color: 'danger', position: 'top' });
+  private async avisar(message: string, color: 'danger' | 'success' = 'danger') {
+    const t = await this.toast.create({
+      message,
+      duration: color === 'success' ? 6000 : 3500,
+      color,
+      position: 'top',
+    });
     await t.present();
   }
 }

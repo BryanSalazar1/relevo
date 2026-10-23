@@ -51,7 +51,7 @@ import {
 
       <div class="codigo">{{ codigo }}</div>
       <ion-text color="medium">
-        <p>Vence el {{ invitacion.expiraEn.toDate() | date: "d 'de' MMMM" }} · hasta {{ invitacion.usosMax }} personas</p>
+        <p>Vence el {{ invitacion.expiraEn.toDate() | date: "d 'de' MMMM 'de' y" }} · hasta {{ invitacion.usosMax }} personas</p>
       </ion-text>
 
       <ion-button expand="block" (click)="compartir()">

@@ -175,5 +175,40 @@
     </div>
   }
 
+  @if (rol()) {
+    <ion-list inset class="peligro">
+      <ion-list-header>
+        <ion-label color="danger">Zona de peligro</ion-label>
+      </ion-list-header>
+      @if (esPrincipal()) {
+        <ion-item lines="none">
+          <ion-label class="ion-text-wrap">
+            <h3>Eliminar a {{ persona()?.nombre }}</h3>
+            <p>Se borran su bitácora, medicamentos, citas y todo el historial para todo el equipo. No se puede deshacer.</p>
+          </ion-label>
+        </ion-item>
+        <ion-item lines="none">
+          <ion-button slot="end" color="danger" fill="outline" (click)="eliminarPersona()">
+            <ion-icon slot="start" name="trash-outline" />
+            Eliminar persona
+          </ion-button>
+        </ion-item>
+      } @else {
+        <ion-item lines="none">
+          <ion-label class="ion-text-wrap">
+            <h3>Salir del equipo</h3>
+            <p>Dejarás de ver la bitácora de {{ persona()?.nombre }}. El responsable puede volver a invitarte.</p>
+          </ion-label>
+        </ion-item>
+        <ion-item lines="none">
+          <ion-button slot="end" color="danger" fill="outline" (click)="salirDelEquipo()">
+            <ion-icon slot="start" name="log-out-outline" />
+            Salir del equipo
+          </ion-button>
+        </ion-item>
+      }
+    </ion-list>
+  }
+
   <app-fab-asistente />
 </ion-content>

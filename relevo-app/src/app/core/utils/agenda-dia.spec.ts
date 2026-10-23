@@ -119,12 +119,31 @@ describe('agenda del día', () => {
     });
 
     it('varios atrasados: cuenta y el más antiguo manda', () => {
+      // La tarea dura hasta las 09:30: a las 09:50 ya pasó su tolerancia; la dosis lleva 1 h 50 min
       const filas = filasDelDia([dosis('08:00')], [tarea('08:30')]);
-      const e = estadoSemaforo(pendientesDelDia(filas), a('11:00'));
+      const e = estadoSemaforo(pendientesDelDia(filas), a('09:50'));
       expect(e.color).toBe('rojo');
       expect(tituloEstado(e)).toBe('2 atrasados');
       expect(e.principal?.titulo).toBe('Losartán');
-      expect(textoCuando(e, a('11:00'))).toBe('Era a las 08:00 · hace 3 h');
+      expect(textoCuando(e, a('09:50'))).toBe('Era a las 08:00 · hace 1 h 50 min');
+    });
+
+    it('horas después, lo pendiente de la mañana es "sin registrar" (amarillo) y sigue mandando lo más antiguo', () => {
+      const filas = filasDelDia([dosis('08:00')], [tarea('08:30')]);
+      const e = estadoSemaforo(pendientesDelDia(filas), a('12:00'));
+      expect(e.color).toBe('amarillo');
+      expect(tituloEstado(e)).toBe('2 sin registrar');
+      expect(e.principal?.titulo).toBe('Losartán');
+      expect(textoCuando(e, a('12:00'))).toBe('Era a las 08:00 · hace 4 h');
+    });
+
+    it('con algo viejo sin anotar y una dosis por venir, manda la que sigue y el título avisa', () => {
+      const filas = filasDelDia([dosis('08:00'), dosis('20:00')], []);
+      const e = estadoSemaforo(pendientesDelDia(filas), a('15:00'));
+      expect(e.color).toBe('amarillo');
+      expect(e.principal?.horario).toBe('20:00');
+      expect(tituloEstado(e)).toBe('1 sin registrar');
+      expect(textoCuando(e, a('15:00'))).toBe('A las 20:00 · en 5 h');
     });
 
     it('una tarea con rango es "ahora" mientras dura', () => {

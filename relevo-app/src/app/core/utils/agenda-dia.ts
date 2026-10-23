@@ -52,6 +52,7 @@ export type FilaDia = BaseFila &
 
 export const TITULO_FASE: Record<FaseSemaforo, string> = {
   atrasado: 'Atrasado',
+  sin_registrar: 'Sin registrar',
   ahora: 'Es hora',
   pronto: 'Ya casi',
   despues: 'Todo al día',
@@ -133,6 +134,9 @@ export function avanceDia(filas: FilaDia[]): { total: number; registradas: numbe
 /** "Atrasado", "Es hora", "Ya casi", "Todo al día" o "3 atrasados". */
 export function tituloEstado(e: EstadoSemaforo<PendienteSemaforo>): string {
   if (e.atrasados > 1) return `${e.atrasados} atrasados`;
+  // Nada urgente pero quedó algo viejo sin anotar: el título lo dice, aunque "manda" lo que sigue
+  const soloViejo = !e.fase || e.fase === 'despues' || e.fase === 'sin_registrar';
+  if (e.atrasados === 0 && e.sinRegistrar > 0 && soloViejo) return `${e.sinRegistrar} sin registrar`;
   return TITULO_FASE[e.fase ?? 'despues'];
 }
 
@@ -141,7 +145,7 @@ export function textoCuando(e: EstadoSemaforo<FilaDia>, ahora: Date): string {
   const p = e.principal;
   if (!p) return '';
   const horario =
-    e.fase === 'atrasado'
+    e.fase === 'atrasado' || e.fase === 'sin_registrar'
       ? `Era ${p.horarioTexto}`
       : p.horarioTexto.charAt(0).toUpperCase() + p.horarioTexto.slice(1);
   const falta = cuandoEs(p.hora, ahora);

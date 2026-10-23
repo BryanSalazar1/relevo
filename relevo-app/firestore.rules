@@ -89,6 +89,14 @@ service cloud.firestore {
     }
 
     // ---------- validación de datos (mismos límites que el formulario de medicamento) ----------
+    // Un miembro se va del equipo: solo quita su propio uid de miembrosUids, nada más
+    function soloQuitaMiUid() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['miembrosUids'])
+        && request.auth.uid in resource.data.miembrosUids
+        && !(request.auth.uid in request.resource.data.miembrosUids)
+        && request.resource.data.miembrosUids.size() == resource.data.miembrosUids.size() - 1;
+    }
+
     function soloCambia(campos) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(campos);
     }
@@ -245,9 +253,10 @@ service cloud.firestore {
         && request.auth.uid in request.resource.data.miembrosUids
         && request.resource.data.creadoPor == request.auth.uid
         && tipoUsuario(request.auth.uid) == 'familiar';
-      // Actualizar: el responsable, o alguien que se une con una invitación válida
+      // Actualizar: el responsable, alguien que se une con una invitación válida, o un miembro que se va
       allow update: if tieneRol(personaId, ['cuidador_principal'])
-        || (autenticado() && soloAgregaMiUid() && canjeValidoDespues(personaId));
+        || (autenticado() && soloAgregaMiUid() && canjeValidoDespues(personaId))
+        || (autenticado() && soloQuitaMiUid());
       allow delete: if tieneRol(personaId, ['cuidador_principal']);
 
       // miembros/{uid}: quién tiene acceso y con qué rol
@@ -280,7 +289,10 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys()
                 .hasOnly(['nombre', 'avisos', 'recordatorios', 'soloEnTurno'])
             && preferenciasValidas(request.resource.data));
-        allow delete: if tieneRol(personaId, ['cuidador_principal']);
+        // El responsable quita a otros; cualquier miembro que no sea responsable puede irse solo
+        // (el responsable primero cede el rol o elimina a la persona, para que nadie quede sin administrar)
+        allow delete: if (tieneRol(personaId, ['cuidador_principal']) && memberId != request.auth.uid)
+          || (memberId == request.auth.uid && resource.data.rol != 'cuidador_principal');
       }
 
       // entradas_bitacora: responsable, enfermeros y familiares registran; el médico solo escribe

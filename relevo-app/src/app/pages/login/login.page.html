@@ -96,6 +96,15 @@
         <ion-input-password-toggle slot="end" />
       </ion-input>
 
+      @if (modo() === 'registro') {
+        <div class="privacidad">
+          <ion-checkbox name="privacidad" labelPlacement="end" [(ngModel)]="aceptaPrivacidad">
+            He leído y acepto el aviso de privacidad
+          </ion-checkbox>
+          <ion-button fill="clear" size="small" routerLink="/privacidad">Leer el aviso</ion-button>
+        </div>
+      }
+
       <ion-button expand="block" type="submit" [disabled]="cargando()">
         @if (cargando()) {
           <ion-spinner name="crescent" />
@@ -105,8 +114,16 @@
       </ion-button>
     </form>
 
+    @if (modo() === 'login') {
+      <ion-button expand="block" fill="clear" size="small" (click)="recuperarContrasena()" [disabled]="cargando()">
+        ¿Olvidaste tu contraseña?
+      </ion-button>
+    }
     <ion-button expand="block" fill="clear" size="small" (click)="alternarModo()">
       {{ modo() === 'login' ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Inicia sesión' }}
+    </ion-button>
+    <ion-button expand="block" fill="clear" size="small" color="medium" routerLink="/privacidad" class="pie-privacidad">
+      Aviso de privacidad
     </ion-button>
   </div>
 </ion-content>

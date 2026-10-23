@@ -110,6 +110,7 @@ export class SemaforoPage {
 
   readonly etiquetaFase: Record<FaseSemaforo, string> = {
     atrasado: 'atrasado',
+    sin_registrar: 'sin registrar',
     ahora: 'es hora',
     pronto: 'ya casi',
     despues: '',

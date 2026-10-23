@@ -26,10 +26,11 @@ import {
   IonText,
   IonTitle,
   IonToolbar,
+  LoadingController,
   ModalController,
   ToastController,
 } from '@ionic/angular';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { combineLatest, of, switchMap } from 'rxjs';
 import { Invitacion, Miembro, ROL_COLOR, ROL_ETIQUETA } from '../../core/models';
 import { AuthService } from '../../core/services/auth.service';
@@ -90,6 +91,8 @@ export class EquipoPage {
   private readonly modalCtrl = inject(ModalController);
   private readonly alertCtrl = inject(AlertController);
   private readonly actionSheetCtrl = inject(ActionSheetController);
+  private readonly loadingCtrl = inject(LoadingController);
+  private readonly router = inject(Router);
   private readonly toast = inject(ToastController);
   private creandoCodigo = false;
 
@@ -382,6 +385,67 @@ export class EquipoPage {
     } catch (error) {
       console.error(error);
       await this.aviso('No se pudo quitar al miembro.', 'danger');
+    }
+  }
+
+  /** El responsable elimina a la persona con todo su historial (Cloud Function eliminarPersona). */
+  async eliminarPersona() {
+    const persona = this.persona();
+    if (!persona?.id || !this.esPrincipal()) return;
+    const alerta = await this.alertCtrl.create({
+      header: `¿Eliminar a ${persona.nombre}?`,
+      message:
+        'Se borran su bitácora, medicamentos, citas y todo el historial para todo el equipo. No se puede deshacer. Escribe su nombre para confirmar.',
+      inputs: [{ name: 'nombre', type: 'text', placeholder: persona.nombre }],
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        { text: 'Eliminar', role: 'destructive' },
+      ],
+    });
+    await alerta.present();
+    const { role, data } = await alerta.onDidDismiss<{ values: { nombre?: string } }>();
+    if (role !== 'destructive') return;
+    const escrito = (data?.values?.nombre ?? '').trim().toLowerCase();
+    if (escrito !== persona.nombre.trim().toLowerCase()) {
+      await this.aviso('El nombre no coincide; no se eliminó nada.', 'danger');
+      return;
+    }
+    const loading = await this.loadingCtrl.create({ message: 'Eliminando…' });
+    await loading.present();
+    try {
+      await this.personasSvc.eliminar(persona.id);
+      await loading.dismiss();
+      await this.router.navigateByUrl('/home', { replaceUrl: true });
+      await this.aviso(`${persona.nombre} se eliminó de Relevo.`, 'success');
+    } catch (error) {
+      console.error(error);
+      await loading.dismiss();
+      await this.aviso('No se pudo eliminar a la persona.', 'danger');
+    }
+  }
+
+  /** Un miembro (no el responsable) deja el equipo por su cuenta. */
+  async salirDelEquipo() {
+    const persona = this.persona();
+    if (!persona?.id || this.esPrincipal()) return;
+    const alerta = await this.alertCtrl.create({
+      header: `¿Salir del equipo de ${persona.nombre}?`,
+      message: 'Dejarás de ver su bitácora y de recibir avisos. El responsable puede volver a invitarte.',
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        { text: 'Salir', role: 'destructive' },
+      ],
+    });
+    await alerta.present();
+    const { role } = await alerta.onDidDismiss();
+    if (role !== 'destructive') return;
+    try {
+      await this.miembrosSvc.salir(persona.id);
+      await this.router.navigateByUrl('/home', { replaceUrl: true });
+      await this.aviso(`Saliste del equipo de ${persona.nombre}.`, 'success');
+    } catch (error) {
+      console.error(error);
+      await this.aviso('No se pudo salir del equipo.', 'danger');
     }
   }
 
