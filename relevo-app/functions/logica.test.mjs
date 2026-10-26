@@ -782,6 +782,62 @@ test('avisoInventario: resurtir una sola unidad también rearma el aviso (cambia
   );
 });
 
+test('avisoInventario: corregir el inventario a mano (cambia editadoEn) rearma el aviso aunque suba 1', () => {
+  // El responsable deja en 1 un medicamento agotado desde el formulario: no avisa, pero rearma
+  const r = avisoInventario({
+    antes: losartan(0, { editadoEn: 1 }),
+    despues: losartan(1, { editadoEn: 2 }),
+    estado: 'agotado',
+    hoyIso: HOY,
+  });
+  assert.deepEqual(r, { avisar: null, estado: 'bajo' });
+  // …y la siguiente toma que lo deja en 0 vuelve a avisar
+  assert.deepEqual(
+    avisoInventario({
+      antes: losartan(1, { editadoEn: 2 }),
+      despues: losartan(0, { editadoEn: 2 }),
+      estado: r.estado,
+      hoyIso: HOY,
+    }),
+    { avisar: 'agotado', estado: 'agotado' },
+  );
+  // Deshacer una toma no trae editadoEn nuevo: conserva el estado
+  assert.deepEqual(
+    avisoInventario({
+      antes: losartan(0, { editadoEn: 2 }),
+      despues: losartan(1, { editadoEn: 2 }),
+      estado: 'agotado',
+      hoyIso: HOY,
+    }),
+    { avisar: null, estado: 'agotado' },
+  );
+  // Un medicamento guardado antes de existir la marca la recibe por primera vez: también cuenta
+  assert.deepEqual(
+    avisoInventario({ antes: losartan(0), despues: losartan(1, { editadoEn: 3 }), estado: 'agotado', hoyIso: HOY }),
+    { avisar: null, estado: 'bajo' },
+  );
+  // Con Timestamp de Firestore se compara el instante, no el objeto
+  const ts = (ms) => ({ toMillis: () => ms });
+  assert.deepEqual(
+    avisoInventario({
+      antes: losartan(0, { editadoEn: ts(5) }),
+      despues: losartan(1, { editadoEn: ts(5) }),
+      estado: 'agotado',
+      hoyIso: HOY,
+    }),
+    { avisar: null, estado: 'agotado' },
+  );
+  assert.deepEqual(
+    avisoInventario({
+      antes: losartan(0, { editadoEn: ts(5) }),
+      despues: losartan(1, { editadoEn: ts(9) }),
+      estado: 'agotado',
+      hoyIso: HOY,
+    }),
+    { avisar: null, estado: 'bajo' },
+  );
+});
+
 test('avisoInventario: si queda bajo por editar otra cosa, avisa la siguiente toma', () => {
   // Con 1 al día, 8 unidades están bien; al pasar a 2 al día el umbral sube a 10
   const dosAlDia = { horarios: ['08:00', '20:00'] };

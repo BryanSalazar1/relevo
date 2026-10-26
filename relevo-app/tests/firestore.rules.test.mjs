@@ -120,6 +120,10 @@ test('usuarios: cada quien crea, edita y borra solo su propio perfil, con tipo d
   await assertFails(setDoc(doc(ana(), 'usuarios/ana'), { uid: 'ana', nombre: 'Ana', tipo: 'jefe' }));
   await assertSucceeds(perfil(ana(), 'ana', 'familiar'));
   await assertFails(perfil(ana(), 'luis', 'medico')); // el perfil de otro
+  // El perfil (correo, tokens, equipos) lo lee solo su dueño: ni otro usuario ni una lista de todos
+  await assertSucceeds(getDoc(doc(ana(), 'usuarios/ana')));
+  await assertFails(getDoc(doc(luis(), 'usuarios/ana')));
+  await assertFails(getDocs(collection(luis(), 'usuarios')));
   await assertFails(setDoc(doc(anon(), 'usuarios/x'), { uid: 'x', tipo: 'familiar' }));
   // el tipo no se puede cambiar después
   await assertFails(updateDoc(doc(ana(), 'usuarios/ana'), { tipo: 'medico' }));
@@ -504,10 +508,13 @@ async function anaCreaInvitacion(extra = {}) {
   });
 }
 
-/** Mismo batch que InvitacionesService.canjear() (sin el perfil en `usuarios`). */
-function batchUnirse(db, uid, codigo, rol) {
+/**
+ * Mismo batch que InvitacionesService.canjear() (sin el perfil en `usuarios`). `usosQueSuma`
+ * distinto de 1 simula un cliente modificado que intenta entrar sin gastar un uso (o gastando dos).
+ */
+function batchUnirse(db, uid, codigo, rol, usosQueSuma = 1) {
   const b = writeBatch(db);
-  b.update(doc(db, `invitaciones/${codigo}`), { usos: increment(1) });
+  if (usosQueSuma !== 0) b.update(doc(db, `invitaciones/${codigo}`), { usos: increment(usosQueSuma) });
   b.set(doc(db, `personas_cuidadas/${PERSONA_ID}/miembros/${uid}`), {
     uid,
     rol,
@@ -616,6 +623,13 @@ test('invitaciones: el responsable puede cancelarla; quien la canjea solo suma 1
 
   await assertFails(updateDoc(doc(pedro(), `invitaciones/${CODIGO}`), { usos: increment(3) }));
   await assertFails(updateDoc(doc(pedro(), `invitaciones/${CODIGO}`), { personaId: 'otra' }));
+  // Sumar un uso sin unirse en el mismo batch no se permite (agotaría el código de otros)...
+  await assertFails(updateDoc(doc(pedro(), `invitaciones/${CODIGO}`), { usos: increment(1) }));
+  // ...ni unirse sin gastar un uso, ni gastando dos (usosMax dejaría de cumplirse)
+  await assertFails(batchUnirse(pedro(), 'pedro', CODIGO, 'familiar', 0));
+  await assertFails(batchUnirse(pedro(), 'pedro', CODIGO, 'familiar', 2));
+  const sinCambios = await getDoc(doc(ana(), `invitaciones/${CODIGO}`));
+  assert.equal(sinCambios.data().usos, 0);
   await assertSucceeds(updateDoc(doc(ana(), `invitaciones/${CODIGO}`), { activa: false }));
   await assertFails(batchUnirse(pedro(), 'pedro', CODIGO, 'familiar'));
 });
@@ -637,6 +651,16 @@ test('rutina: solo el responsable define tareas; enfermeros y familiares registr
     setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/tareas/t1/registros/r2`), { hecha: true, registradoPor: 'ana' }),
   );
   await assertSucceeds(deleteDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/tareas/t1/registros/r1`)));
+  // Quitar un registro: solo quien lo hizo o la responsable; otro miembro puede corregirlo (firmado), no borrarlo
+  await agregarComo('pedro', 'familiar');
+  await assertSucceeds(
+    setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/tareas/t1/registros/r4`), { hecha: true, registradoPor: 'luis' }),
+  );
+  await assertFails(deleteDoc(doc(pedro(), `personas_cuidadas/${PERSONA_ID}/tareas/t1/registros/r4`)));
+  await assertSucceeds(
+    setDoc(doc(pedro(), `personas_cuidadas/${PERSONA_ID}/tareas/t1/registros/r4`), { hecha: false, registradoPor: 'pedro' }),
+  );
+  await assertSucceeds(deleteDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/tareas/t1/registros/r4`)));
   // El médico solo lee
   await agregarLuisComo('medico');
   await assertSucceeds(getDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/tareas/t1`)));
@@ -705,6 +729,34 @@ test('tomas: no se registran en un medicamento suspendido (corregir una ya regis
   b.set(doc(dbAna, `personas_cuidadas/${PERSONA_ID}/medicamentos/m3`), { nombre: 'Omega 3', dosis: '1 tableta', horarios: ['08:00'], inventario: 10, activo: true });
   b.set(doc(dbAna, `personas_cuidadas/${PERSONA_ID}/medicamentos/m3/tomas/t1`), { tomado: true, registradoPor: 'ana', horaProgramada: Timestamp.now() });
   await assertSucceeds(b.commit());
+});
+
+test('quitar registros: una toma o una medición la quita quien la hizo o la responsable; otro miembro no', async () => {
+  await anaCreaPersona();
+  await agregarLuisComo('cuidador_turno');
+  await agregarComo('pedro', 'familiar');
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m1`), { nombre: 'Losartán', dosis: '50 mg', horarios: ['08:00'], inventario: 10, activo: true });
+  });
+  const toma = (db, id) => doc(db, `personas_cuidadas/${PERSONA_ID}/medicamentos/m1/tomas/${id}`);
+  const datos = { tomado: true, registradoPor: 'luis', horaProgramada: Timestamp.now() };
+  await assertSucceeds(setDoc(toma(luis(), 'a'), datos));
+  await assertSucceeds(setDoc(toma(luis(), 'b'), datos));
+  await assertSucceeds(setDoc(toma(luis(), 'c'), datos));
+  await assertFails(deleteDoc(toma(pedro(), 'a')));
+  // Corregirla sí puede, firmándola él
+  await assertSucceeds(setDoc(toma(pedro(), 'a'), { ...datos, tomado: false, registradoPor: 'pedro' }));
+  await assertSucceeds(deleteDoc(toma(luis(), 'b')));
+  await assertSucceeds(deleteDoc(toma(ana(), 'c')));
+  // Borrar una toma que no existe no tiene autor que proteger (la app borra en lote lo que pudo haber)
+  await assertSucceeds(deleteDoc(toma(pedro(), 'no-existe')));
+
+  const signo = (db, id) => doc(db, `personas_cuidadas/${PERSONA_ID}/signos_vitales/${id}`);
+  await assertSucceeds(setDoc(signo(luis(), 's1'), { tipo: 'pulso', valor: 70, autorUid: 'luis' }));
+  await assertSucceeds(setDoc(signo(luis(), 's2'), { tipo: 'pulso', valor: 72, autorUid: 'luis' }));
+  await assertFails(deleteDoc(signo(pedro(), 's1')));
+  await assertSucceeds(deleteDoc(signo(ana(), 's1')));
+  await assertSucceeds(deleteDoc(signo(luis(), 's2')));
 });
 
 test('notas: quien registró edita su nota; el responsable solo la nota de otros; un tercero no', async () => {

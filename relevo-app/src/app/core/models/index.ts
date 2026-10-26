@@ -350,6 +350,11 @@ export interface Medicamento {
   activo: boolean;
   notas?: string;
   creadoEn?: Timestamp;
+  /**
+   * Última vez que el responsable guardó el formulario. Las Cloud Functions la usan para distinguir
+   * una corrección del inventario a mano (rearma el aviso de inventario bajo) de deshacer una toma.
+   */
+  editadoEn?: Timestamp;
 }
 
 /** personas_cuidadas/{id}/medicamentos/{id}/tomas/{id}  (id = yyyyMMdd-HHmm de la hora programada) */

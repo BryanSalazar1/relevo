@@ -6,12 +6,11 @@ import {
   collectionData,
   doc,
   docData,
-  getDoc,
   updateDoc,
   writeBatch,
 } from '@angular/fire/firestore';
 import { Observable, catchError, map, of, switchMap } from 'rxjs';
-import { Miembro, PreferenciasAvisos, Rol, ROLES, TipoUsuario, Turno, Usuario } from '../models';
+import { Miembro, PreferenciasAvisos, Rol, ROLES, Turno } from '../models';
 import { AuthService } from './auth.service';
 
 const ORDEN_ROL: Record<Rol, number> = Object.fromEntries(
@@ -48,12 +47,6 @@ export class MiembrosService {
         );
       }),
     );
-  }
-
-  /** Tipo de cuenta de otro usuario (para saber qué roles puede tener). */
-  async tipoDe(uid: string): Promise<TipoUsuario | undefined> {
-    const snap = await getDoc(doc(this.db, 'usuarios', uid));
-    return (snap.data() as Usuario | undefined)?.tipo;
   }
 
   /** Cambia el rol de un miembro (solo el responsable; las rules validan que sea compatible). */

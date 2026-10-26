@@ -33,3 +33,25 @@ export async function pedirNota(
   if (role !== 'confirm') return { ok: false };
   return { ok: true, nota: data?.values?.nota?.trim() || undefined };
 }
+
+/**
+ * Cuadro de confirmación sin nota, para lo que no se puede deshacer ("¿Quitar el registro?").
+ * Devuelve true si se confirmó. Con `destructivo`, el botón de confirmar se marca en rojo.
+ */
+export async function confirmar(
+  alertCtrl: AlertController,
+  o: { header: string; message?: string; confirmar: string; destructivo?: boolean },
+): Promise<boolean> {
+  const rolConfirmar = o.destructivo ? 'destructive' : 'confirm';
+  const alerta = await alertCtrl.create({
+    header: o.header,
+    message: o.message,
+    buttons: [
+      { text: 'Cancelar', role: 'cancel' },
+      { text: o.confirmar, role: rolConfirmar },
+    ],
+  });
+  await alerta.present();
+  const { role } = await alerta.onDidDismiss();
+  return role === rolConfirmar;
+}

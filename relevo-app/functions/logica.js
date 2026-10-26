@@ -434,8 +434,9 @@ const GRAVEDAD_INVENTARIO = { bajo: 1, agotado: 2 };
  * datos del documento (undefined al crear / al borrar) y `estado` el nivel del último aviso guardado.
  * Devuelve { avisar, estado }: qué avisar ahora ('bajo' | 'agotado' | null) y el estado a guardar.
  * Solo se avisa cuando el nivel empeora por una baja real del inventario (una toma o una corrección
- * hacia abajo). El estado guardado solo mejora al resurtir: deshacer tomas (una o varias) lo
- * conserva, para que volver a marcarlas no repita el aviso.
+ * hacia abajo). El estado guardado solo mejora al resurtir o cuando el responsable corrige el
+ * inventario a mano desde el formulario (la app marca `editadoEn` al guardar): deshacer tomas (una
+ * o varias) lo conserva, para que volver a marcarlas no repita el aviso.
  */
 export function avisoInventario({ antes, despues, estado, hoyIso }) {
   const e = despues ? estadoInventario(despues, hoyIso) : null;
@@ -459,11 +460,20 @@ export function avisoInventario({ antes, despues, estado, hoyIso }) {
   // Se editó otra cosa (más horarios, otra duración, reactivar): no se anota el nivel nuevo, para
   // que la siguiente toma sí avise; si con el cambio mejoró, el aviso se rearma
   if (d === a) return { avisar: null, estado: gravedad(nivel) < gravedad(previo) ? nivel : previo };
-  // +1 sin resurtido = se deshizo una toma: se conserva lo ya avisado
-  const resurtido = d - a >= 2 || antes.ultimoResurtido !== despues.ultimoResurtido;
+  // +1 sin resurtido ni edición = se deshizo una toma: se conserva lo ya avisado
+  const resurtido =
+    d - a >= 2 ||
+    antes.ultimoResurtido !== despues.ultimoResurtido ||
+    !mismoInstante(antes.editadoEn, despues.editadoEn);
   if (!resurtido) return { avisar: null, estado: masGrave };
-  // Resurtido: el aviso se rearma (o queda en 'bajo' si compraron poco, sin avisar)
+  // Resurtido o corrección a mano: el aviso se rearma (o queda en 'bajo' si hay poco, sin avisar)
   return { avisar: null, estado: nivel };
+}
+
+/** Compara dos marcas de tiempo (Timestamp de Firestore, número o texto); ausentes en ambos = iguales. */
+function mismoInstante(a, b) {
+  const valor = (x) => (x && typeof x.toMillis === 'function' ? x.toMillis() : (x ?? null));
+  return valor(a) === valor(b);
 }
 
 /** Aviso de inventario bajo o agotado (`estado` = resultado de estadoInventario). */

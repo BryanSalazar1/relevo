@@ -322,7 +322,7 @@ Cada vez que cambies código web: `ionic build && npx cap sync`.
 | Una tarea de la rutina se marca **no hecha** | Los demás miembros (con la nota, si la hay) |
 | Una dosis pasó de su hora y nadie la registró (revisión cada 10 min, hasta 2 h después, una sola vez) | **Quien está de guardia** (turnos de cada miembro, ver *Equipo*); sin turnos definidos, todos los que registran; nadie de guardia, el responsable |
 | **Se acerca una tarea de la rutina o una toma** (revisión cada 5 min; tareas: minutos que eligió el responsable, medicamentos: `AVISO_MEDICAMENTOS_MIN`, 15 por defecto). Una sola vez y solo si aún no se registró | **Quien está de guardia** (igual que arriba) |
-| **El inventario de un medicamento se está acabando** (alcanza para 5 días o menos) **o se agotó** (20/09/2026). Una vez por nivel; resurtir rearma el aviso | **Responsables** (siempre) y **familiares** (salvo con las alertas apagadas) |
+| **El inventario de un medicamento se está acabando** (alcanza para 5 días o menos) **o se agotó** (20/09/2026). Una vez por nivel; resurtir o corregir el inventario a mano desde el formulario (23/10/2026) rearma el aviso | **Responsables** (siempre) y **familiares** (salvo con las alertas apagadas) |
 | **Se acerca una cita del calendario** (13/10/2026; `avisarMin` de la cita, 1 h si no dice, 0 = sin aviso). Una sola vez por cita y hora de inicio: si la mueven, vuelve a avisar | **Quien acompaña** (siempre), el **responsable** y los **familiares** que reciben avisos del equipo, y **quien está de guardia** (`destinatariosCita`) |
 | **El médico escribe una indicación médica** (13/10/2026; tipo `indicacion`) | Como cualquier entrada de bitácora, pero cuenta como **importante** (llega también a quien eligió "Importantes") |
 
@@ -412,6 +412,25 @@ decisión: en la web se avisa por correo.
 ---
 
 ## 10. Funcionalidades implementadas (10 de septiembre de 2026)
+
+### Permisos afinados y confirmación al quitar registros — 23/10/2026
+- **Perfiles privados**: `usuarios/{uid}` solo lo lee su dueño (antes cualquier cuenta con sesión
+  podía leer el correo, los tokens y los equipos de todos, y listarlos). Las rules siguen
+  consultando el tipo de cuenta de otros con `get()`, que no pasa por los permisos de lectura, y la
+  app deduce el tipo de un miembro por su rol (`ROLES_COMPATIBLES`); `MiembrosService.tipoDe` se
+  retiró.
+- **Invitaciones**: el canje debe sumar exactamente 1 a `usos` en el mismo batch (`canjeSumaUnUso`,
+  con `getAfter`), y sumar usos sin crear el miembro en ese batch ya no se permite. Antes un cliente
+  modificado podía entrar sin gastar usos o agotar el código de una familia ajena.
+- **Quitar registros**: una toma, un registro de la rutina o una medición los quita solo quien los
+  hizo o el responsable (`puedeQuitar` en las rules); corregirlos firmando como uno mismo sigue
+  permitido. La app esconde «Quitar registro» cuando no se puede (y lo explica en la hoja de
+  opciones), pide confirmación antes de quitar (en tomas avisa si la unidad vuelve al inventario)
+  y confirma al terminar. Deshacer una tarea de signos vitales ajena, que borraría sus mediciones,
+  también queda para su autor o el responsable (`MarcarTomaService`, `MarcarTareaService`,
+  `confirmar` en `core/utils/notas.ts`).
+- **Zoom en la web**: el viewport ya no bloquea el pellizco para acercar (`user-scalable=no`),
+  importante para personas mayores, y `color-scheme` pasa a `light`, que es la paleta de la app.
 
 ### Cierre: lo que faltaba para usarla con una familia real — 22/10/2026
 Tras recorrer la app completa con los cuatro roles y un usuario nuevo, se aplicaron estas
@@ -728,7 +747,10 @@ flotante de cada pantalla.
   **Resurtir** (también en el menú del medicamento): propone las unidades del último resurtido
   (`ultimoResurtido`, 30 la primera vez) y las suma al inventario. Por push/correo avisa la Cloud
   Function `avisarInventarioBajo` (§8): una vez al pasar a "queda poco" y otra al agotarse; deshacer
-  y volver a marcar tomas no repite el aviso, y resurtir lo rearma. Si el medicamento ya estaba en
+  y volver a marcar tomas no repite el aviso, y resurtir lo rearma. Corregir el inventario a mano
+  desde el formulario también lo rearma (23/10/2026): al guardar, la app marca `editadoEn` en el
+  medicamento y con eso la función distingue esa corrección (aunque suba una sola unidad) de
+  deshacer una toma, que también suma 1. Si el medicamento ya estaba en
   0, el aviso de "se acabó" sale desde `notificarToma` (esas tomas llevan `sinDescuento` y no
   cambian el medicamento). Si el envío falla, la anotación se deshace para reintentar en la
   siguiente baja. Editar un medicamento sin tocar el campo Inventario ya no lo reescribe (antes
@@ -887,8 +909,8 @@ flotante de cada pantalla.
   `NoDefaultCurrentDirectoryInExePath` cmd no encuentra el archivo aunque esté en la carpeta.
 
 ### Pruebas
-- `npm run test:rules` — 21 pruebas de Security Rules contra el emulador.
-- `npm run test:functions` — 43 pruebas de la lógica de notificaciones y del asistente (mensajes, destinatarios,
+- `npm run test:rules` — 31 pruebas de Security Rules contra el emulador.
+- `npm run test:functions` — 54 pruebas de la lógica de notificaciones y del asistente (mensajes, destinatarios,
   turnos de guardia, alertas, dosis vencidas, avisos previos, duración de tratamientos, días de la
   semana, zona horaria, inventario bajo y su aviso). Corren con Node solo, sin emulador ni Java.
 - `npm run test:e2e` — recorrido completo en Chromium contra la app publicada: login, bitácora,

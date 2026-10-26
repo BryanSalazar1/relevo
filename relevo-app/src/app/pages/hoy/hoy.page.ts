@@ -459,7 +459,9 @@ export class HoyPage {
           puedeResurtir: this.puedeEditar(),
         });
       } else {
-        await this.marcarTarea.marcar(personaId, f.programada, hecho ? 'hecha' : 'omitida');
+        await this.marcarTarea.marcar(personaId, f.programada, hecho ? 'hecha' : 'omitida', {
+          puedeQuitarAjenos: this.puedeEditar(),
+        });
       }
       this.ahora.set(new Date());
     } catch (error) {
@@ -474,10 +476,15 @@ export class HoyPage {
   async opciones(f: FilaDia) {
     const personaId = this.ctx.personaId();
     if (!personaId || !this.puedeMarcar(f)) return;
+    // El responsable puede quitar registros de otros; los demás solo los suyos (igual que las rules)
+    const puedeQuitarAjenos = this.puedeEditar();
     if (f.tipo === 'toma') {
-      await this.marcarToma.opciones(personaId, f.dosis, { puedeResurtir: this.puedeEditar() });
+      await this.marcarToma.opciones(personaId, f.dosis, {
+        puedeResurtir: this.puedeEditar(),
+        puedeQuitarAjenos,
+      });
     } else {
-      await this.marcarTarea.opciones(personaId, f.programada);
+      await this.marcarTarea.opciones(personaId, f.programada, { puedeQuitarAjenos });
     }
   }
 

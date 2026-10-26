@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { ActionSheetController, AlertController, ToastController } from '@ionic/angular';
 import { Medicamento, Toma } from '../../core/models';
+import { AuthService } from '../../core/services/auth.service';
 import {
   DosisProgramada,
   EstadoToma,
@@ -9,16 +10,21 @@ import {
   agotado,
 } from '../../core/services/medicamentos.service';
 import { haceCuanto, textoDuracion } from '../../core/utils/fechas';
-import { pedirNota } from '../../core/utils/notas';
+import { confirmar, pedirNota } from '../../core/utils/notas';
 
 /** Marcar una dosis con más de estos minutos de anticipación muestra un aviso en la confirmación. */
 const DOSIS_ADELANTADA_MIN = 60;
 /** Una toma según necesidad con otra registrada hace menos de estos minutos avisa de un posible duplicado. */
 const TOMA_RECIENTE_MIN = 60;
+/** Quitar un registro ajeno lo impiden la app y las rules: solo quien lo hizo o el responsable. */
+const SOLO_AUTOR_O_RESPONSABLE =
+  'Solo quien registró la toma o el responsable pueden quitar el registro.';
 
 export interface OpcionesMarcarToma {
   /** Quien marca puede resurtir (responsable): cambia el aviso cuando el inventario está en 0 */
   puedeResurtir?: boolean;
+  /** Quien marca es el responsable: puede quitar registros hechos por otros (igual que las rules) */
+  puedeQuitarAjenos?: boolean;
 }
 
 /**
@@ -29,6 +35,7 @@ export interface OpcionesMarcarToma {
 @Injectable({ providedIn: 'root' })
 export class MarcarTomaService {
   private readonly medsSvc = inject(MedicamentosService);
+  private readonly authSvc = inject(AuthService);
   private readonly alertCtrl = inject(AlertController);
   private readonly actionSheetCtrl = inject(ActionSheetController);
   private readonly toast = inject(ToastController);
@@ -41,20 +48,34 @@ export class MarcarTomaService {
     return `Última toma: ${haceCuanto((t.horaReal ?? t.horaProgramada).toDate())}${quien}${nota}`;
   }
 
+  /** Quitar un registro: quien lo hizo o el responsable (misma regla que firestore.rules). */
+  puedeQuitar(d: DosisProgramada, { puedeQuitarAjenos = false }: OpcionesMarcarToma = {}): boolean {
+    const autor = d.toma?.registradoPor;
+    return !autor || autor === this.authSvc.uid || puedeQuitarAjenos;
+  }
+
   /**
    * Marca una dosis programada como tomada / no tomada (con confirmación y nota) o quita su
-   * registro. Devuelve false si se canceló. Los errores se muestran aquí.
+   * registro (con confirmación: no se puede deshacer). Devuelve false si se canceló. Los errores
+   * se muestran aquí.
    */
   async marcar(
     personaId: string,
     d: DosisProgramada,
     estado: EstadoToma,
-    { puedeResurtir = false }: OpcionesMarcarToma = {},
+    opciones: OpcionesMarcarToma = {},
   ): Promise<boolean> {
+    const { puedeResurtir = false } = opciones;
     let nota: string | undefined;
     // Se marca tomada (no lo estaba) y ya no quedan unidades: se registra, pero no hay de dónde descontar
     const sinUnidades = estado === 'tomada' && !d.toma?.tomado && agotado(d.medicamento);
-    if (estado !== 'quitar') {
+    if (estado === 'quitar') {
+      if (!this.puedeQuitar(d, opciones)) {
+        await this.aviso(SOLO_AUTOR_O_RESPONSABLE, 'danger');
+        return false;
+      }
+      if (!(await this.confirmarQuitar(d))) return false;
+    } else {
       const faltanMin = (d.hora.getTime() - Date.now()) / 60000;
       const avisos = [
         faltanMin > DOSIS_ADELANTADA_MIN
@@ -76,13 +97,11 @@ export class MarcarTomaService {
     try {
       await this.medsSvc.registrarToma(personaId, d, estado, nota);
       if (sinUnidades) await this.avisarAgotado(d.medicamento, puedeResurtir);
+      else if (estado === 'quitar') await this.aviso('Registro quitado.', 'success');
       return true;
     } catch (error) {
       console.error(error);
-      await this.aviso(
-        error instanceof TomaNoPermitida ? error.message : 'No se pudo registrar la toma.',
-        'danger',
-      );
+      await this.aviso(this.mensajeError(error, estado), 'danger');
       return false;
     }
   }
@@ -125,8 +144,12 @@ export class MarcarTomaService {
     }
   }
 
-  /** Hoja de opciones de una dosis: marcar, nota y quitar (una según necesidad solo nota y quitar). */
+  /**
+   * Hoja de opciones de una dosis: marcar, nota y quitar (una según necesidad solo nota y quitar).
+   * «Quitar registro» solo aparece para quien lo hizo o el responsable; si no, se explica por qué.
+   */
   async opciones(personaId: string, d: DosisProgramada, opciones: OpcionesMarcarToma = {}) {
+    const puedeQuitar = this.puedeQuitar(d, opciones);
     const notaYQuitar = d.toma
       ? [
           {
@@ -136,14 +159,18 @@ export class MarcarTomaService {
               void this.editarNota(personaId, d);
             },
           },
-          {
-            text: 'Quitar registro',
-            icon: 'trash-outline',
-            role: 'destructive',
-            handler: () => {
-              void this.marcar(personaId, d, 'quitar', opciones);
-            },
-          },
+          ...(puedeQuitar
+            ? [
+                {
+                  text: 'Quitar registro',
+                  icon: 'trash-outline',
+                  role: 'destructive',
+                  handler: () => {
+                    void this.marcar(personaId, d, 'quitar', opciones);
+                  },
+                },
+              ]
+            : []),
         ]
       : [];
     const marcar = d.aDemanda
@@ -166,6 +193,10 @@ export class MarcarTomaService {
         ];
     const sheet = await this.actionSheetCtrl.create({
       header: `${d.medicamento.nombre} · ${d.horario}${d.aDemanda ? ' · según necesidad' : ''}`,
+      subHeader:
+        d.toma && !puedeQuitar
+          ? `Registrada por ${d.toma.registradoNombre ?? 'otra persona'}: solo esa persona o el responsable pueden quitarla.`
+          : undefined,
       buttons: [...marcar, ...notaYQuitar, { text: 'Cancelar', role: 'cancel' }],
     });
     await sheet.present();
@@ -190,6 +221,29 @@ export class MarcarTomaService {
         'danger',
       );
     }
+  }
+
+  /** "¿Quitar el registro?": quién lo hizo, si la unidad vuelve al inventario y que no se deshace. */
+  private confirmarQuitar(d: DosisProgramada): Promise<boolean> {
+    const t = d.toma;
+    const quien = t?.registradoNombre ? ` Registrada por ${t.registradoNombre}.` : '';
+    const devuelve =
+      t?.tomado && !t.sinDescuento && d.medicamento.inventario != null
+        ? ' La unidad descontada vuelve al inventario.'
+        : '';
+    return confirmar(this.alertCtrl, {
+      header: '¿Quitar el registro?',
+      message: `${d.medicamento.nombre} ${d.medicamento.dosis} · ${d.horario}.${quien}${devuelve} Esta acción no se puede deshacer.`,
+      confirmar: 'Quitar',
+      destructivo: true,
+    });
+  }
+
+  private mensajeError(error: unknown, estado: EstadoToma): string {
+    if (error instanceof TomaNoPermitida) return error.message;
+    if (estado !== 'quitar') return 'No se pudo registrar la toma.';
+    const denegado = (error as { code?: string } | null)?.code === 'permission-denied';
+    return denegado ? SOLO_AUTOR_O_RESPONSABLE : 'No se pudo quitar el registro.';
   }
 
   /** "El inventario está en 0…" para la confirmación de una toma que ya no tiene de dónde descontarse. */

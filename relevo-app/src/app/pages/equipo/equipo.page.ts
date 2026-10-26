@@ -279,9 +279,11 @@ export class EquipoPage {
       await propio.present();
       return;
     }
-    const tipo = await this.miembrosSvc.tipoDe(m.uid);
+    // El tipo de cuenta se deduce del rol (ROLES_COMPATIBLES): solo una cuenta de familiar puede
+    // ser familiar o responsable. Los perfiles de otros ya no se leen desde la app.
+    const esFamiliar = m.rol === 'familiar' || m.rol === 'cuidador_principal';
 
-    if (tipo === 'familiar') {
+    if (esFamiliar) {
       if (m.rol === 'cuidador_principal') {
         buttons.push({
           text: 'Quitar como responsable',

@@ -1,14 +1,24 @@
 import { Injectable, inject } from '@angular/core';
 import { claveDia } from '../../core/utils/fechas';
 import { ActionSheetController, AlertController, ModalController, ToastController } from '@ionic/angular';
+import { AuthService } from '../../core/services/auth.service';
 import { SignosService, resumenMediciones } from '../../core/services/signos.service';
 import {
   EstadoRegistro,
   TareaProgramada,
   TareasService,
 } from '../../core/services/tareas.service';
-import { NOTA_MAX, pedirNota } from '../../core/utils/notas';
+import { NOTA_MAX, confirmar, pedirNota } from '../../core/utils/notas';
 import { DatosSignos, SignosModal } from './signos.modal';
+
+/** Quitar un registro ajeno (o deshacer sus mediciones) lo impiden la app y las rules. */
+const SOLO_AUTOR_O_RESPONSABLE =
+  'Solo quien hizo el registro o el responsable pueden quitarlo.';
+
+export interface OpcionesMarcarTarea {
+  /** Quien marca es el responsable: puede quitar registros hechos por otros (igual que las rules) */
+  puedeQuitarAjenos?: boolean;
+}
 
 /**
  * Marcar una tarea de la rutina, igual desde Hoy que desde el Semáforo: confirmación con nota
@@ -20,16 +30,37 @@ import { DatosSignos, SignosModal } from './signos.modal';
 export class MarcarTareaService {
   private readonly tareasSvc = inject(TareasService);
   private readonly signosSvc = inject(SignosService);
+  private readonly authSvc = inject(AuthService);
   private readonly alertCtrl = inject(AlertController);
   private readonly actionSheetCtrl = inject(ActionSheetController);
   private readonly modalCtrl = inject(ModalController);
   private readonly toast = inject(ToastController);
 
-  /** Devuelve false si se canceló; lanza si no se pudo guardar. */
-  async marcar(personaId: string, p: TareaProgramada, estado: EstadoRegistro): Promise<boolean> {
+  /** Quitar un registro: quien lo hizo o el responsable (misma regla que firestore.rules). */
+  puedeQuitar(p: TareaProgramada, { puedeQuitarAjenos = false }: OpcionesMarcarTarea = {}): boolean {
+    const autor = p.registro?.registradoPor;
+    return !autor || autor === this.authSvc.uid || puedeQuitarAjenos;
+  }
+
+  /** Devuelve false si se canceló (o no se tiene permiso); lanza si no se pudo guardar. */
+  async marcar(
+    personaId: string,
+    p: TareaProgramada,
+    estado: EstadoRegistro,
+    opciones: OpcionesMarcarTarea = {},
+  ): Promise<boolean> {
     const tareaId = p.tarea.id;
     if (!tareaId) throw new Error('Datos incompletos');
     const deSignos = p.tarea.tipo === 'signos';
+
+    // Quitar un registro, o deshacer las mediciones que trajo, solo puede quien lo hizo o el
+    // responsable (las rules lo exigen al borrar); se avisa antes de intentarlo
+    const deshaceMediciones = deSignos && !!p.registro?.hecha && estado !== 'hecha';
+    if ((estado === 'quitar' || deshaceMediciones) && !this.puedeQuitar(p, opciones)) {
+      await this.aviso(SOLO_AUTOR_O_RESPONSABLE);
+      return false;
+    }
+    if (estado === 'quitar' && !(await this.confirmarQuitar(p, deshaceMediciones))) return false;
 
     if (deSignos && estado === 'hecha') {
       const datos = await this.pedirSignos(p);
@@ -56,9 +87,10 @@ export class MarcarTareaService {
     }
     await this.tareasSvc.registrar(personaId, p, estado, nota);
     // Ya no está hecha: sus mediciones (si las hubo) dejan de contar
-    if (deSignos && p.registro?.hecha) {
+    if (deshaceMediciones) {
       await this.signosSvc.quitarDeTarea(personaId, tareaId, p.idRegistro).catch(() => undefined);
     }
+    if (estado === 'quitar') await this.aviso('Registro quitado.', 'success');
     return true;
   }
 
@@ -91,23 +123,31 @@ export class MarcarTareaService {
     }
   }
 
-  /** Hoja de opciones de una tarea programada: marcar, nota y quitar el registro. */
-  async opciones(personaId: string, p: TareaProgramada) {
+  /**
+   * Hoja de opciones de una tarea programada: marcar, nota y quitar el registro. «Quitar registro»
+   * solo aparece para quien lo hizo o el responsable; si no, se explica por qué.
+   */
+  async opciones(personaId: string, p: TareaProgramada, opciones: OpcionesMarcarTarea = {}) {
+    const puedeQuitar = this.puedeQuitar(p, opciones);
     const sheet = await this.actionSheetCtrl.create({
       header: `${p.tarea.nombre} · ${p.horario}`,
+      subHeader:
+        p.registro && !puedeQuitar
+          ? `Registro de ${p.registro.registradoNombre ?? 'otra persona'}: solo esa persona o el responsable pueden quitarlo.`
+          : undefined,
       buttons: [
         {
           text: 'Marcar como hecha',
           icon: 'checkmark-circle-outline',
           handler: () => {
-            void this.marcarConAviso(personaId, p, 'hecha');
+            void this.marcarConAviso(personaId, p, 'hecha', opciones);
           },
         },
         {
           text: 'Marcar como no hecha',
           icon: 'close-circle-outline',
           handler: () => {
-            void this.marcarConAviso(personaId, p, 'omitida');
+            void this.marcarConAviso(personaId, p, 'omitida', opciones);
           },
         },
         ...(p.registro
@@ -119,14 +159,18 @@ export class MarcarTareaService {
                   void this.editarNota(personaId, p);
                 },
               },
-              {
-                text: 'Quitar registro',
-                icon: 'trash-outline',
-                role: 'destructive',
-                handler: () => {
-                  void this.marcarConAviso(personaId, p, 'quitar');
-                },
-              },
+              ...(puedeQuitar
+                ? [
+                    {
+                      text: 'Quitar registro',
+                      icon: 'trash-outline',
+                      role: 'destructive',
+                      handler: () => {
+                        void this.marcarConAviso(personaId, p, 'quitar', opciones);
+                      },
+                    },
+                  ]
+                : []),
             ]
           : []),
         { text: 'Cancelar', role: 'cancel' },
@@ -155,18 +199,42 @@ export class MarcarTareaService {
     }
   }
 
+  /** "¿Quitar el registro?": quién lo hizo, si se borran mediciones y que no se deshace. */
+  private confirmarQuitar(p: TareaProgramada, conMediciones: boolean): Promise<boolean> {
+    const quien = p.registro?.registradoNombre ? ` Registro de ${p.registro.registradoNombre}.` : '';
+    const mediciones = conMediciones ? ' Sus mediciones también se borran.' : '';
+    return confirmar(this.alertCtrl, {
+      header: '¿Quitar el registro?',
+      message: `${p.tarea.nombre} · ${p.horario}.${quien}${mediciones} Esta acción no se puede deshacer.`,
+      confirmar: 'Quitar',
+      destructivo: true,
+    });
+  }
+
   /** `marcar` que muestra el error en vez de lanzarlo (para los botones de una hoja de opciones). */
-  private async marcarConAviso(personaId: string, p: TareaProgramada, estado: EstadoRegistro) {
+  private async marcarConAviso(
+    personaId: string,
+    p: TareaProgramada,
+    estado: EstadoRegistro,
+    opciones: OpcionesMarcarTarea,
+  ) {
     try {
-      await this.marcar(personaId, p, estado);
+      await this.marcar(personaId, p, estado, opciones);
     } catch (error) {
       console.error(error);
-      await this.aviso('No se pudo registrar la tarea.');
+      const denegado = (error as { code?: string } | null)?.code === 'permission-denied';
+      await this.aviso(
+        estado === 'quitar'
+          ? denegado
+            ? SOLO_AUTOR_O_RESPONSABLE
+            : 'No se pudo quitar el registro.'
+          : 'No se pudo registrar la tarea.',
+      );
     }
   }
 
-  private async aviso(message: string) {
-    const t = await this.toast.create({ message, color: 'danger', duration: 2500, position: 'top' });
+  private async aviso(message: string, color: 'danger' | 'success' = 'danger') {
+    const t = await this.toast.create({ message, color, duration: 2500, position: 'top' });
     await t.present();
   }
 

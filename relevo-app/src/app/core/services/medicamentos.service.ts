@@ -357,8 +357,16 @@ export class MedicamentosService {
     return ref.id;
   }
 
+  /**
+   * Guarda los cambios del formulario y deja la marca `editadoEn`. Con ella las Cloud Functions
+   * distinguen una corrección del inventario hecha a mano (rearma el aviso de inventario bajo)
+   * de deshacer una toma, que también suma 1 pero no debe repetir el aviso.
+   */
   async actualizar(personaId: string, id: string, datos: Partial<DatosMedicamento>): Promise<void> {
-    await updateDoc(doc(this.ref(personaId), id), this.limpiar(datos));
+    await updateDoc(doc(this.ref(personaId), id), {
+      ...this.limpiar(datos),
+      editadoEn: serverTimestamp(),
+    });
   }
 
   async cambiarActivo(personaId: string, id: string, activo: boolean): Promise<void> {

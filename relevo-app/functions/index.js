@@ -23,8 +23,8 @@
  *     citas del calendario que se acercan → quien acompaña, familia y quien está de guardia.
  *   - notificarRegistroTarea: una tarea de la rutina se marca "no hecha" → los demás (alerta).
  *   - avisarInventarioBajo: el inventario de un medicamento baja a "queda poco" o se agota → responsables
- *     y familiares (una vez por nivel; resurtir rearma el aviso). Si ya estaba en 0, el "se acabó" sale
- *     desde notificarToma, porque esas tomas no cambian el medicamento.
+ *     y familiares (una vez por nivel; resurtir o corregir el inventario a mano rearma el aviso). Si ya
+ *     estaba en 0, el "se acabó" sale desde notificarToma, porque esas tomas no cambian el medicamento.
  *   - limpiarUsuarioEliminado: al borrar una cuenta en Auth, borra su perfil y lo quita de cada equipo.
  *   - resumirReporte (invocable): resumen narrativo de un periodo para el reporte PDF, con el mismo contexto.
  *   - preguntarAsistente (invocable): el asistente de IA; recibe el contexto que arma la app y llama a Gemini
@@ -382,7 +382,8 @@ const CAMPOS_INVENTARIO = [
 /**
  * El inventario de un medicamento bajó a "queda poco" o se agotó → avisa a responsables y familiares.
  * Una sola vez por nivel: el último aviso se anota en `recordatorios/inventario-{medicamentoId}` y
- * se borra al resurtir (o al suspender, terminar o borrar el medicamento) para que vuelva a avisar.
+ * se borra al resurtir o al corregir el inventario desde el formulario (o al suspender, terminar o
+ * borrar el medicamento) para que vuelva a avisar.
  */
 export const avisarInventarioBajo = onDocumentWritten(
   {

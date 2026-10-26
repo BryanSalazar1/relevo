@@ -177,13 +177,15 @@ export class SemaforoPage {
     clearTimeout(this.ocultarDetalles);
     this.guardando.set(true);
     try {
+      const r = this.rol();
+      const esResponsable = !!r && PUEDE_EDITAR_MEDICAMENTOS.includes(r);
       if (p.tipo === 'tarea') {
         // Misma confirmación que en Hoy (y la captura de mediciones si es de signos vitales)
-        if (!(await this.marcarTarea.marcar(personaId, p.programada, hecho ? 'hecha' : 'omitida'))) return;
+        const o = { puedeQuitarAjenos: esResponsable };
+        if (!(await this.marcarTarea.marcar(personaId, p.programada, hecho ? 'hecha' : 'omitida', o))) return;
       } else {
-        const r = this.rol();
-        const puedeResurtir = !!r && PUEDE_EDITAR_MEDICAMENTOS.includes(r);
-        if (!(await this.marcarToma.marcar(personaId, p.dosis, hecho ? 'tomada' : 'omitida', { puedeResurtir }))) return;
+        const o = { puedeResurtir: esResponsable };
+        if (!(await this.marcarToma.marcar(personaId, p.dosis, hecho ? 'tomada' : 'omitida', o))) return;
       }
       this.ahora.set(new Date());
     } catch (error) {
