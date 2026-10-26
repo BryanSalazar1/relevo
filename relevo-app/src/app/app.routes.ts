@@ -59,6 +59,13 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/hoy/hoy.page').then((m) => m.HoyPage),
       },
       {
+        // Seguimiento del paciente: la primera pestaña del médico (banderas, signos, adherencia,
+        // preguntas de la familia e indicaciones). PersonaPage manda ahí al médico en vez de a Hoy.
+        path: 'seguimiento',
+        loadComponent: () =>
+          import('./pages/seguimiento/seguimiento.page').then((m) => m.SeguimientoPage),
+      },
+      {
         path: 'bitacora',
         loadComponent: () =>
           import('./pages/bitacora/bitacora.page').then((m) => m.BitacoraPage),

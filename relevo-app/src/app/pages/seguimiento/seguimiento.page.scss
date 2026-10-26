@@ -1,0 +1,102 @@
+ion-card-title .edad {
+  font-weight: 400;
+  font-size: 0.95em;
+  color: var(--relevo-texto-2);
+}
+
+ion-card-title ion-badge {
+  vertical-align: middle;
+  margin-left: 8px;
+  font-size: 0.7rem;
+}
+
+ion-list-header ion-badge {
+  margin-right: 8px;
+}
+
+ion-item h3 {
+  font-size: 0.95rem;
+  white-space: pre-wrap;
+}
+
+ion-item h3 ion-badge.nuevo {
+  vertical-align: middle;
+  margin-left: 6px;
+  font-size: 0.65rem;
+}
+
+ion-item p.fuera {
+  color: var(--relevo-texto-2);
+
+  &.alerta {
+    color: var(--ion-color-danger);
+    font-weight: 600;
+  }
+}
+
+.sin {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+// Banderas: mismas reglas de la hoja para la consulta (reporte.page.scss)
+.banderas-card {
+  &.con-altas {
+    border-left: 4px solid var(--ion-color-danger);
+  }
+
+  ul.banderas {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+
+    li {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 6px 0;
+      font-size: 0.95rem;
+      line-height: 1.4;
+      border-bottom: 1px solid var(--relevo-borde);
+
+      ion-icon {
+        flex: none;
+        font-size: 20px;
+        margin-top: 1px;
+        color: var(--ion-color-warning);
+      }
+
+      &.alta ion-icon {
+        color: var(--ion-color-danger);
+      }
+
+      &.alta span {
+        font-weight: 600;
+      }
+    }
+
+    li:last-child {
+      border-bottom: none;
+    }
+  }
+}
+
+.familia {
+  .preguntas {
+    white-space: pre-wrap;
+    font-size: 0.98rem;
+    line-height: 1.45;
+    margin: 0 0 12px;
+  }
+
+  ion-note {
+    display: block;
+    margin-top: 8px;
+    font-size: 0.8rem;
+  }
+}
+
+.pie p {
+  margin-top: 8px;
+  font-size: 0.8rem;
+}

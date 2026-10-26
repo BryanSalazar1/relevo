@@ -69,7 +69,7 @@ export function ventanaRegistro(ahora = new Date()): { min: Date; max: Date } {
         <ion-buttons slot="start">
           <ion-button (click)="cancelar()">Cancelar</ion-button>
         </ion-buttons>
-        <ion-title>{{ entrada ? 'Editar registro' : 'Nuevo registro' }}</ion-title>
+        <ion-title>{{ entrada ? (esMedico ? 'Editar indicación' : 'Editar registro') : (esMedico ? 'Nueva indicación' : 'Nuevo registro') }}</ion-title>
         <ion-buttons slot="end">
           <ion-button [strong]="true" (click)="guardar()" [disabled]="!texto.trim()"
             >Guardar</ion-button
@@ -79,15 +79,25 @@ export function ventanaRegistro(ahora = new Date()): { min: Date; max: Date } {
     </ion-header>
 
     <ion-content class="ion-padding">
-      <ion-note>¿Qué pasó con {{ personaNombre || 'la persona cuidada' }}?</ion-note>
-      <div class="tipos">
-        @for (t of tipos; track t.valor) {
-          <ion-chip [outline]="tipo() !== t.valor" [color]="t.color" (click)="tipo.set(t.valor)">
-            <ion-icon [name]="t.icono" />
-            <ion-label>{{ t.etiqueta }}</ion-label>
-          </ion-chip>
-        }
-      </div>
+      @if (esMedico) {
+        <ion-note>
+          Indicación para el equipo que cuida a {{ personaNombre || 'la persona' }}: la verán todos
+          en Hoy y en la bitácora, y les llega como aviso importante.
+        </ion-note>
+      } @else {
+        <ion-note>¿Qué pasó con {{ personaNombre || 'la persona cuidada' }}?</ion-note>
+      }
+      <!-- Con un solo tipo posible (el médico) no hay nada que elegir -->
+      @if (tipos.length > 1) {
+        <div class="tipos">
+          @for (t of tipos; track t.valor) {
+            <ion-chip [outline]="tipo() !== t.valor" [color]="t.color" (click)="tipo.set(t.valor)">
+              <ion-icon [name]="t.icono" />
+              <ion-label>{{ t.etiqueta }}</ion-label>
+            </ion-chip>
+          }
+        </div>
+      }
 
       @if (tipo() === 'incidente') {
         <ion-note>¿Fue una caída?</ion-note>
@@ -113,7 +123,7 @@ export function ventanaRegistro(ahora = new Date()): { min: Date; max: Date } {
       }
 
       <ion-textarea
-        label="Descripción"
+        [label]="esMedico ? 'Indicación' : 'Descripción'"
         labelPlacement="stacked"
         fill="outline"
         [autoGrow]="true"
@@ -122,7 +132,11 @@ export function ventanaRegistro(ahora = new Date()): { min: Date; max: Date } {
         maxlength="2000"
         [counter]="true"
         [(ngModel)]="texto"
-        placeholder="Ej. Desayunó bien; a las 10 se quejó de dolor de cabeza…"
+        [placeholder]="
+          esMedico
+            ? 'Ej. Subir Losartán a 100 mg desde mañana; tomar la presión en ayunas 7 días; cita de control en 2 semanas.'
+            : 'Ej. Desayunó bien; a las 10 se quejó de dolor de cabeza…'
+        "
         autocapitalize="sentences"
       />
 
@@ -192,6 +206,11 @@ export class EntradaModal implements OnInit {
   personaNombre = '';
   /** Rol de quien escribe: decide qué tipos se ofrecen (el médico solo indicaciones) */
   rol: Rol | null = null;
+
+  /** El médico ve el formulario como "indicación", con sus textos */
+  get esMedico(): boolean {
+    return this.rol === 'medico';
+  }
 
   tipos: TipoEntradaInfo[] = TIPOS_ENTRADA;
   readonly tipo = signal<TipoEntrada>('nota');

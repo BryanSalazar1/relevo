@@ -1,0 +1,214 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/home" text="" />
+    </ion-buttons>
+    <ion-title>{{ persona()?.nombre || 'Seguimiento' }}</ion-title>
+    <ion-buttons slot="end">
+      <ion-button routerLink="../ficha" aria-label="Abrir la ficha de emergencia">
+        <ion-icon slot="icon-only" name="medkit-outline" />
+      </ion-button>
+      @if (puedeIndicar()) {
+        <ion-button (click)="indicar()" aria-label="Dar una indicación">
+          <ion-icon slot="icon-only" name="add" />
+        </ion-button>
+      }
+    </ion-buttons>
+  </ion-toolbar>
+  <ion-toolbar>
+    <ion-segment [value]="dias()" (ionChange)="cambiarVentana($any($event).detail.value)">
+      <ion-segment-button [value]="30"><ion-label>Últimos 30 días</ion-label></ion-segment-button>
+      <ion-segment-button [value]="90"><ion-label>Últimos 90 días</ion-label></ion-segment-button>
+    </ion-segment>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  @if (cargando() && !reporte()) {
+    <div class="ion-text-center ion-padding">
+      <ion-spinner name="crescent" />
+    </div>
+  } @else if (error(); as e) {
+    <div class="ion-padding ion-text-center">
+      <ion-text color="danger"><p>{{ e }}</p></ion-text>
+      <ion-button size="small" fill="outline" (click)="reintentar()">Reintentar</ion-button>
+    </div>
+  } @else if (reporte(); as r) {
+    <!-- 1. Encabezado clínico -->
+    <ion-card class="paciente">
+      <ion-card-header>
+        <ion-card-subtitle>Seguimiento · {{ r.rango }}</ion-card-subtitle>
+        <ion-card-title>
+          {{ r.persona.nombre }}@if (edad() !== null) {<span class="edad"> · {{ edad() }} años</span>}
+        </ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <p><strong>Condiciones:</strong> {{ r.persona.condiciones?.join(', ') || '—' }}</p>
+        <p><strong>Alergias:</strong> {{ r.persona.alergias?.join(', ') || 'Ninguna registrada' }}</p>
+        @if (r.persona.tipoSangre) {
+          <p><strong>Tipo de sangre:</strong> {{ r.persona.tipoSangre }}</p>
+        }
+        @if (r.persona.notasMedicas) {
+          <p><strong>Notas médicas:</strong> {{ r.persona.notasMedicas }}</p>
+        }
+      </ion-card-content>
+    </ion-card>
+
+    <!-- 2. Banderas: lo que conviene revisar, las altas primero -->
+    <ion-card class="banderas-card" [class.con-altas]="banderasAltas() > 0">
+      <ion-card-header>
+        <ion-card-subtitle>Para revisar</ion-card-subtitle>
+        <ion-card-title>
+          @if (r.hoja.banderas.length === 0) {
+            Sin banderas
+          } @else {
+            {{ r.hoja.banderas.length }} {{ r.hoja.banderas.length === 1 ? 'bandera' : 'banderas' }}
+            @if (banderasAltas() > 0) {
+              <ion-badge color="danger">{{ banderasAltas() }} {{ banderasAltas() === 1 ? 'alta' : 'altas' }}</ion-badge>
+            }
+          }
+        </ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        @if (r.hoja.banderas.length) {
+          <ul class="banderas">
+            @for (b of r.hoja.banderas; track b.texto) {
+              <li [class.alta]="b.nivel === 'alta'">
+                <ion-icon [name]="b.nivel === 'alta' ? 'alert-circle-outline' : 'information-circle-outline'" aria-hidden="true" />
+                <span>{{ b.texto }}</span>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="sin"><ion-text color="medium">Nada fuera de rango en los registros de este periodo.</ion-text></p>
+        }
+      </ion-card-content>
+    </ion-card>
+
+    <!-- 3. Lo que pregunta la familia y la indicación -->
+    <ion-card class="familia">
+      <ion-card-header>
+        <ion-card-subtitle>La familia pregunta</ion-card-subtitle>
+      </ion-card-header>
+      <ion-card-content>
+        @if (r.hoja.preguntas) {
+          <p class="preguntas">{{ r.hoja.preguntas }}</p>
+        } @else {
+          <p class="sin"><ion-text color="medium">Sin preguntas pendientes.</ion-text></p>
+        }
+        @if (puedeIndicar()) {
+          <ion-button expand="block" (click)="indicar()">
+            <ion-icon slot="start" name="document-text-outline" />
+            Dar una indicación
+          </ion-button>
+          <ion-note color="medium">
+            Se destaca en Hoy y en la bitácora de todo el equipo, y les llega como aviso importante.
+          </ion-note>
+        }
+      </ion-card-content>
+    </ion-card>
+
+    <!-- 4. Indicaciones recientes -->
+    <ion-list inset>
+      <ion-list-header>
+        <ion-label>Indicaciones recientes</ion-label>
+        <ion-button fill="clear" size="small" routerLink="../bitacora" [queryParams]="{ filtro: 'indicacion' }">Ver todas</ion-button>
+      </ion-list-header>
+      @for (e of indicaciones(); track e.id) {
+        <ion-item>
+          <ion-icon slot="start" name="document-text-outline" color="primary" />
+          <ion-label class="ion-text-wrap">
+            <p>{{ e.fecha.toDate() | date: 'd MMM, HH:mm' }} · {{ e.autorNombre }} · {{ cuando(e) }}</p>
+            <h3>{{ e.texto }}</h3>
+          </ion-label>
+        </ion-item>
+      } @empty {
+        <ion-item lines="none"><ion-label color="medium">Aún no hay indicaciones.</ion-label></ion-item>
+      }
+    </ion-list>
+
+    <!-- 5. Signos vitales resumidos como los lee el médico -->
+    <ion-list inset>
+      <ion-list-header><ion-label>Signos vitales</ion-label></ion-list-header>
+      @for (fila of r.hoja.filasSignos; track fila.etiqueta) {
+        <ion-item>
+          <ion-icon slot="start" name="pulse-outline" [color]="fila.alerta ? 'danger' : 'primary'" />
+          <ion-label class="ion-text-wrap">
+            <h3>{{ fila.etiqueta }}</h3>
+            <p>{{ fila.resumen }}</p>
+            @if (fila.fuera) {
+              <p class="fuera" [class.alerta]="fila.alerta">{{ fila.fuera }}</p>
+            }
+          </ion-label>
+        </ion-item>
+      } @empty {
+        <ion-item lines="none"><ion-label color="medium">Sin mediciones en este periodo.</ion-label></ion-item>
+      }
+    </ion-list>
+
+    <!-- 6. Medicamentos vigentes y adherencia (sin inventario: eso es de la familia) -->
+    <ion-list inset>
+      <ion-list-header><ion-label>Medicamentos vigentes</ion-label></ion-list-header>
+      @for (m of medicamentos(); track m.nombre) {
+        <ion-item>
+          <ion-icon slot="start" name="medical-outline" [color]="revisar(m) ? 'warning' : 'success'" />
+          <ion-label class="ion-text-wrap">
+            <h3>{{ m.nombre }} · {{ m.dosis }}@if (m.nuevo) {<ion-badge color="primary" class="nuevo">nuevo</ion-badge>}</h3>
+            @if (m.segunNecesidad) {
+              <p>Según necesidad · {{ m.tomadas }} toma(s) en el periodo</p>
+            } @else {
+              <p>
+                {{ m.horarios.join(', ') || 'Sin horario' }} · {{ m.tomadas }}/{{ m.programadas }} tomas
+                @if (m.omitidas) {
+                  · {{ m.omitidas }} omitida(s){{ m.patronOmision ? ' (' + m.patronOmision + ')' : '' }}
+                }
+              </p>
+            }
+          </ion-label>
+          @if (m.segunNecesidad) {
+            <ion-note slot="end">sin horario</ion-note>
+          } @else if (m.adherencia !== null) {
+            <ion-badge slot="end" [color]="m.adherencia >= 80 ? 'success' : m.adherencia >= 50 ? 'warning' : 'danger'">
+              {{ m.adherencia }} %
+            </ion-badge>
+          } @else {
+            <ion-note slot="end">sin tomas</ion-note>
+          }
+        </ion-item>
+      } @empty {
+        <ion-item lines="none"><ion-label color="medium">No hay medicamentos registrados.</ion-label></ion-item>
+      }
+    </ion-list>
+
+    <!-- 7. Síntomas e incidentes recientes -->
+    <ion-list inset>
+      <ion-list-header>
+        <ion-label>Síntomas e incidentes</ion-label>
+        <ion-badge color="danger">{{ r.alertas.length }}</ion-badge>
+        <ion-button fill="clear" size="small" routerLink="../bitacora">Historial</ion-button>
+      </ion-list-header>
+      @for (e of alertas(); track e.id) {
+        <ion-item>
+          <ion-icon slot="start" [name]="info(e.tipo).icono" color="danger" />
+          <ion-label class="ion-text-wrap">
+            <p>{{ e.fecha.toDate() | date: 'd MMM, HH:mm' }} · {{ e.autorNombre }}</p>
+            <h3>{{ e.texto }}</h3>
+          </ion-label>
+        </ion-item>
+      } @empty {
+        <ion-item lines="none"><ion-label color="medium">Ninguno en este periodo.</ion-label></ion-item>
+      }
+    </ion-list>
+
+    <div class="ion-padding pie">
+      <ion-button expand="block" fill="outline" (click)="exportarHoja()" [disabled]="exportando()">
+        <ion-icon slot="start" name="document-text-outline" />
+        Hoja para la consulta (PDF)
+      </ion-button>
+      <ion-text color="medium">
+        <p>Lo registra la familia y el equipo de cuidado en Relevo; no sustituye el expediente clínico.</p>
+      </ion-text>
+    </div>
+  }
+  <app-fab-asistente />
+</ion-content>

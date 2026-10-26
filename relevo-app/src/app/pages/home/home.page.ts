@@ -80,6 +80,7 @@ export class HomePage {
 
   /** Solo las cuentas de familiar dan de alta personas cuidadas */
   readonly esFamiliar = computed(() => this.perfil()?.tipo === 'familiar');
+  readonly esMedico = computed(() => this.perfil()?.tipo === 'medico');
   readonly tipoEtiqueta = computed(() => {
     const tipo = this.perfil()?.tipo;
     return tipo ? TIPO_USUARIO_ETIQUETA[tipo] : '';
@@ -129,8 +130,10 @@ export class HomePage {
     return tonoDe(nombre);
   }
 
+  /** La familia entra a Hoy; el médico, a Seguimiento (PersonaPage lo manda ahí de todos modos). */
   abrir(p: PersonaCuidada) {
-    if (p.id) void this.router.navigate(['/personas', p.id]);
+    if (!p.id) return;
+    void this.router.navigate(this.esMedico() ? ['/personas', p.id, 'seguimiento'] : ['/personas', p.id]);
   }
 
   /** La ficha de emergencia (alergias, medicamentos, contactos), directo desde el inicio. */

@@ -42,6 +42,8 @@
         <ion-text color="medium">
           @if (filtro()) {
             <p>No hay registros de este tipo.</p>
+          } @else if (rol() === 'medico') {
+            <p>Aún no hay registros.<br />Toca <strong>+</strong> para dar la primera indicación.</p>
           } @else if (puedeEscribir()) {
             <p>La bitácora está vacía.<br />Toca <strong>+</strong> para registrar el primer evento.</p>
           } @else {

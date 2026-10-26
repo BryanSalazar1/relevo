@@ -413,6 +413,39 @@ decisión: en la web se avisa por correo.
 
 ## 10. Funcionalidades implementadas (10 de septiembre de 2026)
 
+### Vista del médico: Seguimiento — 26/10/2026
+El médico veía las mismas cinco pestañas que la familia (agenda del día, semáforo, inventario,
+rutina, turnos) y lo clínico quedaba escondido en el PDF. Ahora su cuenta tiene otra experiencia,
+sin tocar las rules (siguen decidiendo qué puede escribir):
+
+- **Pestañas del médico** (`pages/persona/persona.page.ts`, por `tipo` de cuenta o rol `medico`):
+  **Seguimiento · Historial · Reporte · Equipo**. Hoy y Plan son operación de la familia: si cae ahí
+  (ruta por defecto, enlace de un aviso, marcador) se le manda a Seguimiento. Desde Inicio ("Tus
+  pacientes") entra directo a Seguimiento.
+- **Seguimiento** (`/personas/:id/seguimiento`, `pages/seguimiento`): la pantalla responde en un
+  minuto lo que un médico tratante necesita entre consultas. Reutiliza `ReporteService.generar` y
+  la hoja para la consulta (`core/utils/hoja-consulta.ts`) sobre los últimos 30 o 90 días:
+  encabezado clínico (edad, condiciones, alergias, sangre, notas médicas; botón a la ficha de
+  emergencia), **banderas** (las altas primero, con marca roja), **lo que pregunta la familia** y el
+  botón **Dar una indicación**, **indicaciones recientes** (hasta 5, con "Ver todas"), **signos
+  vitales** resumidos como los lee el médico, **medicamentos vigentes** con adherencia y patrón de
+  omisiones (primero los que tienen algo que revisar; sin inventario), **síntomas e incidentes**
+  recientes y la **hoja para la consulta (PDF)**. El pie del PDF ya dice quién lo preparó en vez de
+  "la familia".
+- **Dar una indicación**: el mismo formulario de la bitácora (`EntradaModal`), que para el médico
+  se titula "Nueva indicación", explica que la verá todo el equipo, no muestra los tipos (solo tiene
+  uno) y propone ejemplos de indicación. Al guardar, Seguimiento se recarga.
+- **Historial**: la bitácora abre para el médico con el filtro nuevo **"Lo clínico"** (síntomas,
+  incidentes, signos e indicaciones; `?filtro=clinico`), que también está en el menú de filtros para
+  todos. El médico lo puede quitar y ver todo.
+- **Asistente**: las preguntas sugeridas cambian para el médico (presión de las últimas dos semanas,
+  dosis omitidas y a qué hora, caídas o síntomas nuevos, qué pasó tras su última indicación…).
+
+Queda para fases siguientes (ver propuesta del 26/10/2026): indicación estructurada con acuse de
+lectura y estado "aplicada" vinculado a un medicamento o tarea, respuesta a las preguntas de la
+familia, rangos objetivo por paciente, aviso al médico solo por banderas altas y resumen semanal,
+gráficas de tendencia de signos e invitación específica para médico.
+
 ### Permisos afinados y confirmación al quitar registros — 23/10/2026
 - **Perfiles privados**: `usuarios/{uid}` solo lo lee su dueño (antes cualquier cuenta con sesión
   podía leer el correo, los tokens y los equipos de todos, y listarlos). Las rules siguen

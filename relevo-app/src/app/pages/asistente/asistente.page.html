@@ -28,7 +28,7 @@
         </p>
       </ion-text>
       <div class="sugerencias">
-        @for (s of sugerencias; track s) {
+        @for (s of sugerencias(); track s) {
           <ion-chip [outline]="true" color="primary" (click)="enviar(s)">
             <ion-label>{{ s }}</ion-label>
           </ion-chip>

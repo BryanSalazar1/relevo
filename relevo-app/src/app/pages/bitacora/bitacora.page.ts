@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import {
@@ -51,13 +51,20 @@ import { personaActual } from '../../core/utils/persona-actual';
 import { EntradaModal } from './entrada.modal';
 import { FabAsistente } from '../../shared/fab-asistente.component';
 
-/** Qué se muestra: un tipo de entrada, solo tomas de medicamentos, solo tareas, o todo (null). */
-export type FiltroBitacora = TipoEntrada | 'toma' | 'tarea' | 'signo';
+/**
+ * Qué se muestra: un tipo de entrada, solo tomas de medicamentos, solo tareas, solo signos, lo
+ * clínico (síntomas, incidentes, indicaciones y signos: lo que mira el médico) o todo (null).
+ */
+export type FiltroBitacora = TipoEntrada | 'toma' | 'tarea' | 'signo' | 'clinico';
+
+/** Tipos de entrada que cuentan como "lo clínico" (junto con los signos vitales) */
+const TIPOS_CLINICOS = new Set<TipoEntrada>(['sintoma', 'incidente', 'indicacion']);
+const INFO_CLINICO = { etiqueta: 'Lo clínico', icono: 'pulse-outline', color: 'primary' };
 
 /** El filtro pedido en la URL (?filtro=...), solo si es uno conocido. */
 function filtroDeRuta(route: ActivatedRoute): FiltroBitacora | null {
   const f = route.snapshot.queryParamMap.get('filtro');
-  const validos: string[] = ['toma', 'tarea', 'signo', ...TIPOS_ENTRADA.map((t) => t.valor)];
+  const validos: string[] = ['toma', 'tarea', 'signo', 'clinico', ...TIPOS_ENTRADA.map((t) => t.valor)];
   return f && validos.includes(f) ? (f as FiltroBitacora) : null;
 }
 
@@ -105,7 +112,8 @@ export class BitacoraPage {
   );
 
   /** Filtro por tipo; se puede abrir ya filtrada con ?filtro=incidente (p. ej. desde la Entrega de turno) */
-  readonly filtro = signal<FiltroBitacora | null>(filtroDeRuta(inject(ActivatedRoute)));
+  private readonly filtroInicial = filtroDeRuta(inject(ActivatedRoute));
+  readonly filtro = signal<FiltroBitacora | null>(this.filtroInicial);
   readonly etiquetaDia = etiquetaDia;
   readonly infoToma = INFO_TOMA;
   readonly infoTarea = INFO_TAREA_BITACORA;
@@ -116,11 +124,25 @@ export class BitacoraPage {
     const f = this.filtro();
     const filtradas = !f
       ? lista
-      : f === 'toma' || f === 'tarea' || f === 'signo'
-        ? lista.filter((i) => i.clase === f)
-        : lista.filter((i) => i.clase === 'entrada' && i.entrada.tipo === f);
+      : f === 'clinico'
+        ? lista.filter(
+            (i) => i.clase === 'signo' || (i.clase === 'entrada' && TIPOS_CLINICOS.has(i.entrada.tipo)),
+          )
+        : f === 'toma' || f === 'tarea' || f === 'signo'
+          ? lista.filter((i) => i.clase === f)
+          : lista.filter((i) => i.clase === 'entrada' && i.entrada.tipo === f);
     return agruparPorDia(filtradas, (i) => i.fecha);
   });
+
+  constructor() {
+    // El médico entra viendo solo lo clínico (puede quitar el filtro); si la URL ya pedía uno, se respeta
+    effect(() => {
+      if (this.rol() !== 'medico' || this.filtroInicial !== null) return;
+      untracked(() => {
+        if (this.filtro() === null) this.filtro.set('clinico');
+      });
+    });
+  }
 
   readonly total = computed(() => this.linea()?.length ?? 0);
 
@@ -140,6 +162,7 @@ export class BitacoraPage {
     if (tipo === 'toma') return INFO_TOMA;
     if (tipo === 'tarea') return INFO_TAREA_BITACORA;
     if (tipo === 'signo') return INFO_SIGNO_BITACORA;
+    if (tipo === 'clinico') return INFO_CLINICO;
     return TIPO_ENTRADA_INFO[tipo];
   }
 
@@ -217,6 +240,13 @@ export class BitacoraPage {
           icon: INFO_SIGNO_BITACORA.icono,
           handler: () => {
             this.filtro.set('signo');
+          },
+        },
+        {
+          text: 'Lo clínico (síntomas, incidentes, signos e indicaciones)',
+          icon: INFO_CLINICO.icono,
+          handler: () => {
+            this.filtro.set('clinico');
           },
         },
         {

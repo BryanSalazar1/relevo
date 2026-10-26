@@ -44,6 +44,8 @@ export class FabAsistente {
       componentProps: {
         personaIdFijo: personaId,
         nombreFijo: this.ctx.persona()?.nombre,
+        // El rol tampoco llega por la ruta dentro del modal: decide las preguntas sugeridas
+        rolFijo: this.ctx.rol() ?? undefined,
         enModal: true,
       },
     });

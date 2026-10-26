@@ -31,6 +31,16 @@ const SUGERENCIAS = [
   '¿Cómo va la presión arterial?',
 ];
 
+/** Lo que un médico tratante suele preguntar entre consultas */
+const SUGERENCIAS_MEDICO = [
+  '¿Cómo ha estado la presión en las últimas dos semanas?',
+  '¿Qué dosis se han omitido este mes y a qué hora?',
+  '¿Ha habido caídas, fiebre o síntomas nuevos?',
+  '¿Qué pasó después de mi última indicación?',
+  '¿Cómo van la glucosa en ayunas y el peso?',
+  '¿Cómo ha dormido y comido estas semanas?',
+];
+
 /** Chat en lenguaje natural sobre la bitácora de la persona cuidada. */
 @Component({
   selector: 'app-asistente',
@@ -74,9 +84,14 @@ export class AsistentePage {
    */
   personaIdFijo?: string;
   nombreFijo?: string;
+  /** Rol de quien pregunta cuando se abre como modal (la ruta no lo trae): elige las sugerencias */
+  rolFijo?: string;
   enModal = false;
 
-  readonly sugerencias = SUGERENCIAS;
+  /** El médico ve preguntas de seguimiento clínico; la familia, las del día a día */
+  readonly sugerencias = computed(() =>
+    (this.rolFijo ?? this.rol()) === 'medico' ? SUGERENCIAS_MEDICO : SUGERENCIAS,
+  );
   readonly mensajes = signal<MensajeChat[]>([]);
   readonly pensando = signal(false);
   readonly vacio = computed(() => this.mensajes().length === 0);

@@ -466,7 +466,7 @@ export class ReporteService {
       pdf.setFontSize(7.5);
       pdf.setTextColor(130);
       pdf.text(
-        `Relevo · Hoja para la consulta de ${p.nombre} · página ${i} de ${paginas} · Preparada por la familia con los registros de Relevo; no sustituye el expediente clínico.`,
+        `Relevo · Hoja para la consulta de ${p.nombre} · página ${i} de ${paginas} · Preparada por ${r.generadoPor} con los registros del equipo de cuidado; no sustituye el expediente clínico.`,
         14,
         291,
       );
