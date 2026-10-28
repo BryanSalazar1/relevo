@@ -1,7 +1,7 @@
 import { Component, computed, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
-import { IonButton, IonContent, IonIcon, IonSpinner } from '@ionic/angular';
+import { IonButton, IonContent, IonIcon, IonSpinner, NavController } from '@ionic/angular';
 import { switchMap } from 'rxjs';
 import { MedicamentosService, vigenteEnDia } from '../../core/services/medicamentos.service';
 import { edad } from '../../core/utils/fechas';
@@ -21,6 +21,7 @@ import { personaActual } from '../../core/utils/persona-actual';
 export class FichaPage {
   private readonly medsSvc = inject(MedicamentosService);
   private readonly router = inject(Router);
+  private readonly nav = inject(NavController);
   private readonly ctx = personaActual();
 
   readonly persona = this.ctx.persona;
@@ -39,8 +40,15 @@ export class FichaPage {
     return `tel:${telefono.replace(/[^\d+]/g, '')}`;
   }
 
+  /** Vuelve a donde se abrió (inicio, Hoy, Equipo…); si se entró directo (enlace, recarga), a la persona. */
   salir() {
+    if (this.router.lastSuccessfulNavigation?.previousNavigation) {
+      this.nav.back();
+      return;
+    }
     const id = this.ctx.personaId();
     void this.router.navigate(id ? ['/personas', id] : ['/home']);
   }
+
+
 }

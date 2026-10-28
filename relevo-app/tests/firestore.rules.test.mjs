@@ -657,8 +657,12 @@ test('rutina: solo el responsable define tareas; enfermeros y familiares registr
     setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/tareas/t1/registros/r4`), { hecha: true, registradoPor: 'luis' }),
   );
   await assertFails(deleteDoc(doc(pedro(), `personas_cuidadas/${PERSONA_ID}/tareas/t1/registros/r4`)));
-  await assertSucceeds(
+  // Un registro ajeno tampoco se corrige firmándolo otro
+  await assertFails(
     setDoc(doc(pedro(), `personas_cuidadas/${PERSONA_ID}/tareas/t1/registros/r4`), { hecha: false, registradoPor: 'pedro' }),
+  );
+  await assertSucceeds(
+    setDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}/tareas/t1/registros/r4`), { hecha: false, registradoPor: 'luis' }),
   );
   await assertSucceeds(deleteDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/tareas/t1/registros/r4`)));
   // El médico solo lee
@@ -731,7 +735,7 @@ test('tomas: no se registran en un medicamento suspendido (corregir una ya regis
   await assertSucceeds(b.commit());
 });
 
-test('quitar registros: una toma o una medición la quita quien la hizo o la responsable; otro miembro no', async () => {
+test('quitar y corregir registros: una toma o una medición la cambia quien la hizo o la responsable; otro miembro no', async () => {
   await anaCreaPersona();
   await agregarLuisComo('cuidador_turno');
   await agregarComo('pedro', 'familiar');
@@ -744,8 +748,11 @@ test('quitar registros: una toma o una medición la quita quien la hizo o la res
   await assertSucceeds(setDoc(toma(luis(), 'b'), datos));
   await assertSucceeds(setDoc(toma(luis(), 'c'), datos));
   await assertFails(deleteDoc(toma(pedro(), 'a')));
-  // Corregirla sí puede, firmándola él
-  await assertSucceeds(setDoc(toma(pedro(), 'a'), { ...datos, tomado: false, registradoPor: 'pedro' }));
+  // Tampoco la corrige firmándola él (sería quedarse con el registro ajeno); la responsable sí
+  await assertFails(setDoc(toma(pedro(), 'a'), { ...datos, tomado: false, registradoPor: 'pedro' }));
+  await assertSucceeds(setDoc(toma(ana(), 'a'), { ...datos, tomado: false, registradoPor: 'ana' }));
+  // Quien la registró la corrige
+  await assertSucceeds(setDoc(toma(luis(), 'c'), { ...datos, tomado: false }));
   await assertSucceeds(deleteDoc(toma(luis(), 'b')));
   await assertSucceeds(deleteDoc(toma(ana(), 'c')));
   // Borrar una toma que no existe no tiene autor que proteger (la app borra en lote lo que pudo haber)
@@ -755,6 +762,9 @@ test('quitar registros: una toma o una medición la quita quien la hizo o la res
   await assertSucceeds(setDoc(signo(luis(), 's1'), { tipo: 'pulso', valor: 70, autorUid: 'luis' }));
   await assertSucceeds(setDoc(signo(luis(), 's2'), { tipo: 'pulso', valor: 72, autorUid: 'luis' }));
   await assertFails(deleteDoc(signo(pedro(), 's1')));
+  // Ni reescribe la medición de otro (al volver a marcar una tarea de signos ajena)
+  await assertFails(setDoc(signo(pedro(), 's1'), { tipo: 'pulso', valor: 80, autorUid: 'pedro' }));
+  await assertSucceeds(setDoc(signo(pedro(), 's3'), { tipo: 'pulso', valor: 80, autorUid: 'pedro' }));
   await assertSucceeds(deleteDoc(signo(ana(), 's1')));
   await assertSucceeds(deleteDoc(signo(luis(), 's2')));
 });

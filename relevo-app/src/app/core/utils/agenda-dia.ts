@@ -107,9 +107,19 @@ function filaDeTarea(t: TareaProgramada): FilaDia {
   };
 }
 
+/**
+ * Una dosis o tarea sin registro programada antes de que se diera de alta (p. ej. un medicamento
+ * de las 08:00 agregado a las 15:00): no se esperaba que se hiciera, así que no cuenta como atrasada.
+ */
+function anteriorAlAlta(f: FilaDia): boolean {
+  if (f.registrado) return false;
+  const alta = fechaDe(f.tipo === 'toma' ? f.dosis.medicamento.creadoEn : f.programada.tarea.creadoEn);
+  return !!alta && f.hora.getTime() < alta.getTime();
+}
+
 /** Todas las filas del día (tomas y tareas), por hora; a la misma hora, primero los medicamentos. */
 export function filasDelDia(dosis: DosisProgramada[], tareas: TareaProgramada[]): FilaDia[] {
-  return [...dosis.map(filaDeDosis), ...tareas.map(filaDeTarea)].sort(
+  return [...dosis.map(filaDeDosis), ...tareas.map(filaDeTarea)].filter((f) => !anteriorAlAlta(f)).sort(
     (a, b) =>
       a.hora.getTime() - b.hora.getTime() ||
       Number(a.tipo === 'tarea') - Number(b.tipo === 'tarea') ||

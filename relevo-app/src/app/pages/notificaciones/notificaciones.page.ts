@@ -39,6 +39,7 @@ import {
 } from '../../core/models';
 import { AuthService } from '../../core/services/auth.service';
 import { MiembrosService } from '../../core/services/miembros.service';
+import { NotificacionesService } from '../../core/services/notificaciones.service';
 import { PersonasService } from '../../core/services/personas.service';
 import { textoTurnos } from '../../core/utils/fechas';
 
@@ -96,7 +97,7 @@ type Permiso = 'granted' | 'denied' | 'prompt' | 'prompt-with-rationale' | 'desc
               @switch (permiso()) {
                 @case ('granted') {
                   <h2>Avisos en este teléfono</h2>
-                  <p>Llegan como notificación push. Si apagas las notificaciones de Relevo en Android, recibirás correo.</p>
+                  <p>Llegan como notificación push a este teléfono.</p>
                 }
                 @case ('denied') {
                   <h2>Notificaciones apagadas en el teléfono</h2>
@@ -345,6 +346,7 @@ export class NotificacionesPage implements OnInit {
   private readonly personasSvc = inject(PersonasService);
   private readonly miembrosSvc = inject(MiembrosService);
   private readonly toast = inject(ToastController);
+  private readonly notificacionesSvc = inject(NotificacionesService);
 
   readonly ROL_COLOR = ROL_COLOR;
   readonly ROL_ETIQUETA = ROL_ETIQUETA;
@@ -431,7 +433,9 @@ export class NotificacionesPage implements OnInit {
     try {
       const r = await PushNotifications.requestPermissions();
       this.permiso.set(r.receive);
-      if (r.receive === 'granted') await PushNotifications.register();
+      // Con los listeners que guardan el token: si no, el permiso se da pero el aviso no llega
+      const uid = this.auth.uid;
+      if (r.receive === 'granted' && uid) await this.notificacionesSvc.registrarDispositivo(uid);
     } catch (error) {
       console.warn('No se pudo pedir el permiso de notificaciones', error);
     }

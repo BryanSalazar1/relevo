@@ -1,7 +1,6 @@
 import { Injectable, inject } from '@angular/core';
-import { Firestore, doc, docData, getDoc, serverTimestamp, setDoc } from '@angular/fire/firestore';
-import { Observable, catchError, map, of } from 'rxjs';
-import { PREGUNTAS_MEDICO_MAX, PreguntasMedico } from '../models';
+import { Firestore, doc, serverTimestamp, setDoc } from '@angular/fire/firestore';
+import { PREGUNTAS_MEDICO_MAX } from '../models';
 import { AuthService } from './auth.service';
 
 /**
@@ -15,23 +14,6 @@ export class ConsultaService {
 
   private ref(personaId: string) {
     return doc(this.db, `personas_cuidadas/${personaId}/consulta/preguntas`);
-  }
-
-  preguntas(personaId: string): Observable<PreguntasMedico | null> {
-    return (docData(this.ref(personaId)) as Observable<PreguntasMedico | undefined>).pipe(
-      map((d) => d ?? null),
-      catchError(() => of(null)),
-    );
-  }
-
-  /** El texto actual (vacío si no hay documento o no se puede leer). */
-  async leerPreguntas(personaId: string): Promise<string> {
-    try {
-      const snap = await getDoc(this.ref(personaId));
-      return snap.exists() ? ((snap.data() as PreguntasMedico).texto ?? '') : '';
-    } catch {
-      return '';
-    }
   }
 
   async guardarPreguntas(personaId: string, texto: string): Promise<void> {

@@ -6,7 +6,7 @@
     <ion-title>{{ persona()?.nombre || 'Seguimiento' }}</ion-title>
     <ion-buttons slot="end">
       <ion-button routerLink="../ficha" aria-label="Abrir la ficha de emergencia">
-        <ion-icon slot="icon-only" name="medkit-outline" />
+        <ion-icon slot="icon-only" name="id-card-outline" />
       </ion-button>
       @if (puedeIndicar()) {
         <ion-button (click)="indicar()" aria-label="Dar una indicación">

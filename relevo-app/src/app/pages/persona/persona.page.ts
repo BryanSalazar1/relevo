@@ -50,7 +50,7 @@ import { personaActual } from '../../core/utils/persona-actual';
           <ion-tab-button tab="plan">
             <ion-icon name="clipboard-outline" />
             <ion-label>Plan</ion-label>
-            @if (porResurtir().total > 0) {
+            @if (esResponsable() && porResurtir().total > 0) {
               <ion-badge
                 [color]="porResurtir().agotados > 0 ? 'danger' : 'warning'"
                 [attr.aria-label]="porResurtir().total + ' por resurtir'"
@@ -98,6 +98,9 @@ export class PersonaPage {
   readonly esMedico = computed(
     () => this.auth.tipoActual === 'medico' || this.ctx.rol() === 'medico',
   );
+
+  /** Solo el responsable resurte: a los demás el aviso les sale en Hoy, sin insignia en Plan */
+  readonly esResponsable = computed(() => this.ctx.rol() === 'cuidador_principal');
 
   /** Medicamentos por resurtir (agotados o por acabarse), para el aviso de la pestaña Plan. */
   readonly porResurtir = computed(() => {

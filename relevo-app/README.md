@@ -413,6 +413,56 @@ decisión: en la web se avisa por correo.
 
 ## 10. Funcionalidades implementadas (10 de septiembre de 2026)
 
+### Agenda compartida coherente: revisión de flujos — 28/10/2026
+
+Revisión de cada flujo con los cuatro roles (código, reglas y recorrido en navegador sobre la semilla).
+
+**Registros compartidos**
+- Un registro (toma, tarea o medición) solo lo **cambia o quita quien lo hizo o el responsable**. Antes
+  cualquiera podía volver a marcarlo, quedarse como autor y luego borrarlo. Las rules lo exigen
+  (`puedeQuitar` también al corregir) y la app ya no ofrece esas acciones: a los demás les dice quién lo
+  registró y que le pidan la corrección. La hoja de opciones ya no repite el estado actual
+  ("Marcar como tomada" en una toma tomada).
+- Pasar a "no hecha" una tarea de signos vitales pide confirmación: sus mediciones se borran.
+- En una tarea de signos ya hecha, la opción es "Corregir mediciones".
+
+**Hoy**
+- A medianoche pasa sola al día nuevo; al volver a la pestaña siempre abre en hoy, y en otro día hay
+  un botón **Hoy** para regresar. Las citas próximas también se recalculan con el día.
+- La **Entrega de turno** ya no se vacía al ir a otra pestaña y volver: volver antes de 30 min es la misma
+  visita (`visitaAlEntrar` en `core/utils/entrega-turno.ts`). "Ver en la bitácora" abre la bitácora completa.
+- Una dosis o tarea programada **antes de darse de alta** (p. ej. un medicamento de las 08:00 agregado a
+  las 15:00) no sale atrasada ni manda recordatorio (`filasDelDia` y `dosisVencidas` con `creadoEn`).
+- Se quitó el icono del semáforo de la cabecera de Hoy y de la Bitácora (la tarjeta del semáforo ya lleva
+  ahí) y el modo "solo lectura" de Hoy, al que ya nadie llegaba (el médico usa Seguimiento).
+- "Por resurtir": quien no es responsable ve "Avisa al responsable…"; la insignia de Plan solo la ve el
+  responsable, que es quien resurte.
+
+**Plan**
+- Editar un medicamento ya no **pisa el inventario** con el número que había al abrir el formulario (otro
+  teléfono pudo descontar tomas) ni le pone fecha de inicio a uno antiguo que no la tenía; la marca
+  `editadoEn` (rearma el aviso de inventario) solo va cuando se cambió el inventario.
+- Borrar un medicamento o una tarea borra todo su historial por tandas (antes, solo los primeros 499).
+
+**Equipo y cuenta**
+- Con otro responsable en el equipo, el responsable puede **dejar de serlo** (y después salir). El único
+  responsable de un equipo con más gente **no puede borrar su cuenta** hasta ceder el rol; si la cuenta se
+  borra de otra forma, `limpiarUsuarioEliminado` deja a un familiar como responsable.
+- "Turnos de guardia" ya no aparece dos veces ni para el médico; el código de acceso ofrece **Reintentar**
+  si no se pudo generar; cerrar la hoja de compartir ya no copia al portapapeles.
+- "Permitir notificaciones" guarda el token del teléfono (antes se daba el permiso pero no llegaban avisos)
+  y se quitó la promesa de correo cuando se apagan en Android, que no se cumplía.
+- Al unirse, el error distingue una invitación vencida/agotada de un problema de conexión.
+
+**Bitácora, Reporte y Seguimiento**
+- La bitácora sigue el filtro de la URL aunque la pestaña ya estuviera abierta ("Ver todas" desde
+  Seguimiento u Hoy siempre filtra); el filtro elegido a mano queda en la URL.
+- El responsable puede **eliminar** una indicación del médico que ya no aplica (no editarla).
+- Reporte: lo escrito en "Preguntas para el médico" sin guardar ya no se pierde al cambiar de periodo, y
+  "Reintentar" repite el periodo que se veía (antes saltaba a hoy). Reporte y Seguimiento descartan
+  respuestas viejas si se cambia de periodo rápido.
+- Ficha y Semáforo vuelven a donde se abrieron; el médico ya no ve el semáforo.
+
 ### Vista del médico: Seguimiento — 26/10/2026
 El médico veía las mismas cinco pestañas que la familia (agenda del día, semáforo, inventario,
 rutina, turnos) y lo clínico quedaba escondido en el PDF. Ahora su cuenta tiene otra experiencia,

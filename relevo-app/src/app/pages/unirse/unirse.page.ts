@@ -165,7 +165,14 @@ export class UnirsePage implements OnInit {
       await this.router.navigate(['/personas', inv.personaId], { replaceUrl: true });
     } catch (error) {
       console.error(error);
-      await this.aviso('No se pudo completar. La invitación puede haber vencido o sido cancelada.');
+      // Las rules rechazan una invitación vencida, cancelada, agotada o de otro tipo de cuenta;
+      // cualquier otro fallo suele ser la conexión
+      const denegado = (error as { code?: string } | null)?.code === 'permission-denied';
+      await this.aviso(
+        denegado
+          ? 'No se pudo usar la invitación: puede haber vencido, agotado sus usos o sido cancelada. Pide un código nuevo.'
+          : 'No se pudo completar. Revisa tu conexión e inténtalo de nuevo.',
+      );
     } finally {
       this.uniendo.set(false);
     }

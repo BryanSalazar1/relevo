@@ -17,7 +17,6 @@ import {
   IonListHeader,
   IonNote,
   IonSpinner,
-  IonText,
   IonTitle,
   IonToolbar,
   ToastController,
@@ -59,6 +58,8 @@ import {
 import {
   MAX_LINEAS_ENTREGA,
   Novedad,
+  Visita,
+  visitaAlEntrar,
   inicioEntrega,
   novedadesEntrega,
   textoDesde,
@@ -73,7 +74,6 @@ import {
 import { personaActual } from '../../core/utils/persona-actual';
 import { estadoSemaforo } from '../../core/utils/semaforo';
 import { FabAsistente } from '../../shared/fab-asistente.component';
-import { FiltroBitacora } from '../bitacora/bitacora.page';
 import { EditarCitaService } from '../citas/editar-cita.service';
 import { MarcarTomaService } from '../medicamentos/marcar-toma.service';
 import { ResurtirService } from '../medicamentos/resurtir.service';
@@ -86,27 +86,44 @@ const MAX_CITAS_HOY = 3;
 /** Durante cuántos días se destaca en Hoy la última indicación del médico. */
 const DIAS_INDICACION = 14;
 
-/** Última vez que este usuario abrió Hoy de esa persona en este dispositivo (para la Entrega de turno). */
+/**
+ * Visitas a Hoy de esa persona en este dispositivo (para la Entrega de turno). `desde` = cuándo
+ * terminó la visita anterior; `ultima` = la última vez que se vio Hoy. Ir a otra pestaña y volver
+ * enseguida es la misma visita: la entrega no se vacía por mirar la bitácora un momento.
+ */
 function claveVisita(personaId: string) {
   return `relevo.visita.${personaId}`;
 }
-function leerVisita(personaId: string): Date | null {
+function fechaValida(v: unknown): Date | null {
+  const d = typeof v === 'string' ? new Date(v) : null;
+  return d && !isNaN(d.getTime()) ? d : null;
+}
+function leerVisita(personaId: string): Visita | null {
   try {
     const v = localStorage.getItem(claveVisita(personaId));
-    const d = v ? new Date(v) : null;
-    return d && !isNaN(d.getTime()) ? d : null;
+    if (!v) return null;
+    // Versiones anteriores guardaban solo la fecha de la última visita
+    if (!v.startsWith('{')) {
+      const ultima = fechaValida(v);
+      return ultima ? { desde: ultima, ultima } : null;
+    }
+    const o = JSON.parse(v) as { desde?: string; ultima?: string };
+    const ultima = fechaValida(o.ultima);
+    return ultima ? { desde: fechaValida(o.desde), ultima } : null;
   } catch {
     return null;
   }
 }
-function guardarVisita(personaId: string, fecha: Date) {
+function guardarVisita(personaId: string, visita: Visita) {
   try {
-    localStorage.setItem(claveVisita(personaId), fecha.toISOString());
+    localStorage.setItem(
+      claveVisita(personaId),
+      JSON.stringify({ desde: visita.desde?.toISOString() ?? null, ultima: visita.ultima.toISOString() }),
+    );
   } catch {
     // Sin almacenamiento (modo privado, cuota): la entrega usa el turno o las últimas 8 h
   }
 }
-
 /**
  * Hoy: lo que toca en el día, en una sola lista cronológica (tomas de medicamentos y tareas de la
  * rutina) con botones para marcar, la Entrega de turno y el estado del semáforo arriba, las tomas
@@ -134,7 +151,6 @@ function guardarVisita(personaId: string, fecha: Date) {
     IonNote,
     IonBadge,
     IonSpinner,
-    IonText,
   ],
   templateUrl: './hoy.page.html',
   styleUrl: './hoy.page.scss',
@@ -161,11 +177,15 @@ export class HoyPage {
   /** Día que se muestra (por defecto hoy) */
   readonly dia = signal<Date>(inicioDeDia(new Date()));
   readonly esHoy = computed(() => claveDia(this.dia()) === claveDia(this.ahora()));
+  /** Inicio de hoy según el reloj: cambia solo a medianoche */
+  private readonly hoyInicio = computed(() => inicioDeDia(this.ahora()), {
+    equal: (a, b) => a.getTime() === b.getTime(),
+  });
   readonly etiquetaDia = etiquetaDia;
   readonly textoInventario = textoInventario;
   /** Hasta cuántos días atrás se puede ver (lo anterior está en el reporte) */
   readonly puedeRetroceder = computed(
-    () => claveDia(this.dia()) > claveDia(sumarDias(inicioDeDia(new Date()), -DIAS_ATRAS_MAX)),
+    () => claveDia(this.dia()) > claveDia(sumarDias(this.hoyInicio(), -DIAS_ATRAS_MAX)),
   );
 
   /** Reloj: el estado del semáforo y los iconos de "ya pasó" se recalculan con él */
@@ -295,8 +315,8 @@ export class HoyPage {
   // ---------------------------------------------------------------- Próximas citas
   /** Citas desde hoy (una de hoy ya pasada sigue hasta mañana); se pide una de más para saber si hay más */
   private readonly citas = toSignal(
-    this.ctx.personaId$.pipe(
-      switchMap((id) => this.eventosSvc.proximos(id, inicioDeDia(new Date()), MAX_CITAS_HOY + 1)),
+    combineLatest([this.ctx.personaId$, toObservable(this.hoyInicio)]).pipe(
+      switchMap(([id, hoy]) => this.eventosSvc.proximos(id, hoy, MAX_CITAS_HOY + 1)),
     ),
   );
   readonly citasVisibles = computed(() => (this.citas() ?? []).slice(0, MAX_CITAS_HOY));
@@ -324,26 +344,38 @@ export class HoyPage {
     const r = this.rol();
     return !!r && PUEDE_EDITAR_MEDICAMENTOS.includes(r);
   });
-  /** Solo lectura (médico): ve el día sin botones */
-  readonly soloLectura = computed(
-    () => !!this.rol() && !this.puedeRegistrarTomas() && !this.puedeRegistrarTareas(),
-  );
-
   constructor() {
-    const reloj = setInterval(() => this.ahora.set(new Date()), REFRESCO_MS);
+    const reloj = setInterval(() => this.tic(new Date()), REFRESCO_MS);
     inject(DestroyRef).onDestroy(() => clearInterval(reloj));
+  }
+
+  /** Avanza el reloj; si se estaba viendo hoy y pasó la medianoche, pasa al día nuevo. */
+  private tic(ahora: Date) {
+    const veiaHoy = this.esHoy();
+    this.ahora.set(ahora);
+    if (veiaHoy && !this.esHoy()) this.dia.set(inicioDeDia(ahora));
   }
 
   ionViewWillEnter() {
     const ahora = new Date();
     this.ahora.set(ahora);
     this.entradaEn.set(ahora);
-    // La entrega resume desde la visita anterior; esta visita queda guardada para la próxima
+    // Hoy siempre abre en el día de hoy (los días anteriores son una consulta de paso)
+    this.dia.set(inicioDeDia(ahora));
+    // La entrega resume desde la visita anterior; volver de otra pestaña sigue siendo la misma visita
     const id = this.ctx.personaId();
     if (id) {
-      this.visitaAnterior.set(leerVisita(id));
-      guardarVisita(id, ahora);
+      const visita = visitaAlEntrar(leerVisita(id), ahora);
+      this.visitaAnterior.set(visita.desde);
+      guardarVisita(id, visita);
     }
+  }
+
+  ionViewWillLeave() {
+    // Lo visto hasta aquí cuenta como parte de esta visita
+    const id = this.ctx.personaId();
+    const visita = id ? leerVisita(id) : null;
+    if (id && visita) guardarVisita(id, { ...visita, ultima: new Date() });
   }
 
   cambiarDia(delta: number) {
@@ -351,7 +383,7 @@ export class HoyPage {
   }
 
   hoy() {
-    this.dia.set(inicioDeDia(new Date()));
+    this.dia.set(this.hoyInicio());
   }
 
   /** "08:00" si fue hoy; "ayer 22:10" o "10 oct 16:00" si no. */
@@ -366,19 +398,10 @@ export class HoyPage {
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   }
 
-  /** "Ver más" de la entrega: la bitácora filtrada por lo más delicado que haya. */
+  /** "Ver en la bitácora" de la entrega: la bitácora completa (lo anotado, más reciente primero). */
   verEntregaCompleta() {
     const id = this.ctx.personaId();
-    if (!id) return;
-    const tipos = new Set((this.entrega() ?? []).map((n) => n.tipo));
-    const filtro: FiltroBitacora | null = tipos.has('incidente')
-      ? 'incidente'
-      : tipos.has('sintoma')
-        ? 'sintoma'
-        : tipos.has('indicacion')
-          ? 'indicacion'
-          : null;
-    void this.router.navigate(['/personas', id, 'bitacora'], { queryParams: filtro ? { filtro } : {} });
+    if (id) void this.router.navigate(['/personas', id, 'bitacora'], { queryParams: { filtro: 'todo' } });
   }
 
   // ---------------------------------------------------------------- Indicación del médico
@@ -457,6 +480,7 @@ export class HoyPage {
       if (f.tipo === 'toma') {
         await this.marcarToma.marcar(personaId, f.dosis, hecho ? 'tomada' : 'omitida', {
           puedeResurtir: this.puedeEditar(),
+          puedeQuitarAjenos: this.puedeEditar(),
         });
       } else {
         await this.marcarTarea.marcar(personaId, f.programada, hecho ? 'hecha' : 'omitida', {

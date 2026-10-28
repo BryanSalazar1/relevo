@@ -64,7 +64,8 @@ export class NotificacionesService {
     }
   }
 
-  private async registrarDispositivo(uid: string) {
+  /** Registra este teléfono para recibir push (también al dar permiso desde Notificaciones). */
+  async registrarDispositivo(uid: string) {
     try {
       let permiso = await PushNotifications.checkPermissions();
       if (permiso.receive === 'prompt' || permiso.receive === 'prompt-with-rationale') {

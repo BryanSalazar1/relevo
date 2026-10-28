@@ -13,6 +13,7 @@ import {
   inicioEntrega,
   novedadesEntrega,
   textoDesde,
+  visitaAlEntrar,
 } from './entrega-turno';
 
 registerLocaleData(localeEs, 'es');
@@ -29,6 +30,23 @@ const diurno: Turno = { dias: todos, desde: '08:00', hasta: '16:00' };
 const nocturno: Turno = { dias: todos, desde: '22:00', hasta: '06:00' };
 
 describe('entrega de turno', () => {
+  describe('visitaAlEntrar', () => {
+    it('la primera vez no hay visita anterior', () => {
+      expect(visitaAlEntrar(null, a('09:00'))).toEqual({ desde: null, ultima: a('09:00') });
+    });
+
+    it('volver de otra pestaña al rato es la misma visita: la entrega no se vacía', () => {
+      const primera = visitaAlEntrar({ desde: a('22:00', -1), ultima: a('23:00', -1) }, a('09:00'));
+      expect(primera.desde).toEqual(a('23:00', -1));
+      const vuelta = visitaAlEntrar(primera, a('09:10'));
+      expect(vuelta).toEqual({ desde: a('23:00', -1), ultima: a('09:10') });
+    });
+
+    it('tras una pausa larga empieza otra visita, desde la última vez que se vio', () => {
+      expect(visitaAlEntrar({ desde: a('07:00'), ultima: a('09:10') }, a('14:00')).desde).toEqual(a('09:10'));
+    });
+  });
+
   describe('inicioEntrega y finTurnoAnterior', () => {
     it('sin turnos: las últimas 8 horas', () => {
       const ahora = a('14:00');

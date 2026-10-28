@@ -1105,3 +1105,16 @@ test('destinatariosCita: quien acompaña siempre; responsable y familiares segú
     ['ana', 'raul', 'sofia'],
   );
 });
+
+test('dosisVencidas: no recuerda dosis programadas antes de dar de alta el medicamento', () => {
+  const instante = new Date('2026-09-15T21:10:00Z'); // 15:10 CDMX
+  const ahora = partesEnZona(instante, ZONA);
+  const meds = [
+    // Agregado a las 15:05: la dosis de las 15:00 ya había pasado
+    { id: 'nuevo', nombre: 'Nuevo', horarios: ['15:00'], creadoEn: { toMillis: () => Date.parse('2026-09-15T21:05:00Z') } },
+    { id: 'viejo', nombre: 'Viejo', horarios: ['15:00'], creadoEn: { toMillis: () => Date.parse('2026-09-01T12:00:00Z') } },
+  ];
+  assert.deepEqual(dosisVencidas(meds, ahora, instante.getTime()).map((d) => d.medicamento.id), ['viejo']);
+  // Sin el instante (llamadas anteriores) se comporta como antes
+  assert.equal(dosisVencidas(meds, ahora).length, 2);
+});

@@ -92,6 +92,25 @@ export function inicioEntrega({ turnos, ahora, ultimaVisita }: OpcionesInicio): 
   return desde;
 }
 
+/** Volver a Hoy antes de este tiempo (p. ej. tras mirar la bitácora) sigue siendo la misma visita. */
+export const PAUSA_MISMA_VISITA_MS = 30 * 60_000;
+
+/** Visitas a Hoy en un dispositivo: `desde` = fin de la visita anterior; `ultima` = última vez visto. */
+export interface Visita {
+  desde: Date | null;
+  ultima: Date;
+}
+
+/**
+ * Al entrar a Hoy: si la última vez fue hace poco sigue la misma visita (la entrega conserva su
+ * ventana); si no, empieza otra que resume desde que terminó la anterior.
+ */
+export function visitaAlEntrar(anterior: Visita | null, ahora: Date): Visita {
+  if (!anterior || anterior.ultima.getTime() > ahora.getTime()) return { desde: null, ultima: ahora };
+  const misma = ahora.getTime() - anterior.ultima.getTime() < PAUSA_MISMA_VISITA_MS;
+  return { desde: misma ? anterior.desde : anterior.ultima, ultima: ahora };
+}
+
 export type TipoNovedad =
   | 'toma_omitida'
   | 'toma_vencida'

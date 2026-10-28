@@ -1,7 +1,7 @@
 import { Component, computed, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { IonIcon, IonItem, IonLabel, IonList, IonListHeader, IonSpinner, IonText } from '@ionic/angular';
-import { switchMap } from 'rxjs';
+import { combineLatest, distinctUntilChanged, map, switchMap, timer } from 'rxjs';
 import {
   AVISO_CITA_MIN_POR_DEFECTO,
   EventoCalendario,
@@ -33,14 +33,24 @@ export class CitasPlan {
   private readonly ctx = personaActual();
   /** Rol en esta persona; undefined mientras llega (el pie de ayuda espera a saberlo) */
   readonly rol = this.ctx.rol;
-  /** Desde cuándo cuentan como próximas: el inicio de hoy (una cita de hoy ya pasada sigue hasta mañana) */
-  private readonly hoy = inicioDeDia(new Date());
+  /**
+   * Desde cuándo cuentan como próximas: el inicio de hoy (una cita de hoy ya pasada sigue hasta
+   * mañana). Se revisa cada minuto y solo cambia a medianoche, por si la pantalla queda abierta.
+   */
+  private readonly hoy$ = timer(0, 60_000).pipe(
+    map(() => inicioDeDia(new Date())),
+    distinctUntilChanged((a, b) => a.getTime() === b.getTime()),
+  );
 
   readonly proximas = toSignal(
-    this.ctx.personaId$.pipe(switchMap((id) => this.eventosSvc.proximos(id, this.hoy))),
+    combineLatest([this.ctx.personaId$, this.hoy$]).pipe(
+      switchMap(([id, hoy]) => this.eventosSvc.proximos(id, hoy)),
+    ),
   );
   readonly anteriores = toSignal(
-    this.ctx.personaId$.pipe(switchMap((id) => this.eventosSvc.anteriores(id, this.hoy))),
+    combineLatest([this.ctx.personaId$, this.hoy$]).pipe(
+      switchMap(([id, hoy]) => this.eventosSvc.anteriores(id, hoy)),
+    ),
   );
   private readonly miembros = toSignal(
     this.ctx.personaId$.pipe(switchMap((id) => this.miembrosSvc.miembros(id))),

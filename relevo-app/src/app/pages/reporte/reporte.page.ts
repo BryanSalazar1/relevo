@@ -137,18 +137,33 @@ export class ReportePage {
     return sumarDias(inicioDeDia(new Date()), 1);
   }
 
+  /** Cada carga lleva un número: si el usuario cambió de periodo, la respuesta vieja se descarta */
+  private cargaActual = 0;
+  /** Lo último guardado de las preguntas: lo escrito y no guardado no se pisa al recargar */
+  private preguntasGuardadas = '';
+
+  /** Vuelve a generar el periodo que se está viendo. */
+  reintentar() {
+    const id = this.ctx.personaId();
+    if (id) void this.cargar(id, this.desde(), this.fin());
+  }
+
   private async cargar(personaId: string, desde: Date, hasta: Date) {
+    const carga = ++this.cargaActual;
     this.cargando.set(true);
     this.error.set(null);
     try {
       const reporte = await this.reporteSvc.generar(personaId, desde, hasta);
+      if (carga !== this.cargaActual) return;
       this.reporte.set(reporte);
-      this.textoPreguntas = reporte.hoja.preguntas;
+      const sinGuardar = this.textoPreguntas.trim() !== this.preguntasGuardadas.trim();
+      this.preguntasGuardadas = reporte.hoja.preguntas;
+      if (!sinGuardar) this.textoPreguntas = reporte.hoja.preguntas;
     } catch (e) {
       console.error(e);
-      this.error.set('No se pudo generar el reporte. Revisa tu conexión.');
+      if (carga === this.cargaActual) this.error.set('No se pudo generar el reporte. Revisa tu conexión.');
     } finally {
-      this.cargando.set(false);
+      if (carga === this.cargaActual) this.cargando.set(false);
     }
   }
 
@@ -208,6 +223,7 @@ export class ReportePage {
     try {
       await this.consultaSvc.guardarPreguntas(personaId, this.textoPreguntas);
       const texto = this.textoPreguntas.trim();
+      this.preguntasGuardadas = texto;
       this.reporte.update((r) => (r ? { ...r, hoja: { ...r.hoja, preguntas: texto } } : r));
       await this.aviso('Preguntas guardadas.');
     } catch (e) {

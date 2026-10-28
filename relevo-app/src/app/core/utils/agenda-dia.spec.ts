@@ -59,6 +59,19 @@ const tomada = (quien = 'Rosa') => ({
 
 describe('agenda del día', () => {
   describe('filasDelDia', () => {
+    it('no espera lo programado antes del alta (un medicamento de las 08:00 agregado a las 15:00)', () => {
+      const nuevo: Medicamento = { ...losartan, creadoEn: Timestamp.fromDate(a('15:00')) };
+      const nueva: Tarea = { ...comida, creadoEn: Timestamp.fromDate(a('15:00')) };
+      const filas = filasDelDia(
+        [dosis('08:00', { medicamento: nuevo }), dosis('20:00', { medicamento: nuevo })],
+        [tarea('08:30', { tarea: nueva })],
+      );
+      expect(filas.map((f) => `${f.tipo} ${f.horario}`)).toEqual(['toma 20:00']);
+      // Si alguien sí la registró, se muestra igual
+      const conToma = filasDelDia([dosis('08:00', { medicamento: nuevo, toma: tomada() })], []);
+      expect(conToma.length).toBe(1);
+    });
+
     it('une tomas y tareas por hora; a la misma hora van primero los medicamentos', () => {
       const filas = filasDelDia([dosis('20:00'), dosis('08:30')], [tarea('08:30'), tarea('07:00')]);
       // Las tareas con duración muestran su rango

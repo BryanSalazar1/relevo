@@ -373,9 +373,9 @@ service cloud.firestore {
               && inventarioValido(request.resource.data)
               && ajusteDeToma());
 
-        // tomas: responsable, enfermeros y familiares registran (y corrigen) las tomas, firmadas
-        // por quien escribe; el responsable además puede cambiar solo la nota de cualquier toma.
-        // Quitar un registro: solo quien lo hizo o el responsable.
+        // tomas: responsable, enfermeros y familiares registran las tomas, firmadas por quien escribe.
+        // Corregir o quitar un registro: solo quien lo hizo o el responsable (que además puede
+        // cambiar solo la nota de cualquier toma sin firmarla).
         match /tomas/{tomaId} {
           allow read: if esMiembro(personaId);
           allow create, update, delete: if tieneRol(personaId, ['cuidador_principal', 'cuidador_turno', 'familiar'])
@@ -383,7 +383,8 @@ service cloud.firestore {
                 || (request.method != 'delete'
                     && tomaValida(request.resource.data)
                     && (request.method == 'update' || medicamentoActivo(personaId, medicamentoId))
-                    && (request.resource.data.registradoPor == request.auth.uid
+                    && ((request.resource.data.registradoPor == request.auth.uid
+                         && puedeQuitar(personaId, resource == null ? null : resource.data.registradoPor))
                         || (tieneRol(personaId, ['cuidador_principal'])
                             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nota'])))));
         }
@@ -405,7 +406,8 @@ service cloud.firestore {
             && ((request.method == 'delete' && puedeQuitar(personaId, resource.data.registradoPor))
                 || (request.method != 'delete'
                     && registroValido(request.resource.data)
-                    && (request.resource.data.registradoPor == request.auth.uid
+                    && ((request.resource.data.registradoPor == request.auth.uid
+                         && puedeQuitar(personaId, resource == null ? null : resource.data.registradoPor))
                         || (tieneRol(personaId, ['cuidador_principal'])
                             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nota'])))));
         }
@@ -425,12 +427,14 @@ service cloud.firestore {
 
       // signos_vitales: los registran (firmados) quienes marcan tareas de la rutina, porque se
       // capturan al marcar como hecha una tarea de signos vitales; corregir el registro reescribe
-      // sus mediciones, y borrarlas solo puede quien las tomó o el responsable. El médico solo lee.
+      // sus mediciones, y corregirlas o borrarlas solo puede quien las tomó o el responsable.
+      // El médico solo lee.
       // Tipos y límites: los de TIPOS_SIGNO en la app.
       match /signos_vitales/{signoId} {
         allow read: if esMiembro(personaId);
         allow create, update: if tieneRol(personaId, ['cuidador_principal', 'cuidador_turno', 'familiar'])
           && request.resource.data.autorUid == request.auth.uid
+          && puedeQuitar(personaId, resource == null ? null : resource.data.autorUid)
           && signoValido(request.resource.data);
         allow delete: if tieneRol(personaId, ['cuidador_principal', 'cuidador_turno', 'familiar'])
           && puedeQuitar(personaId, resource.data.autorUid);

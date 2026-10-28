@@ -90,8 +90,16 @@
             </div>
           } @else {
             <div class="ion-text-center ion-padding">
-              <ion-spinner name="crescent" />
-              <p><ion-text color="medium">Generando el código de acceso…</ion-text></p>
+              @if (errorCodigo()) {
+                <p><ion-text color="medium">No se pudo generar el código de acceso. Revisa tu conexión.</ion-text></p>
+                <ion-button fill="outline" size="small" (click)="reintentarCodigo()">
+                  <ion-icon slot="start" name="refresh-outline" />
+                  Reintentar
+                </ion-button>
+              } @else {
+                <ion-spinner name="crescent" />
+                <p><ion-text color="medium">Generando el código de acceso…</ion-text></p>
+              }
             </div>
           }
         </ion-card-content>
@@ -105,7 +113,7 @@
     </ion-list-header>
     @if (miembros(); as lista) {
       @for (m of lista; track m.uid) {
-        <ion-item [button]="esPrincipal()" [detail]="false" (click)="opcionesMiembro(m)">
+        <ion-item [button]="tieneOpciones(m)" [detail]="false" (click)="opcionesMiembro(m)">
           <ion-label class="ion-text-wrap">
             <h2>
               {{ m.nombre }}
@@ -127,8 +135,8 @@
               Turnos
             </ion-button>
           }
-          @if (esPrincipal()) {
-            <ion-button slot="end" fill="clear" color="medium" aria-label="Opciones">
+          @if (tieneOpciones(m)) {
+            <ion-button slot="end" fill="clear" color="medium" aria-label="Opciones" (click)="opcionesMiembro(m); $event.stopPropagation()">
               <ion-icon slot="icon-only" name="ellipsis-horizontal" />
             </ion-button>
           }
@@ -185,6 +193,9 @@
           <ion-label class="ion-text-wrap">
             <h3>Eliminar a {{ persona()?.nombre }}</h3>
             <p>Se borran su bitácora, medicamentos, citas y todo el historial para todo el equipo. No se puede deshacer.</p>
+            @if (hayOtroResponsable()) {
+              <p>¿Solo quieres salir? Toca tu nombre en Miembros, deja de ser responsable y luego sal del equipo.</p>
+            }
           </ion-label>
         </ion-item>
         <ion-item lines="none">

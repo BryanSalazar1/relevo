@@ -3,7 +3,7 @@ import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { KeepAwake } from '@capacitor-community/keep-awake';
-import { IonButton, IonContent, IonIcon, IonSpinner, ToastController } from '@ionic/angular';
+import { IonButton, IonContent, IonIcon, IonSpinner, NavController, ToastController } from '@ionic/angular';
 import { combineLatest, distinctUntilChanged, map, switchMap } from 'rxjs';
 import {
   PUEDE_EDITAR_MEDICAMENTOS,
@@ -53,6 +53,7 @@ export class SemaforoPage {
   private readonly marcarTarea = inject(MarcarTareaService);
   private readonly toast = inject(ToastController);
   private readonly router = inject(Router);
+  private readonly nav = inject(NavController);
 
   private readonly ctx = personaActual();
   readonly persona = this.ctx.persona;
@@ -184,7 +185,7 @@ export class SemaforoPage {
         const o = { puedeQuitarAjenos: esResponsable };
         if (!(await this.marcarTarea.marcar(personaId, p.programada, hecho ? 'hecha' : 'omitida', o))) return;
       } else {
-        const o = { puedeResurtir: esResponsable };
+        const o = { puedeResurtir: esResponsable, puedeQuitarAjenos: esResponsable };
         if (!(await this.marcarToma.marcar(personaId, p.dosis, hecho ? 'tomada' : 'omitida', o))) return;
       }
       this.ahora.set(new Date());
@@ -198,10 +199,17 @@ export class SemaforoPage {
     }
   }
 
+  /** Vuelve a donde se abrió (inicio, Hoy, Equipo…); si se entró directo (enlace, recarga), a la persona. */
   salir() {
+    if (this.router.lastSuccessfulNavigation?.previousNavigation) {
+      this.nav.back();
+      return;
+    }
     const id = this.ctx.personaId();
     void this.router.navigate(id ? ['/personas', id] : ['/home']);
   }
+
+
 
   /** Mantiene la pantalla encendida (o la suelta). Si el dispositivo no lo permite, el semáforo sigue funcionando. */
   private async pantallaEncendida(encendida: boolean) {

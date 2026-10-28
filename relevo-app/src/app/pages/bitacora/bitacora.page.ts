@@ -1,7 +1,7 @@
 import { DatePipe } from '@angular/common';
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import {
   ActionSheetController,
   AlertController,
@@ -24,7 +24,7 @@ import {
   ModalController,
   ToastController,
 } from '@ionic/angular';
-import { switchMap } from 'rxjs';
+import { map, switchMap } from 'rxjs';
 import {
   EntradaBitacora,
   INFO_SIGNO_BITACORA,
@@ -61,11 +61,14 @@ export type FiltroBitacora = TipoEntrada | 'toma' | 'tarea' | 'signo' | 'clinico
 const TIPOS_CLINICOS = new Set<TipoEntrada>(['sintoma', 'incidente', 'indicacion']);
 const INFO_CLINICO = { etiqueta: 'Lo clínico', icono: 'pulse-outline', color: 'primary' };
 
-/** El filtro pedido en la URL (?filtro=...), solo si es uno conocido. */
-function filtroDeRuta(route: ActivatedRoute): FiltroBitacora | null {
-  const f = route.snapshot.queryParamMap.get('filtro');
+/**
+ * El filtro pedido en la URL: un filtro conocido, 'todo' (sin filtro, explícito) o undefined si la
+ * URL no pide nada (entonces cada rol ve su vista por defecto).
+ */
+function filtroDeUrl(f: string | null): FiltroBitacora | null | undefined {
+  if (f === 'todo') return null;
   const validos: string[] = ['toma', 'tarea', 'signo', 'clinico', ...TIPOS_ENTRADA.map((t) => t.valor)];
-  return f && validos.includes(f) ? (f as FiltroBitacora) : null;
+  return f && validos.includes(f) ? (f as FiltroBitacora) : undefined;
 }
 
 @Component({
@@ -73,7 +76,6 @@ function filtroDeRuta(route: ActivatedRoute): FiltroBitacora | null {
   imports: [
     FabAsistente,
     DatePipe,
-    RouterLink,
     IonHeader,
     IonToolbar,
     IonButtons,
@@ -111,9 +113,14 @@ export class BitacoraPage {
     this.ctx.personaId$.pipe(switchMap((id) => this.bitacoraSvc.lineaDeTiempo(id))),
   );
 
-  /** Filtro por tipo; se puede abrir ya filtrada con ?filtro=incidente (p. ej. desde la Entrega de turno) */
-  private readonly filtroInicial = filtroDeRuta(inject(ActivatedRoute));
-  readonly filtro = signal<FiltroBitacora | null>(this.filtroInicial);
+  /** Filtro por tipo; se puede abrir ya filtrada con ?filtro=indicacion (p. ej. desde Hoy o Seguimiento) */
+  readonly filtro = signal<FiltroBitacora | null>(null);
+  /** Filtro que pide la URL; las pestañas reutilizan la página, así que se sigue cada cambio */
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly filtroUrl = toSignal(
+    this.route.queryParamMap.pipe(map((q) => filtroDeUrl(q.get('filtro')))),
+  );
   readonly etiquetaDia = etiquetaDia;
   readonly infoToma = INFO_TOMA;
   readonly infoTarea = INFO_TAREA_BITACORA;
@@ -135,12 +142,12 @@ export class BitacoraPage {
   });
 
   constructor() {
-    // El médico entra viendo solo lo clínico (puede quitar el filtro); si la URL ya pedía uno, se respeta
+    // Lo que pida la URL manda; sin filtro en la URL, el médico ve lo clínico y los demás todo
     effect(() => {
-      if (this.rol() !== 'medico' || this.filtroInicial !== null) return;
-      untracked(() => {
-        if (this.filtro() === null) this.filtro.set('clinico');
-      });
+      const pedido = this.filtroUrl();
+      const rol = this.rol();
+      if (!rol) return;
+      untracked(() => this.filtro.set(pedido !== undefined ? pedido : rol === 'medico' ? 'clinico' : null));
     });
   }
 
@@ -203,11 +210,24 @@ export class BitacoraPage {
     return t.toma.tomado ? 'success' : 'danger';
   }
 
-  /** El cuidador principal edita todo; los demás solo lo que escribieron. */
   /** El autor edita lo suyo; el responsable, todo menos las indicaciones del médico (igual en firestore.rules). */
   puedeEditar(e: EntradaBitacora): boolean {
     if (e.autorUid === this.auth.uid) return true;
     return this.rol() === 'cuidador_principal' && e.tipo !== 'indicacion';
+  }
+
+  /** Además, el responsable puede quitar una indicación que ya no aplica (no editarla). */
+  puedeEliminar(e: EntradaBitacora): boolean {
+    return this.puedeEditar(e) || this.rol() === 'cuidador_principal';
+  }
+
+  /** Filtro elegido a mano: queda en la URL, así un enlace con otro filtro siempre lo cambia. */
+  private elegirFiltro(f: FiltroBitacora | null) {
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { filtro: f ?? 'todo' },
+      replaceUrl: true,
+    });
   }
 
   async abrirFiltro() {
@@ -218,42 +238,42 @@ export class BitacoraPage {
           text: t.etiqueta,
           icon: t.icono,
           handler: () => {
-            this.filtro.set(t.valor);
+            this.elegirFiltro(t.valor);
           },
         })),
         {
           text: 'Tomas de medicamentos',
           icon: INFO_TOMA.icono,
           handler: () => {
-            this.filtro.set('toma');
+            this.elegirFiltro('toma');
           },
         },
         {
           text: 'Tareas de la rutina',
           icon: INFO_TAREA_BITACORA.icono,
           handler: () => {
-            this.filtro.set('tarea');
+            this.elegirFiltro('tarea');
           },
         },
         {
           text: 'Signos vitales',
           icon: INFO_SIGNO_BITACORA.icono,
           handler: () => {
-            this.filtro.set('signo');
+            this.elegirFiltro('signo');
           },
         },
         {
           text: 'Lo clínico (síntomas, incidentes, signos e indicaciones)',
           icon: INFO_CLINICO.icono,
           handler: () => {
-            this.filtro.set('clinico');
+            this.elegirFiltro('clinico');
           },
         },
         {
           text: 'Todas las entradas',
           icon: 'funnel-outline',
           handler: () => {
-            this.filtro.set(null);
+            this.elegirFiltro(null);
           },
         },
         { text: 'Cancelar', role: 'cancel' },
@@ -292,17 +312,21 @@ export class BitacoraPage {
   }
 
   async opciones(e: EntradaBitacora) {
-    if (!this.puedeEditar(e)) return;
+    if (!this.puedeEliminar(e)) return;
     const sheet = await this.actionSheetCtrl.create({
       header: `${this.info(e.tipo).etiqueta} · ${e.autorNombre}`,
       buttons: [
-        {
-          text: 'Editar',
-          icon: 'create-outline',
-          handler: () => {
-            void this.editar(e);
-          },
-        },
+        ...(this.puedeEditar(e)
+          ? [
+              {
+                text: 'Editar',
+                icon: 'create-outline',
+                handler: () => {
+                  void this.editar(e);
+                },
+              },
+            ]
+          : []),
         {
           text: 'Eliminar',
           icon: 'trash-outline',

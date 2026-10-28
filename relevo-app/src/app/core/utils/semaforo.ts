@@ -8,8 +8,13 @@
  * Funciones puras (sin Angular ni Firebase) para poder probarlas.
  */
 
-/** Minutos de anticipación con los que un pendiente sin `avisarMin` pone el semáforo en amarillo. */
-export const AVISO_MIN_POR_DEFECTO = 15;
+import { AVISO_MIN_POR_DEFECTO } from '../models';
+
+/**
+ * Minutos de anticipación con los que un pendiente sin `avisarMin` (las dosis) pone el semáforo en
+ * amarillo: el mismo aviso previo que las tareas y que AVISO_MEDICAMENTOS_MIN de las Cloud Functions.
+ */
+export { AVISO_MIN_POR_DEFECTO };
 
 /** Minutos de tolerancia después de la hora (o del fin del rango) antes de pasar a rojo. */
 export const GRACIA_MIN = 15;

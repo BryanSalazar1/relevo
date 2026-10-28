@@ -20,7 +20,10 @@ import {
   ModalController,
 } from '@ionic/angular';
 import { TIPO_USUARIO_ETIQUETA } from '../../core/models';
+import { firstValueFrom } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
+import { MiembrosService } from '../../core/services/miembros.service';
+import { PersonasService } from '../../core/services/personas.service';
 
 /**
  * Perfil del usuario: cambia su nombre y, en la zona de peligro, elimina su cuenta.
@@ -149,6 +152,8 @@ export class PerfilModal implements OnInit {
   private readonly modalCtrl = inject(ModalController);
   private readonly alertCtrl = inject(AlertController);
   private readonly auth = inject(AuthService);
+  private readonly personasSvc = inject(PersonasService);
+  private readonly miembrosSvc = inject(MiembrosService);
   private readonly router = inject(Router);
 
   nombre = '';
@@ -228,8 +233,40 @@ export class PerfilModal implements OnInit {
     }
   }
 
+  /**
+   * Equipos donde soy el único responsable y hay más gente: borrar la cuenta los dejaría sin quien
+   * administre medicamentos, rutina e invitaciones. Primero hay que ceder el rol (o eliminar a la persona).
+   */
+  private async equiposSinRelevo(): Promise<string[]> {
+    const uid = this.auth.uid;
+    const personas = await firstValueFrom(this.personasSvc.misPersonas());
+    const bloquean: string[] = [];
+    for (const p of personas) {
+      if (!p.id || (p.miembrosUids ?? []).length < 2) continue;
+      const miembros = await firstValueFrom(this.miembrosSvc.miembros(p.id));
+      const responsables = miembros.filter((m) => m.rol === 'cuidador_principal');
+      if (responsables.length === 1 && responsables[0].uid === uid) bloquean.push(p.nombre);
+    }
+    return bloquean;
+  }
+
   /** Pide la contraseña (Firebase exige sesión reciente) y borra la cuenta. */
   async eliminar() {
+    let bloquean: string[] = [];
+    try {
+      bloquean = await this.equiposSinRelevo();
+    } catch (error) {
+      console.error(error);
+    }
+    if (bloquean.length) {
+      const aviso = await this.alertCtrl.create({
+        header: 'Antes de eliminar tu cuenta',
+        message: `Eres el único responsable de ${bloquean.join(', ')}. En Equipo, haz responsable a otro familiar (o elimina a la persona) para que el equipo no se quede sin administrar.`,
+        buttons: ['Entendido'],
+      });
+      await aviso.present();
+      return;
+    }
     const alerta = await this.alertCtrl.create({
       header: '¿Eliminar tu cuenta?',
       message: 'Escribe tu contraseña para confirmar. Esta acción no se puede deshacer.',

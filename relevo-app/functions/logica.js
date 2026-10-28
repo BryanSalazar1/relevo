@@ -355,9 +355,10 @@ export function idTomaDe(partes, horario) {
 
 /**
  * Dosis de hoy que ya pasaron de su hora dentro de la ventana de recordatorio.
- * Devuelve una por cada horario de cada medicamento activo.
+ * Devuelve una por cada horario de cada medicamento activo. Con `ahoraMs`, omite las dosis
+ * programadas antes de que se diera de alta el medicamento (no se esperaba que se tomaran).
  */
-export function dosisVencidas(medicamentos, ahora) {
+export function dosisVencidas(medicamentos, ahora, ahoraMs) {
   const salida = [];
   for (const medicamento of medicamentos) {
     if (!medicamento?.id || medicamento.activo === false) continue;
@@ -367,6 +368,8 @@ export function dosisVencidas(medicamentos, ahora) {
       if (Number.isNaN(h)) continue;
       const desde = ahora.minutosDelDia - (h * 60 + (m || 0));
       if (desde < RECORDATORIO.desdeMin || desde > RECORDATORIO.hastaMin) continue;
+      const altaMs = milisDe(medicamento.creadoEn);
+      if (ahoraMs != null && altaMs != null && ahoraMs - desde * 60_000 < altaMs) continue;
       salida.push({
         medicamento,
         horario,

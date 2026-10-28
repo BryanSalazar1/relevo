@@ -23,7 +23,7 @@ export const TIPOS_USUARIO: { valor: TipoUsuario; etiqueta: string; icono: strin
     valor: 'medico',
     etiqueta: 'Médico',
     icono: 'medical-outline',
-    descripcion: 'Te unes con un código y consultas el historial y los reportes.',
+    descripcion: 'Te unes con un código, sigues al paciente y dejas indicaciones.',
   },
 ];
 
@@ -54,7 +54,7 @@ export const ROLES: { valor: Rol; etiqueta: string; descripcion: string }[] = [
   { valor: 'cuidador_principal', etiqueta: 'Responsable', descripcion: 'Familiar que administra la bitácora, los medicamentos y el equipo' },
   { valor: 'familiar', etiqueta: 'Familiar', descripcion: 'Escribe en la bitácora, registra tomas y coordina citas' },
   { valor: 'cuidador_turno', etiqueta: 'Enfermero/a', descripcion: 'Registra la bitácora, tomas y signos vitales en sus turnos' },
-  { valor: 'medico', etiqueta: 'Médico', descripcion: 'Consulta el historial y los reportes (solo lectura)' },
+  { valor: 'medico', etiqueta: 'Médico', descripcion: 'Sigue al paciente, deja indicaciones y consulta los reportes' },
 ];
 
 export const ROL_ETIQUETA: Record<Rol, string> = {

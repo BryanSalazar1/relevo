@@ -5,9 +5,6 @@
     </ion-buttons>
     <ion-title>{{ persona()?.nombre || 'Bitácora' }}</ion-title>
     <ion-buttons slot="end">
-      <ion-button routerLink="../semaforo" aria-label="Abrir el semáforo">
-        <ion-icon slot="icon-only" name="semaforo" />
-      </ion-button>
       <ion-button (click)="abrirFiltro()" aria-label="Filtrar por tipo">
         <ion-icon slot="icon-only" [name]="filtro() ? 'funnel' : 'funnel-outline'" />
       </ion-button>
@@ -61,7 +58,7 @@
             @if (item.clase === 'entrada') {
               @let e = item.entrada;
               <ion-item
-                [button]="puedeEditar(e)"
+                [button]="puedeEliminar(e)"
                 [detail]="false"
                 (click)="opciones(e)"
                 [class.indicacion]="e.tipo === 'indicacion'"

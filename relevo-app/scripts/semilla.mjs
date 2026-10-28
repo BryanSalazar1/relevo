@@ -151,17 +151,17 @@ async function main() {
   b = writeBatch(db);
   b.set(doc(personaRef, 'medicamentos', 'metformina'), { nombre: 'Metformina', dosis: '850 mg', horarios: ['08:00', '20:00'], inventario: 42, activo: true });
   b.set(doc(personaRef, 'medicamentos', 'losartan'), { nombre: 'Losartán', dosis: '50 mg', horarios: ['08:00'], inventario: 28, activo: true });
-  b.set(doc(personaRef, 'medicamentos/metformina/tomas', idDe(hace(0, 8))), { horaProgramada: hace(0, 8), horaReal: hace(0, 8, 10), tomado: true, registradoPor: ana });
-  b.set(doc(personaRef, 'medicamentos/metformina/tomas', idDe(hace(1, 8))), { horaProgramada: hace(1, 8), horaReal: hace(1, 8, 5), tomado: true, registradoPor: ana });
-  b.set(doc(personaRef, 'medicamentos/metformina/tomas', idDe(hace(1, 20))), { horaProgramada: hace(1, 20), horaReal: null, tomado: false, registradoPor: ana });
-  b.set(doc(personaRef, 'medicamentos/metformina/tomas', idDe(hace(2, 8))), { horaProgramada: hace(2, 8), horaReal: hace(2, 8, 20), tomado: true, registradoPor: ana });
+  b.set(doc(personaRef, 'medicamentos/metformina/tomas', idDe(hace(0, 8))), { horaProgramada: hace(0, 8), horaReal: hace(0, 8, 10), tomado: true, registradoPor: ana, registradoNombre: 'Ana García' });
+  b.set(doc(personaRef, 'medicamentos/metformina/tomas', idDe(hace(1, 8))), { horaProgramada: hace(1, 8), horaReal: hace(1, 8, 5), tomado: true, registradoPor: ana, registradoNombre: 'Ana García' });
+  b.set(doc(personaRef, 'medicamentos/metformina/tomas', idDe(hace(1, 20))), { horaProgramada: hace(1, 20), horaReal: null, tomado: false, registradoPor: ana, registradoNombre: 'Ana García' });
+  b.set(doc(personaRef, 'medicamentos/metformina/tomas', idDe(hace(2, 8))), { horaProgramada: hace(2, 8), horaReal: hace(2, 8, 20), tomado: true, registradoPor: ana, registradoNombre: 'Ana García' });
   // Losartán (presión): dos tomas omitidas en la semana, para que el asistente tenga qué contar
-  b.set(doc(personaRef, 'medicamentos/losartan/tomas', idDe(hace(0, 8))), { horaProgramada: hace(0, 8), horaReal: hace(0, 8, 12), tomado: true, registradoPor: ana });
-  b.set(doc(personaRef, 'medicamentos/losartan/tomas', idDe(hace(1, 8))), { horaProgramada: hace(1, 8), horaReal: null, tomado: false, registradoPor: ana });
-  b.set(doc(personaRef, 'medicamentos/losartan/tomas', idDe(hace(2, 8))), { horaProgramada: hace(2, 8), horaReal: hace(2, 8, 30), tomado: true, registradoPor: ana });
-  b.set(doc(personaRef, 'medicamentos/losartan/tomas', idDe(hace(3, 8))), { horaProgramada: hace(3, 8), horaReal: hace(3, 8, 15), tomado: true, registradoPor: ana });
-  b.set(doc(personaRef, 'medicamentos/losartan/tomas', idDe(hace(4, 8))), { horaProgramada: hace(4, 8), horaReal: null, tomado: false, registradoPor: ana });
-  b.set(doc(personaRef, 'medicamentos/losartan/tomas', idDe(hace(5, 8))), { horaProgramada: hace(5, 8), horaReal: hace(5, 8, 5), tomado: true, registradoPor: ana });
+  b.set(doc(personaRef, 'medicamentos/losartan/tomas', idDe(hace(0, 8))), { horaProgramada: hace(0, 8), horaReal: hace(0, 8, 12), tomado: true, registradoPor: ana, registradoNombre: 'Ana García' });
+  b.set(doc(personaRef, 'medicamentos/losartan/tomas', idDe(hace(1, 8))), { horaProgramada: hace(1, 8), horaReal: null, tomado: false, registradoPor: ana, registradoNombre: 'Ana García' });
+  b.set(doc(personaRef, 'medicamentos/losartan/tomas', idDe(hace(2, 8))), { horaProgramada: hace(2, 8), horaReal: hace(2, 8, 30), tomado: true, registradoPor: ana, registradoNombre: 'Ana García' });
+  b.set(doc(personaRef, 'medicamentos/losartan/tomas', idDe(hace(3, 8))), { horaProgramada: hace(3, 8), horaReal: hace(3, 8, 15), tomado: true, registradoPor: ana, registradoNombre: 'Ana García' });
+  b.set(doc(personaRef, 'medicamentos/losartan/tomas', idDe(hace(4, 8))), { horaProgramada: hace(4, 8), horaReal: null, tomado: false, registradoPor: ana, registradoNombre: 'Ana García' });
+  b.set(doc(personaRef, 'medicamentos/losartan/tomas', idDe(hace(5, 8))), { horaProgramada: hace(5, 8), horaReal: hace(5, 8, 5), tomado: true, registradoPor: ana, registradoNombre: 'Ana García' });
 
   // Rutina: desayuno diario, caminata entre semana y signos por la mañana (con un registro de ayer)
   b.set(doc(personaRef, 'tareas', 'desayuno'), { tipo: 'comida', nombre: 'Desayuno', horarios: ['08:30'], dias: [], duracionMin: 0, avisarMin: 15, signos: [], notas: 'Sin azúcar; avena o fruta', activo: true, creadoEn: hace(10, 9) });
@@ -187,7 +187,7 @@ async function main() {
   b = writeBatch(db);
   b.set(doc(personaRef, 'entradas_bitacora', 'e4'), { tipo: 'sintoma', texto: 'Se quejó de dolor en la rodilla derecha al caminar. Se aplicó compresa tibia.', autorUid: marta, autorNombre: 'Marta López', fecha: hace(1, 22, 15) });
   b.set(doc(personaRef, 'entradas_bitacora', 'e5'), { tipo: 'incidente', texto: 'Se resbaló en el baño; sin golpe. Revisar tapete antiderrapante.', autorUid: marta, autorNombre: 'Marta López', fecha: hace(2, 23, 5), caida: true, lesion: false });
-  b.set(doc(personaRef, 'medicamentos/metformina/tomas', idDe(hace(2, 20))), { horaProgramada: hace(2, 20), horaReal: hace(2, 20, 5), tomado: true, registradoPor: marta });
+  b.set(doc(personaRef, 'medicamentos/metformina/tomas', idDe(hace(2, 20))), { horaProgramada: hace(2, 20), horaReal: hace(2, 20, 5), tomado: true, registradoPor: marta, registradoNombre: 'Marta López' });
   b.update(doc(db, 'usuarios', marta), { personas: arrayUnion(PERSONA_ID) });
   await b.commit();
 

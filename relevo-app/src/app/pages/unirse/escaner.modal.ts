@@ -104,7 +104,11 @@ export class EscanerModal implements AfterViewInit, OnDestroy {
     void this.iniciar();
   }
 
+  /** El modal ya se cerró: una cámara que llegue tarde se apaga en vez de quedar encendida */
+  private cerrado = false;
+
   ngOnDestroy() {
+    this.cerrado = true;
     this.detener();
   }
 
@@ -115,10 +119,16 @@ export class EscanerModal implements AfterViewInit, OnDestroy {
       return;
     }
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia({
+      const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: 'environment' } },
         audio: false,
       });
+      // Se cerró el escáner mientras el navegador pedía la cámara: se apaga de inmediato
+      if (this.cerrado) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      this.stream = stream;
       const video = this.video().nativeElement;
       video.srcObject = this.stream;
       await video.play();

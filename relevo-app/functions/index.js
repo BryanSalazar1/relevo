@@ -470,7 +470,8 @@ async function revisarInventario(personaId, medicamentoId, antesDe) {
 export const recordarTomasPendientes = onSchedule(
   { schedule: 'every 10 minutes', ...opciones },
   async () => {
-    const ahora = partesEnZona(new Date(), ZONA_HORARIA.value());
+    const instante = new Date();
+    const ahora = partesEnZona(instante, ZONA_HORARIA.value());
     const personas = await db().collection('personas_cuidadas').get();
     let enviados = 0;
 
@@ -479,6 +480,7 @@ export const recordarTomasPendientes = onSchedule(
       const vencidas = dosisVencidas(
         medsSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
         ahora,
+        instante.getTime(),
       );
       if (!vencidas.length) continue;
 
@@ -671,6 +673,16 @@ export const limpiarUsuarioEliminado = authV1.user().onDelete(async (user) => {
       continue;
     }
     const batch = db().batch();
+    // La app no deja borrar la cuenta del único responsable con más gente en el equipo; si aun así
+    // pasa (cuenta borrada desde la consola), un familiar queda como responsable para que nadie
+    // quede sin administrar
+    const miembros = (await pSnap.ref.collection('miembros').get()).docs;
+    const yo = miembros.find((m) => m.id === uid);
+    const otroResponsable = miembros.some((m) => m.id !== uid && m.data().rol === 'cuidador_principal');
+    if (yo?.data().rol === 'cuidador_principal' && !otroResponsable) {
+      const familiar = miembros.find((m) => m.id !== uid && m.data().rol === 'familiar');
+      if (familiar) batch.update(familiar.ref, { rol: 'cuidador_principal' });
+    }
     batch.delete(pSnap.ref.collection('miembros').doc(uid));
     batch.update(pSnap.ref, { miembrosUids: FieldValue.arrayRemove(uid) });
     await batch.commit();

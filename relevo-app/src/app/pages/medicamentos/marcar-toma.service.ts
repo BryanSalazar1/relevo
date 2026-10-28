@@ -16,9 +16,9 @@ import { confirmar, pedirNota } from '../../core/utils/notas';
 const DOSIS_ADELANTADA_MIN = 60;
 /** Una toma según necesidad con otra registrada hace menos de estos minutos avisa de un posible duplicado. */
 const TOMA_RECIENTE_MIN = 60;
-/** Quitar un registro ajeno lo impiden la app y las rules: solo quien lo hizo o el responsable. */
+/** Cambiar o quitar un registro ajeno lo impiden la app y las rules: solo quien lo hizo o el responsable. */
 const SOLO_AUTOR_O_RESPONSABLE =
-  'Solo quien registró la toma o el responsable pueden quitar el registro.';
+  'Solo quien registró la toma o el responsable pueden cambiar o quitar el registro.';
 
 export interface OpcionesMarcarToma {
   /** Quien marca puede resurtir (responsable): cambia el aviso cuando el inventario está en 0 */
@@ -48,7 +48,7 @@ export class MarcarTomaService {
     return `Última toma: ${haceCuanto((t.horaReal ?? t.horaProgramada).toDate())}${quien}${nota}`;
   }
 
-  /** Quitar un registro: quien lo hizo o el responsable (misma regla que firestore.rules). */
+  /** Cambiar, anotar o quitar un registro: quien lo hizo o el responsable (misma regla que firestore.rules). */
   puedeQuitar(d: DosisProgramada, { puedeQuitarAjenos = false }: OpcionesMarcarToma = {}): boolean {
     const autor = d.toma?.registradoPor;
     return !autor || autor === this.authSvc.uid || puedeQuitarAjenos;
@@ -69,11 +69,11 @@ export class MarcarTomaService {
     let nota: string | undefined;
     // Se marca tomada (no lo estaba) y ya no quedan unidades: se registra, pero no hay de dónde descontar
     const sinUnidades = estado === 'tomada' && !d.toma?.tomado && agotado(d.medicamento);
+    if (!this.puedeQuitar(d, opciones)) {
+      await this.aviso(SOLO_AUTOR_O_RESPONSABLE, 'danger');
+      return false;
+    }
     if (estado === 'quitar') {
-      if (!this.puedeQuitar(d, opciones)) {
-        await this.aviso(SOLO_AUTOR_O_RESPONSABLE, 'danger');
-        return false;
-      }
       if (!(await this.confirmarQuitar(d))) return false;
     } else {
       const faltanMin = (d.hora.getTime() - Date.now()) / 60000;
@@ -145,59 +145,68 @@ export class MarcarTomaService {
   }
 
   /**
-   * Hoja de opciones de una dosis: marcar, nota y quitar (una según necesidad solo nota y quitar).
-   * «Quitar registro» solo aparece para quien lo hizo o el responsable; si no, se explica por qué.
+   * Hoja de opciones de una dosis: marcar (el estado contrario si ya tiene registro), nota y quitar;
+   * una según necesidad, solo nota y quitar. Un registro de otra persona solo lo cambia quien lo hizo
+   * o el responsable: a los demás se les dice quién lo registró y no se ofrecen acciones.
    */
   async opciones(personaId: string, d: DosisProgramada, opciones: OpcionesMarcarToma = {}) {
-    const puedeQuitar = this.puedeQuitar(d, opciones);
-    const notaYQuitar = d.toma
-      ? [
-          {
-            text: d.toma.nota ? 'Editar nota' : 'Agregar nota',
-            icon: 'create-outline',
-            handler: () => {
-              void this.editarNota(personaId, d);
-            },
+    const puedeCambiar = this.puedeQuitar(d, opciones);
+    const t = d.toma;
+    if (t && !puedeCambiar) {
+      const alerta = await this.alertCtrl.create({
+        header: `${d.medicamento.nombre} · ${d.horario}`,
+        message: `${t.tomado ? 'Tomada' : 'No tomada'} · registrada por ${t.registradoNombre ?? 'otra persona'}${
+          t.nota ? ` · ${t.nota}` : ''
+        }. Si hay un error, pídele a esa persona o al responsable que lo corrija.`,
+        buttons: ['Entendido'],
+      });
+      await alerta.present();
+      return;
+    }
+    const botones = [];
+    if (!d.aDemanda && (!t || !t.tomado)) {
+      botones.push({
+        text: 'Marcar como tomada',
+        icon: 'checkmark-circle-outline',
+        handler: () => {
+          void this.marcar(personaId, d, 'tomada', opciones);
+        },
+      });
+    }
+    if (!d.aDemanda && (!t || t.tomado)) {
+      botones.push({
+        text: 'Marcar como no tomada',
+        icon: 'close-circle-outline',
+        handler: () => {
+          void this.marcar(personaId, d, 'omitida', opciones);
+        },
+      });
+    }
+    if (t) {
+      botones.push(
+        {
+          text: t.nota ? 'Editar nota' : 'Agregar nota',
+          icon: 'create-outline',
+          handler: () => {
+            void this.editarNota(personaId, d);
           },
-          ...(puedeQuitar
-            ? [
-                {
-                  text: 'Quitar registro',
-                  icon: 'trash-outline',
-                  role: 'destructive',
-                  handler: () => {
-                    void this.marcar(personaId, d, 'quitar', opciones);
-                  },
-                },
-              ]
-            : []),
-        ]
-      : [];
-    const marcar = d.aDemanda
-      ? []
-      : [
-          {
-            text: 'Marcar como tomada',
-            icon: 'checkmark-circle-outline',
-            handler: () => {
-              void this.marcar(personaId, d, 'tomada', opciones);
-            },
+        },
+        {
+          text: 'Quitar registro',
+          icon: 'trash-outline',
+          role: 'destructive',
+          handler: () => {
+            void this.marcar(personaId, d, 'quitar', opciones);
           },
-          {
-            text: 'Marcar como no tomada',
-            icon: 'close-circle-outline',
-            handler: () => {
-              void this.marcar(personaId, d, 'omitida', opciones);
-            },
-          },
-        ];
+        },
+      );
+    }
     const sheet = await this.actionSheetCtrl.create({
       header: `${d.medicamento.nombre} · ${d.horario}${d.aDemanda ? ' · según necesidad' : ''}`,
-      subHeader:
-        d.toma && !puedeQuitar
-          ? `Registrada por ${d.toma.registradoNombre ?? 'otra persona'}: solo esa persona o el responsable pueden quitarla.`
-          : undefined,
-      buttons: [...marcar, ...notaYQuitar, { text: 'Cancelar', role: 'cancel' }],
+      subHeader: t
+        ? `${t.tomado ? 'Tomada' : 'No tomada'}${t.registradoNombre ? ` · ${t.registradoNombre}` : ''}`
+        : undefined,
+      buttons: [...botones, { text: 'Cancelar', role: 'cancel' }],
     });
     await sheet.present();
   }
@@ -241,9 +250,10 @@ export class MarcarTomaService {
 
   private mensajeError(error: unknown, estado: EstadoToma): string {
     if (error instanceof TomaNoPermitida) return error.message;
-    if (estado !== 'quitar') return 'No se pudo registrar la toma.';
     const denegado = (error as { code?: string } | null)?.code === 'permission-denied';
-    return denegado ? SOLO_AUTOR_O_RESPONSABLE : 'No se pudo quitar el registro.';
+    // Otro teléfono la registró al mismo tiempo: ya es un registro ajeno
+    if (denegado) return SOLO_AUTOR_O_RESPONSABLE;
+    return estado === 'quitar' ? 'No se pudo quitar el registro.' : 'No se pudo registrar la toma.';
   }
 
   /** "El inventario está en 0…" para la confirmación de una toma que ya no tiene de dónde descontarse. */

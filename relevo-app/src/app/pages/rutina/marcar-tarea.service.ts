@@ -11,9 +11,9 @@ import {
 import { NOTA_MAX, confirmar, pedirNota } from '../../core/utils/notas';
 import { DatosSignos, SignosModal } from './signos.modal';
 
-/** Quitar un registro ajeno (o deshacer sus mediciones) lo impiden la app y las rules. */
+/** Cambiar o quitar un registro ajeno (y sus mediciones) lo impiden la app y las rules. */
 const SOLO_AUTOR_O_RESPONSABLE =
-  'Solo quien hizo el registro o el responsable pueden quitarlo.';
+  'Solo quien hizo el registro o el responsable pueden cambiarlo o quitarlo.';
 
 export interface OpcionesMarcarTarea {
   /** Quien marca es el responsable: puede quitar registros hechos por otros (igual que las rules) */
@@ -36,7 +36,7 @@ export class MarcarTareaService {
   private readonly modalCtrl = inject(ModalController);
   private readonly toast = inject(ToastController);
 
-  /** Quitar un registro: quien lo hizo o el responsable (misma regla que firestore.rules). */
+  /** Cambiar, anotar o quitar un registro: quien lo hizo o el responsable (misma regla que firestore.rules). */
   puedeQuitar(p: TareaProgramada, { puedeQuitarAjenos = false }: OpcionesMarcarTarea = {}): boolean {
     const autor = p.registro?.registradoPor;
     return !autor || autor === this.authSvc.uid || puedeQuitarAjenos;
@@ -53,14 +53,15 @@ export class MarcarTareaService {
     if (!tareaId) throw new Error('Datos incompletos');
     const deSignos = p.tarea.tipo === 'signos';
 
-    // Quitar un registro, o deshacer las mediciones que trajo, solo puede quien lo hizo o el
-    // responsable (las rules lo exigen al borrar); se avisa antes de intentarlo
+    // Un registro ajeno solo lo cambia o quita quien lo hizo o el responsable (igual en las rules)
     const deshaceMediciones = deSignos && !!p.registro?.hecha && estado !== 'hecha';
-    if ((estado === 'quitar' || deshaceMediciones) && !this.puedeQuitar(p, opciones)) {
+    if (!this.puedeQuitar(p, opciones)) {
       await this.aviso(SOLO_AUTOR_O_RESPONSABLE);
       return false;
     }
     if (estado === 'quitar' && !(await this.confirmarQuitar(p, deshaceMediciones))) return false;
+    // Pasar a "no hecha" una tarea de signos borra sus mediciones: se confirma como algo destructivo
+    if (estado === 'omitida' && deshaceMediciones && !(await this.confirmarNoHecha(p))) return false;
 
     if (deSignos && estado === 'hecha') {
       const datos = await this.pedirSignos(p);
@@ -76,7 +77,7 @@ export class MarcarTareaService {
     }
 
     let nota: string | undefined;
-    if (estado !== 'quitar') {
+    if (estado !== 'quitar' && !deshaceMediciones) {
       const r = await pedirNota(this.alertCtrl, {
         header: `¿Marcar como ${estado === 'hecha' ? 'hecha' : 'no hecha'}?`,
         message: `${p.tarea.nombre} · ${p.horario}`,
@@ -124,57 +125,68 @@ export class MarcarTareaService {
   }
 
   /**
-   * Hoja de opciones de una tarea programada: marcar, nota y quitar el registro. «Quitar registro»
-   * solo aparece para quien lo hizo o el responsable; si no, se explica por qué.
+   * Hoja de opciones de una tarea programada: marcar (el estado contrario si ya tiene registro; en
+   * una de signos ya hecha, corregir las mediciones), nota y quitar. Un registro de otra persona solo
+   * lo cambia quien lo hizo o el responsable: a los demás se les dice quién lo registró.
    */
   async opciones(personaId: string, p: TareaProgramada, opciones: OpcionesMarcarTarea = {}) {
-    const puedeQuitar = this.puedeQuitar(p, opciones);
+    const r = p.registro;
+    if (r && !this.puedeQuitar(p, opciones)) {
+      const alerta = await this.alertCtrl.create({
+        header: `${p.tarea.nombre} · ${p.horario}`,
+        message: `${r.hecha ? 'Hecha' : 'No hecha'} · registrada por ${r.registradoNombre ?? 'otra persona'}${
+          r.nota ? ` · ${r.nota}` : ''
+        }. Si hay un error, pídele a esa persona o al responsable que lo corrija.`,
+        buttons: ['Entendido'],
+      });
+      await alerta.present();
+      return;
+    }
+    const deSignos = p.tarea.tipo === 'signos';
+    const botones = [];
+    if (!r || !r.hecha || deSignos) {
+      botones.push({
+        text: r?.hecha ? 'Corregir mediciones' : 'Marcar como hecha',
+        icon: r?.hecha ? 'pulse-outline' : 'checkmark-circle-outline',
+        handler: () => {
+          void this.marcarConAviso(personaId, p, 'hecha', opciones);
+        },
+      });
+    }
+    if (!r || r.hecha) {
+      botones.push({
+        text: 'Marcar como no hecha',
+        icon: 'close-circle-outline',
+        handler: () => {
+          void this.marcarConAviso(personaId, p, 'omitida', opciones);
+        },
+      });
+    }
+    if (r) {
+      botones.push(
+        {
+          text: r.nota ? 'Editar nota' : 'Agregar nota',
+          icon: 'create-outline',
+          handler: () => {
+            void this.editarNota(personaId, p);
+          },
+        },
+        {
+          text: 'Quitar registro',
+          icon: 'trash-outline',
+          role: 'destructive',
+          handler: () => {
+            void this.marcarConAviso(personaId, p, 'quitar', opciones);
+          },
+        },
+      );
+    }
     const sheet = await this.actionSheetCtrl.create({
       header: `${p.tarea.nombre} · ${p.horario}`,
-      subHeader:
-        p.registro && !puedeQuitar
-          ? `Registro de ${p.registro.registradoNombre ?? 'otra persona'}: solo esa persona o el responsable pueden quitarlo.`
-          : undefined,
-      buttons: [
-        {
-          text: 'Marcar como hecha',
-          icon: 'checkmark-circle-outline',
-          handler: () => {
-            void this.marcarConAviso(personaId, p, 'hecha', opciones);
-          },
-        },
-        {
-          text: 'Marcar como no hecha',
-          icon: 'close-circle-outline',
-          handler: () => {
-            void this.marcarConAviso(personaId, p, 'omitida', opciones);
-          },
-        },
-        ...(p.registro
-          ? [
-              {
-                text: p.registro.nota ? 'Editar nota' : 'Agregar nota',
-                icon: 'create-outline',
-                handler: () => {
-                  void this.editarNota(personaId, p);
-                },
-              },
-              ...(puedeQuitar
-                ? [
-                    {
-                      text: 'Quitar registro',
-                      icon: 'trash-outline',
-                      role: 'destructive',
-                      handler: () => {
-                        void this.marcarConAviso(personaId, p, 'quitar', opciones);
-                      },
-                    },
-                  ]
-                : []),
-            ]
-          : []),
-        { text: 'Cancelar', role: 'cancel' },
-      ],
+      subHeader: r
+        ? `${r.hecha ? 'Hecha' : 'No hecha'}${r.registradoNombre ? ` · ${r.registradoNombre}` : ''}`
+        : undefined,
+      buttons: [...botones, { text: 'Cancelar', role: 'cancel' }],
     });
     await sheet.present();
   }
@@ -211,6 +223,16 @@ export class MarcarTareaService {
     });
   }
 
+  /** "¿Marcar como no hecha?" en una tarea de signos ya hecha: sus mediciones se borran. */
+  private confirmarNoHecha(p: TareaProgramada): Promise<boolean> {
+    return confirmar(this.alertCtrl, {
+      header: '¿Marcar como no hecha?',
+      message: `${p.tarea.nombre} · ${p.horario}. Las mediciones que se capturaron se borran (dejan de verse en la bitácora y el reporte).`,
+      confirmar: 'Marcar como no hecha',
+      destructivo: true,
+    });
+  }
+
   /** `marcar` que muestra el error en vez de lanzarlo (para los botones de una hoja de opciones). */
   private async marcarConAviso(
     personaId: string,
@@ -224,11 +246,11 @@ export class MarcarTareaService {
       console.error(error);
       const denegado = (error as { code?: string } | null)?.code === 'permission-denied';
       await this.aviso(
-        estado === 'quitar'
-          ? denegado
-            ? SOLO_AUTOR_O_RESPONSABLE
-            : 'No se pudo quitar el registro.'
-          : 'No se pudo registrar la tarea.',
+        denegado
+          ? SOLO_AUTOR_O_RESPONSABLE
+          : estado === 'quitar'
+            ? 'No se pudo quitar el registro.'
+            : 'No se pudo registrar la tarea.',
       );
     }
   }

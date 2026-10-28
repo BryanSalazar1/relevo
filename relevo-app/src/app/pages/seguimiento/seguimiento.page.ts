@@ -152,18 +152,23 @@ export class SeguimientoPage {
     });
   }
 
+  /** Cada carga lleva un número: al cambiar rápido de 30 a 90 días, la respuesta vieja se descarta */
+  private cargaActual = 0;
+
   private async cargar(personaId: string, dias: Ventana) {
+    const carga = ++this.cargaActual;
     this.cargando.set(true);
     this.error.set(null);
     try {
       // Hasta mañana a las 00:00 = "hasta hoy", igual que el reporte
       const hasta = sumarDias(inicioDeDia(new Date()), 1);
-      this.reporte.set(await this.reporteSvc.generar(personaId, sumarDias(hasta, -dias), hasta));
+      const reporte = await this.reporteSvc.generar(personaId, sumarDias(hasta, -dias), hasta);
+      if (carga === this.cargaActual) this.reporte.set(reporte);
     } catch (e) {
       console.error(e);
-      this.error.set('No se pudo cargar el seguimiento. Revisa tu conexión.');
+      if (carga === this.cargaActual) this.error.set('No se pudo cargar el seguimiento. Revisa tu conexión.');
     } finally {
-      this.cargando.set(false);
+      if (carga === this.cargaActual) this.cargando.set(false);
     }
   }
 

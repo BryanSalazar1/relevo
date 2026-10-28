@@ -84,15 +84,17 @@
               >
                 <ion-icon slot="icon-only" name="id-card-outline" />
               </ion-button>
-              <ion-button
-                fill="clear"
-                class="boton-redondo semaforo"
-                (click)="abrirSemaforo(p, $event)"
-                [attr.aria-label]="'Semáforo de ' + p.nombre"
-                title="Semáforo del día"
-              >
-                <ion-icon slot="icon-only" name="semaforo" />
-              </ion-button>
+              @if (!esMedico()) {
+                <ion-button
+                  fill="clear"
+                  class="boton-redondo semaforo"
+                  (click)="abrirSemaforo(p, $event)"
+                  [attr.aria-label]="'Semáforo de ' + p.nombre"
+                  title="Semáforo del día"
+                >
+                  <ion-icon slot="icon-only" name="semaforo" />
+                </ion-button>
+              }
               <ion-icon class="flecha" name="chevron-forward-outline" aria-hidden="true" />
             </div>
           </ion-card>

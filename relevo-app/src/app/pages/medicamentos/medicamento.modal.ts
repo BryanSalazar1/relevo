@@ -292,6 +292,10 @@ export class MedicamentoModal implements OnInit {
   /** Lo escrito en Inventario no es un número (el campo lo entrega como vacío) */
   inventarioIlegible = false;
   notas = '';
+  /** Valores con que se abrió el formulario al editar: si no se tocan, no se envían (otro teléfono
+   *  pudo descontar tomas mientras tanto, y un medicamento antiguo sin inicio debe seguir sin él). */
+  private inventarioInicial: number | null = null;
+  private inicioInicial?: string;
   readonly horarios = signal<string[]>([]);
   /** Por qué no se agregó la última hora (repetida, muy cercana a otra, demasiadas…) */
   readonly errorHora = signal('');
@@ -310,6 +314,8 @@ export class MedicamentoModal implements OnInit {
         this.duracionDias = this.medicamento.duracionDias;
       }
       this.inventario = unidadesRestantes(this.medicamento);
+      this.inventarioInicial = this.inventario;
+      this.inicioInicial = this.medicamento.inicio;
       this.notas = this.medicamento.notas ?? '';
     }
   }
@@ -502,6 +508,14 @@ export class MedicamentoModal implements OnInit {
       inventario: this.numero(this.inventario),
       notas: this.notas.trim(),
     };
+    if (this.medicamento) {
+      // Al editar, lo que no se tocó no se reescribe
+      const editado: Partial<DatosMedicamento> = { ...datos };
+      if (datos.inventario === this.inventarioInicial) delete editado.inventario;
+      if (!this.inicioInicial && datos.inicio === this.hoy) delete editado.inicio;
+      void this.modalCtrl.dismiss(editado, 'guardar');
+      return;
+    }
     void this.modalCtrl.dismiss(datos, 'guardar');
   }
 }

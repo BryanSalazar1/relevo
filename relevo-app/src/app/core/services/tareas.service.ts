@@ -157,13 +157,17 @@ export class TareasService {
   }
 
   /** Borra la tarea y sus registros (hasta 500 por lote). */
+  /** Borra el historial completo (por tandas: un batch admite 500 escrituras) y luego el documento. */
   async eliminar(personaId: string, id: string): Promise<void> {
     const registros = await getDocs(this.registrosRef(personaId, id));
-    const batch = writeBatch(this.db);
-    registros.docs.slice(0, 499).forEach((d) => batch.delete(d.ref));
-    batch.delete(doc(this.ref(personaId), id));
-    await batch.commit();
+    for (let i = 0; i < registros.docs.length; i += 450) {
+      const tanda = writeBatch(this.db);
+      registros.docs.slice(i, i + 450).forEach((d) => tanda.delete(d.ref));
+      await tanda.commit();
+    }
+    await deleteDoc(doc(this.ref(personaId), id));
   }
+
 
   /** Los `maximo` registros más recientes de todas las tareas (hechas o no), para la bitácora. */
   registrosRecientes(personaId: string, maximo = 300): Observable<RegistroReciente[]> {

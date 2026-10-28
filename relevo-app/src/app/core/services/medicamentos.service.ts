@@ -358,14 +358,15 @@ export class MedicamentosService {
   }
 
   /**
-   * Guarda los cambios del formulario y deja la marca `editadoEn`. Con ella las Cloud Functions
+   * Guarda los cambios del formulario; si trae el inventario, deja la marca `editadoEn`. Con ella las Cloud Functions
    * distinguen una corrección del inventario hecha a mano (rearma el aviso de inventario bajo)
    * de deshacer una toma, que también suma 1 pero no debe repetir el aviso.
    */
   async actualizar(personaId: string, id: string, datos: Partial<DatosMedicamento>): Promise<void> {
+    // La marca solo va cuando el formulario trae inventario: editar las notas no rearma el aviso
     await updateDoc(doc(this.ref(personaId), id), {
       ...this.limpiar(datos),
-      editadoEn: serverTimestamp(),
+      ...(datos.inventario !== undefined ? { editadoEn: serverTimestamp() } : {}),
     });
   }
 
@@ -394,13 +395,17 @@ export class MedicamentosService {
   }
 
   /** Borra el medicamento y sus tomas (hasta 500 por lote). */
+  /** Borra el historial completo (por tandas: un batch admite 500 escrituras) y luego el documento. */
   async eliminar(personaId: string, id: string): Promise<void> {
     const tomas = await getDocs(collection(this.db, `personas_cuidadas/${personaId}/medicamentos/${id}/tomas`));
-    const batch = writeBatch(this.db);
-    tomas.docs.slice(0, 499).forEach((d) => batch.delete(d.ref));
-    batch.delete(doc(this.ref(personaId), id));
-    await batch.commit();
+    for (let i = 0; i < tomas.docs.length; i += 450) {
+      const tanda = writeBatch(this.db);
+      tomas.docs.slice(i, i + 450).forEach((d) => tanda.delete(d.ref));
+      await tanda.commit();
+    }
+    await deleteDoc(doc(this.ref(personaId), id));
   }
+
 
   /**
    * Registra (o corrige) una toma y ajusta el inventario en el mismo batch:

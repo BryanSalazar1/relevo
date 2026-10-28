@@ -71,14 +71,19 @@ export class InvitacionesService {
     );
   }
 
-  /** Abre la hoja de compartir (Android / navegadores compatibles); si no hay, copia al portapapeles. */
-  async compartir(inv: Invitacion): Promise<'compartido' | 'copiado'> {
+  /**
+   * Abre la hoja de compartir (Android / navegadores compatibles); si no hay, copia al portapapeles.
+   * Si la persona cierra la hoja sin compartir, no se hace nada ('cancelado').
+   */
+  async compartir(inv: Invitacion): Promise<'compartido' | 'copiado' | 'cancelado'> {
     const texto = this.textoInvitacion(inv);
     try {
       const { Share } = await import('@capacitor/share');
       await Share.share({ title: 'Invitación a Relevo', text: texto, dialogTitle: 'Compartir invitación' });
       return 'compartido';
-    } catch {
+    } catch (error) {
+      const e = error as { name?: string; message?: string } | null;
+      if (e?.name === 'AbortError' || /cancel/i.test(e?.message ?? '')) return 'cancelado';
       await navigator.clipboard.writeText(texto);
       return 'copiado';
     }

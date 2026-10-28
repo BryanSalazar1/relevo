@@ -8,9 +8,6 @@
       <ion-button routerLink="../ficha" aria-label="Ficha de emergencia">
         <ion-icon slot="icon-only" name="id-card-outline" />
       </ion-button>
-      <ion-button routerLink="../semaforo" aria-label="Abrir el semáforo en pantalla completa">
-        <ion-icon slot="icon-only" name="semaforo" />
-      </ion-button>
     </ion-buttons>
   </ion-toolbar>
   <ion-toolbar class="dia">
@@ -24,6 +21,9 @@
       <ion-button (click)="cambiarDia(1)" [disabled]="esHoy()" aria-label="Día siguiente">
         <ion-icon slot="icon-only" name="chevron-forward-outline" />
       </ion-button>
+      @if (!esHoy()) {
+        <ion-button (click)="hoy()" class="volver-hoy">Hoy</ion-button>
+      }
     </ion-buttons>
   </ion-toolbar>
 </ion-header>
@@ -135,6 +135,11 @@
             }
           </ion-item>
         }
+        @if (!puedeEditar()) {
+          <ion-item lines="none">
+            <ion-note class="ion-text-wrap">Avisa al responsable para que compre y registre el resurtido.</ion-note>
+          </ion-item>
+        }
       </ion-list>
     }
 
@@ -174,7 +179,8 @@
     <ion-list inset class="agenda">
       <ion-list-header>
         <ion-label>{{ esHoy() ? 'Hoy' : etiquetaDia(dia()) }}</ion-label>
-        @if (avance().total > 0) {
+        <!-- Hoy el avance ya está en la tarjeta del semáforo; en otros días va aquí -->
+        @if (!esHoy() && avance().total > 0) {
           <ion-badge [color]="avance().registradas === avance().total ? 'success' : 'medium'">
             {{ avance().registradas }}/{{ avance().total }}
           </ion-badge>
@@ -280,11 +286,6 @@
       </ion-list>
     }
 
-    @if (soloLectura()) {
-      <div class="ion-padding ion-text-center">
-        <ion-text color="medium"><p>Tu cuenta es de solo lectura: ves el día, pero no registras.</p></ion-text>
-      </div>
-    }
   }
 
   <app-fab-asistente />

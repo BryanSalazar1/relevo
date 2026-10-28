@@ -43,6 +43,7 @@ import {
 import { MiembrosService } from '../../core/services/miembros.service';
 import { PersonasService } from '../../core/services/personas.service';
 import { edad, textoTurnos } from '../../core/utils/fechas';
+import { confirmar } from '../../core/utils/notas';
 import { personaActual } from '../../core/utils/persona-actual';
 import { CompartirModal } from './compartir.modal';
 import { DatosTurnos, TurnosModal } from './turnos.modal';
@@ -152,10 +153,18 @@ export class EquipoPage {
     });
   }
 
+  /** No se pudo generar el código (sin conexión): se ofrece reintentar en vez de girar sin fin */
+  readonly errorCodigo = signal(false);
+
+  reintentarCodigo() {
+    void this.crearCodigoPermanente();
+  }
+
   private async crearCodigoPermanente() {
     const persona = this.persona();
     if (!persona?.id || this.creandoCodigo) return;
     this.creandoCodigo = true;
+    this.errorCodigo.set(false);
     try {
       // La lista en tiempo real puede llegar vacía desde la caché local antes que del servidor;
       // se confirma con el servidor para no duplicar códigos.
@@ -164,7 +173,7 @@ export class EquipoPage {
       await this.invitacionesSvc.crear(persona, DIAS_CODIGO_PERMANENTE, USOS_CODIGO_PERMANENTE);
     } catch (error) {
       console.error(error);
-      await this.aviso('No se pudo generar el código de acceso.', 'danger');
+      this.errorCodigo.set(true);
     } finally {
       this.creandoCodigo = false;
     }
@@ -261,20 +270,32 @@ export class EquipoPage {
     }
   }
 
-  /** Opciones sobre un miembro (solo el responsable): turnos, hacer/quitar responsable, quitar del equipo. */
+  /** Hay otro responsable además de mí: solo entonces puedo dejar el rol (nadie queda sin administrar). */
+  readonly hayOtroResponsable = computed(() =>
+    (this.miembros() ?? []).some((m) => m.rol === 'cuidador_principal' && m.uid !== this.uid),
+  );
+
+  /** La fila tiene opciones: para el responsable, la de los demás; la propia, si puede dejar el rol. */
+  tieneOpciones(m: Miembro): boolean {
+    return this.esPrincipal() && (m.uid !== this.uid || this.hayOtroResponsable());
+  }
+
+  /** Opciones sobre un miembro (solo el responsable): hacer/quitar responsable, quitar del equipo. */
   async opcionesMiembro(m: Miembro) {
-    if (!this.esPrincipal()) return;
-    const buttons: { text: string; icon?: string; role?: string; handler?: () => void }[] = [
-      {
-        text: 'Turnos de guardia',
-        icon: 'time-outline',
-        handler: () => {
-          void this.editarTurnos(m);
-        },
-      },
-    ];
+    if (!this.tieneOpciones(m)) return;
+    const buttons: { text: string; icon?: string; role?: string; handler?: () => void }[] = [];
     if (m.uid === this.uid) {
-      buttons.push({ text: 'Cancelar', role: 'cancel' });
+      // Con otro responsable en el equipo, puede ceder el rol y después salir como familiar
+      buttons.push(
+        {
+          text: 'Dejar de ser responsable',
+          icon: 'person-circle-outline',
+          handler: () => {
+            void this.dejarDeSerResponsable(m);
+          },
+        },
+        { text: 'Cancelar', role: 'cancel' },
+      );
       const propio = await this.actionSheetCtrl.create({ header: `${m.nombre} (tú)`, buttons });
       await propio.present();
       return;
@@ -353,6 +374,18 @@ export class EquipoPage {
       console.error(error);
       await this.aviso('No se pudieron guardar los turnos.', 'danger');
     }
+  }
+
+  /** Ceder el rol: queda como familiar (puede salir del equipo después). */
+  private async dejarDeSerResponsable(m: Miembro) {
+    if (!this.hayOtroResponsable()) return;
+    const ok = await confirmar(this.alertCtrl, {
+      header: '¿Dejar de ser responsable?',
+      message:
+        'Quedarás como familiar: ya no podrás editar medicamentos, rutina ni el equipo. Otro responsable puede devolverte el rol.',
+      confirmar: 'Dejar el rol',
+    });
+    if (ok) await this.cambiarRol(m, 'familiar');
   }
 
   private async cambiarRol(m: Miembro, rol: Miembro['rol']) {
