@@ -215,6 +215,8 @@ try {
     await page.getByRole('button', { name: 'Cerrar la ficha de emergencia' }).click();
     await page.waitForURL(/\/home/, { timeout: 15000 });
     await page.click('ion-button[title="Semáforo del día"]');
+    // Tocar el semáforo ofrece abrirlo, copiar su enlace o mostrar su QR
+    await page.click('ion-action-sheet button:has-text("Abrir semáforo")');
     await page.waitForURL(/\/semaforo/, { timeout: 15000 });
     await page.waitForTimeout(1200);
     await foto(page, 'a09_semaforo');

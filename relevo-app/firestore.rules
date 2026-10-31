@@ -35,6 +35,16 @@ service cloud.firestore {
       return esMiembro(personaId) && rol(personaId) in roles;
     }
 
+    // Si el responsable cambia el enlace del semáforo (enlaceSemaforo), el token nuevo debe quedar
+    // creado para esta misma persona en el mismo batch; quitarlo también se permite.
+    function enlaceSemaforoValido(personaId) {
+      return !('enlaceSemaforo' in request.resource.data.diff(resource.data).affectedKeys())
+        || !('enlaceSemaforo' in request.resource.data)
+        || (request.resource.data.enlaceSemaforo is string
+            && request.resource.data.enlaceSemaforo.matches('^[A-Za-z0-9_-]{32,64}$')
+            && getAfter(/databases/$(database)/documents/semaforos_compartidos/$(request.resource.data.enlaceSemaforo)).data.personaId == personaId);
+    }
+
     function tipoUsuario(uid) {
       return get(/databases/$(database)/documents/usuarios/$(uid)).data.tipo;
     }
@@ -257,6 +267,25 @@ service cloud.firestore {
       allow delete: if autenticado() && request.auth.uid == userId;
     }
 
+    // ---------- semaforos_compartidos/{token} ----------
+    // Enlace para ver el semáforo sin cuenta (https://<app>/s/<token>). Solo lo lee la Cloud Function
+    // semaforoCompartido; desde la app nadie puede leerlo ni listarlo. El responsable lo crea o lo
+    // cambia en el mismo batch en que guarda el token vigente en la persona (enlaceSemaforo); el
+    // anterior se borra en ese batch y deja de funcionar.
+    match /semaforos_compartidos/{token} {
+      allow read, update: if false;
+      allow create: if autenticado()
+        && token.matches('^[A-Za-z0-9_-]{32,64}$')
+        && request.resource.data.keys().hasOnly(['personaId', 'creadoPor', 'creadoEn'])
+        && request.resource.data.personaId is string
+        && request.resource.data.creadoPor == request.auth.uid
+        && request.resource.data.creadoEn == request.time
+        && tieneRol(request.resource.data.personaId, ['cuidador_principal'])
+        && getAfter(/databases/$(database)/documents/personas_cuidadas/$(request.resource.data.personaId)).data.get('enlaceSemaforo', '') == token;
+      allow delete: if tieneRol(resource.data.personaId, ['cuidador_principal'])
+        && getAfter(/databases/$(database)/documents/personas_cuidadas/$(resource.data.personaId)).data.get('enlaceSemaforo', '') != token;
+    }
+
     // ---------- invitaciones/{codigo} ----------
     match /invitaciones/{codigo} {
       // El código (8 caracteres aleatorios) es la llave: se puede leer uno concreto, no listar todos
@@ -292,7 +321,7 @@ service cloud.firestore {
         && request.resource.data.creadoPor == request.auth.uid
         && tipoUsuario(request.auth.uid) == 'familiar';
       // Actualizar: el responsable, alguien que se une con una invitación válida, o un miembro que se va
-      allow update: if tieneRol(personaId, ['cuidador_principal'])
+      allow update: if (tieneRol(personaId, ['cuidador_principal']) && enlaceSemaforoValido(personaId))
         || (autenticado() && soloAgregaMiUid() && canjeValidoDespues(personaId))
         || (autenticado() && soloQuitaMiUid());
       allow delete: if tieneRol(personaId, ['cuidador_principal']);

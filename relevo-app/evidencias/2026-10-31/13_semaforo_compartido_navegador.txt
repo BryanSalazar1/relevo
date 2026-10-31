@@ -1,0 +1,37 @@
+Semáforo compartido por enlace y QR (31/10/2026), en la app contra los emuladores (Auth, Firestore y
+Functions, sin secretos ni correo) con la semilla. Chromium; quien abre el enlace usa un navegador nuevo, sin sesión.
+
+      opciones: Abrir semáforo | Copiar enlace | Mostrar código QR | Cancelar
+  ✔ Responsable: tocar el semáforo ofrece abrir, copiar enlace y QR (aún sin "Cambiar enlace")
+      enlace: https://relevo-e5eaf.web.app/s/<token de 32>
+  ✔ Mostrar código QR: crea el enlace y el QR lleva a /s/<token>
+  ✔ Copiar enlace: copia el mismo enlace
+      público: amarillo · Carmen Hernández 15:41 2 SIN REGISTRAR Revisar signos vitales Signos vitales Era a las 08…
+      app: amarillo · 2 SIN REGISTRAR Revisar signos vitales Signos vitales Era a las 08:00 · hace 7 h 41 min
+  ✔ Sin cuenta: el enlace abre el mismo semáforo que ve la responsable
+      antes: 2 SIN REGISTRAR Revisar signos vitales Signos vitales Era a las 08:00  | después: 1 sin registrar · Desayuno · Era a las 08:30 · hace 7 h 11 min
+  ✔ Lo que se registra en la app aparece en el enlace
+      opciones: Abrir semáforo | Copiar enlace | Mostrar código QR | Cancelar
+  ✔ Enfermera: puede copiar o mostrar el enlace existente, pero no cambiarlo
+  ✔ Hoy: la tarjeta del semáforo ofrece lo mismo y "Abrir semáforo" lo abre
+  ✔ Cambiar enlace: el anterior deja de funcionar y el nuevo sí
+  ✔ Un token inventado no muestra nada
+errores de consola: ninguno
+FALLOS: 0
+
+Regresión en la misma corrida:
+  === prueba_semaforo_compartido.mjs
+  FALLOS: 0
+  === recorrido_agenda.mjs
+  FALLOS: 0
+  === prueba_semaforo.mjs
+  FALLOS: 0
+  === prueba_prn.mjs
+  FALLOS: 0
+
+Pruebas automatizadas relacionadas:
+  - Reglas (02_reglas_firestore.txt): solo el responsable crea o cambia el enlace, en un batch con la persona;
+    nadie lee ni lista los tokens desde la app; el anterior se borra al cambiarlo.
+  - Funciones (03_funciones.txt): peticionSemaforo (token y día) y datosSemaforo (solo lo mínimo: sin ficha,
+    inventario, notas de registros ni quién registró).
+  - Unitarias (04_unitarias.txt): lo que devuelve la función arma la misma agenda del día que la app; token de 32.

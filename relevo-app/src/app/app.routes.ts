@@ -14,6 +14,12 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/privacidad/privacidad.page').then((m) => m.PrivacidadPage),
   },
   {
+    // Semáforo compartido por enlace o QR: público, sin sesión y solo para ver (el token es la llave)
+    path: 's/:token',
+    loadComponent: () =>
+      import('./pages/semaforo-compartido/semaforo-compartido.page').then((m) => m.SemaforoCompartidoPage),
+  },
+  {
     path: 'home',
     canActivate: [authGuard],
     loadComponent: () => import('./pages/home/home.page').then((m) => m.HomePage),

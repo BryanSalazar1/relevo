@@ -1138,3 +1138,50 @@ test('cuotaIa: cuenta por usuario y por día; al llegar al límite se niega sin 
   // Datos raros guardados no rompen la cuenta
   assert.equal(cuotaIa({ fecha: '2026-10-31', usados: 'x' }, '2026-10-31', 3).usados, 1);
 });
+
+test('peticionSemaforo: token aleatorio y un día de ~24 h cercano a hoy', async () => {
+  const { peticionSemaforo } = await import('./logica.js');
+  const ahora = Date.UTC(2026, 9, 31, 18);
+  const desde = Date.UTC(2026, 9, 31, 6);
+  const hasta = desde + 24 * 3_600_000;
+  const token = 'Ab3_-'.repeat(7) + 'xyz'; // 38 caracteres
+  assert.deepEqual(peticionSemaforo({ token, desde, hasta }, ahora), { token, desde, hasta });
+  // Token: corto, con caracteres raros o que no es texto
+  assert.equal(peticionSemaforo({ token: 'corto', desde, hasta }, ahora).error, 'token');
+  assert.equal(peticionSemaforo({ token: token.slice(0, 31) + '/', desde, hasta }, ahora).error, 'token');
+  assert.equal(peticionSemaforo({ token: 123, desde, hasta }, ahora).error, 'token');
+  assert.equal(peticionSemaforo(null, ahora).error, 'token');
+  // Día: no numérico, de una semana, o de hace un mes
+  assert.equal(peticionSemaforo({ token, desde: 'x', hasta }, ahora).error, 'dia');
+  assert.equal(peticionSemaforo({ token, desde, hasta: desde + 7 * 86_400_000 }, ahora).error, 'dia');
+  assert.equal(peticionSemaforo({ token, desde: desde - 30 * 86_400_000, hasta: hasta - 30 * 86_400_000 }, ahora).error, 'dia');
+});
+
+test('datosSemaforo: solo lo mínimo del plan del día, sin ficha, inventario, notas de registros ni autores', async () => {
+  const { datosSemaforo } = await import('./logica.js');
+  const ts = (ms) => ({ toMillis: () => ms });
+  const r = datosSemaforo({
+    persona: { nombre: 'Carmen', alergias: ['Penicilina'], notasMedicas: 'privado', enlaceSemaforo: 'x' },
+    medicamentos: [
+      { id: 'los', nombre: 'Losartán', dosis: '50 mg', horarios: ['08:00'], inventario: 28, activo: true, creadoEn: ts(1), notas: 'Con agua' },
+      { id: 'sus', nombre: 'Suspendido', dosis: '1', horarios: ['09:00'], activo: false },
+    ],
+    tomas: [{ medicamentoId: 'los', id: '20261031-0800', tomado: true, horaProgramada: ts(5), registradoNombre: 'Marta', nota: 'privado' }],
+    tareas: [{ id: 'cam', tipo: 'ejercicio', nombre: 'Caminata', horarios: ['17:00'], dias: [1, 'x'], duracionMin: 30, activo: true }],
+    registros: [{ tareaId: 'cam', id: '20261031-1700', hecha: false, registradoPor: 'uid', nota: 'privado' }],
+  });
+  assert.equal(r.nombre, 'Carmen');
+  assert.deepEqual(r.medicamentos.map((m) => m.id), ['los']);
+  assert.deepEqual(r.medicamentos[0], {
+    id: 'los', nombre: 'Losartán', dosis: '50 mg', notas: 'Con agua', horarios: ['08:00'], segunNecesidad: false,
+    inicio: null, duracionDias: null, creadoEn: 1,
+  });
+  assert.deepEqual(r.tomas, [{ medicamentoId: 'los', id: '20261031-0800', tomado: true, horaProgramada: 5 }]);
+  assert.deepEqual(r.tareas[0].dias, [1]);
+  assert.deepEqual(r.registros, [{ tareaId: 'cam', id: '20261031-1700', hecha: false }]);
+  // Nada de la ficha médica, el inventario ni quién registró
+  const texto = JSON.stringify(r);
+  for (const prohibido of ['Penicilina', 'privado', 'Marta', 'uid', 'inventario', 'enlaceSemaforo']) {
+    assert.ok(!texto.includes(prohibido), prohibido);
+  }
+});

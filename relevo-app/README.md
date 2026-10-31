@@ -413,6 +413,26 @@ decisión: en la web se avisa por correo.
 
 ## 10. Funcionalidades implementadas (10 de septiembre de 2026)
 
+### Semáforo compartido por enlace o QR — 31/10/2026
+
+Para dejar el semáforo a la vista en una tableta o tele de la casa, o mandárselo a un familiar, sin que
+tenga cuenta.
+
+- Tocar el semáforo (botón del inicio o tarjeta de Hoy) ofrece **Abrir semáforo**, **Copiar enlace** y
+  **Mostrar código QR**. El enlace y el QR llevan a `https://relevo-e5eaf.web.app/s/<token>`: el semáforo
+  del día de la persona, sin iniciar sesión y **solo para ver** (no se puede marcar). Se actualiza cada
+  minuto y al volver a la pestaña; si no hay conexión por más de 15 min deja de mostrar el color.
+- El token (32 caracteres aleatorios) **no vence**. Lo crea el responsable la primera vez que copia el
+  enlace o muestra el QR; los demás miembros pueden compartirlo cuando ya existe. **Cambiar enlace** (solo
+  el responsable) crea uno nuevo y el anterior deja de funcionar al instante.
+- Datos: la persona guarda el token vigente (`enlaceSemaforo`) y `semaforos_compartidos/{token}` apunta a
+  la persona; desde la app nadie puede leer ni listar esa colección. La Cloud Function `semaforoCompartido`
+  (sin sesión) revisa el token y devuelve **solo lo mínimo**: nombre, plan del día y si cada toma o tarea ya
+  tiene registro; nada de ficha médica, bitácora, signos, inventario, notas de los registros ni quién
+  registró (`datosSemaforo` en `functions/logica.js`). La página arma la agenda con las mismas funciones que
+  la app (`dosisDelDia`, `tareasDelDia`), así que el color es el mismo.
+- Al eliminar a la persona se borra su enlace.
+
 ### Medicamentos según necesidad con indicación del médico — 31/10/2026
 
 Para lo que el médico deja "si hay dolor" o "si hay fiebre" con un máximo al día y horas entre tomas.
@@ -1031,8 +1051,8 @@ flotante de cada pantalla.
   `NoDefaultCurrentDirectoryInExePath` cmd no encuentra el archivo aunque esté en la carpeta.
 
 ### Pruebas
-- `npm run test:rules` — 37 pruebas de Security Rules contra el emulador.
-- `npm run test:functions` — 55 pruebas de la lógica de notificaciones y del asistente (mensajes, destinatarios,
+- `npm run test:rules` — 38 pruebas de Security Rules contra el emulador.
+- `npm run test:functions` — 57 pruebas de la lógica de notificaciones, del asistente y del semáforo compartido (mensajes, destinatarios,
   turnos de guardia, alertas, dosis vencidas, avisos previos, duración de tratamientos, días de la
   semana, zona horaria, inventario bajo y su aviso). Corren con Node solo, sin emulador ni Java.
 - `npm run test:e2e` — recorrido completo en Chromium contra la app publicada: login, bitácora,

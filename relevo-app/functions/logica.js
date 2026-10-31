@@ -711,3 +711,82 @@ export function cuotaIa(previo, hoyIso, limite = LIMITE_IA_DIARIO) {
   if (usados >= limite) return { permitido: false, usados, restantes: 0, datos: null };
   return { permitido: true, usados: usados + 1, restantes: limite - usados - 1, datos: { fecha: hoyIso, usados: usados + 1 } };
 }
+
+// ---------------------------------------------------------------------------
+// Semáforo compartido por enlace (se ve sin cuenta, solo lectura)
+// ---------------------------------------------------------------------------
+
+/** Token del enlace: aleatorio en base64url, generado por la app del responsable. */
+export const TOKEN_SEMAFORO = /^[A-Za-z0-9_-]{32,64}$/;
+
+const HORA_MS = 3_600_000;
+
+/**
+ * Valida lo que pide la página pública: el token y el día local del dispositivo [desde, hasta)
+ * en milisegundos. El día lo pone quien mira (como en la app) y debe ser de ~24 h y cercano a hoy.
+ * Devuelve { token, desde, hasta } o { error }.
+ */
+export function peticionSemaforo(data, ahoraMs) {
+  const token = data?.token;
+  if (typeof token !== 'string' || !TOKEN_SEMAFORO.test(token)) return { error: 'token' };
+  const desde = Number(data?.desde);
+  const hasta = Number(data?.hasta);
+  if (!Number.isFinite(desde) || !Number.isFinite(hasta)) return { error: 'dia' };
+  const largo = hasta - desde;
+  if (largo < 23 * HORA_MS || largo > 25 * HORA_MS) return { error: 'dia' };
+  if (Math.abs(desde - ahoraMs) > 48 * HORA_MS) return { error: 'dia' };
+  return { token, desde, hasta };
+}
+
+function milis(t) {
+  return t && typeof t.toMillis === 'function' ? t.toMillis() : null;
+}
+
+function horarios(lista) {
+  return Array.isArray(lista) ? lista.filter((h) => typeof h === 'string') : [];
+}
+
+/**
+ * Lo mínimo que necesita el semáforo público: nombre de la persona, plan del día (medicamentos y
+ * tareas activos) y si cada toma o tarea de hoy ya tiene registro. No incluye ficha médica, bitácora,
+ * signos, inventario, notas de los registros ni quién registró.
+ * Fechas en milisegundos; `inicio` del medicamento sigue siendo yyyy-mm-dd.
+ */
+export function datosSemaforo({ persona, medicamentos, tomas, tareas, registros }) {
+  return {
+    nombre: typeof persona?.nombre === 'string' ? persona.nombre : '',
+    medicamentos: medicamentos
+      .filter((m) => m.activo !== false)
+      .map((m) => ({
+        id: m.id,
+        nombre: m.nombre ?? '',
+        dosis: m.dosis ?? '',
+        notas: m.notas ?? '',
+        horarios: horarios(m.horarios),
+        segunNecesidad: m.segunNecesidad === true,
+        inicio: typeof m.inicio === 'string' ? m.inicio : null,
+        duracionDias: Number.isFinite(m.duracionDias) ? m.duracionDias : null,
+        creadoEn: milis(m.creadoEn),
+      })),
+    tomas: tomas.map((t) => ({
+      medicamentoId: t.medicamentoId,
+      id: t.id,
+      tomado: t.tomado === true,
+      horaProgramada: milis(t.horaProgramada),
+    })),
+    tareas: tareas
+      .filter((t) => t.activo !== false)
+      .map((t) => ({
+        id: t.id,
+        tipo: t.tipo ?? 'otro',
+        nombre: t.nombre ?? '',
+        notas: t.notas ?? '',
+        horarios: horarios(t.horarios),
+        dias: Array.isArray(t.dias) ? t.dias.filter(Number.isInteger) : [],
+        duracionMin: Number.isFinite(t.duracionMin) ? t.duracionMin : 0,
+        avisarMin: Number.isFinite(t.avisarMin) ? t.avisarMin : 0,
+        creadoEn: milis(t.creadoEn),
+      })),
+    registros: registros.map((r) => ({ tareaId: r.tareaId, id: r.id, hecha: r.hecha === true })),
+  };
+}

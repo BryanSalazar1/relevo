@@ -8,7 +8,7 @@ $ npm run build
 Initial chunk files   | Names                  |  Raw size | Estimated transfer size
 chunk-6F6EDAMT.js     | -                      |   1.14 MB |               192.43 kB
 chunk-J7LELYWD.js     | -                      | 461.87 kB |               120.40 kB
-main-HKADAJA6.js      | main                   |  55.70 kB |                13.58 kB
+main-GB66VA43.js      | main                   |  55.80 kB |                13.62 kB
 styles-K336ILGL.css   | styles                 |  53.51 kB |                 7.00 kB
 chunk-6YBQKZT7.js     | -                      |  37.37 kB |                13.04 kB
 polyfills-5CFQRCPP.js | polyfills              |  34.59 kB |                11.33 kB
@@ -29,27 +29,27 @@ chunk-KO6BY2AT.js     | -                      | 544 bytes |               544 b
 chunk-6V7DZCEA.js     | -                      | 366 bytes |               366 bytes
 chunk-NMFL75IO.js     | -                      |  99 bytes |                99 bytes
 
-                      | Initial total          |   1.84 MB |               379.97 kB
+                      | Initial total          |   1.84 MB |               380.00 kB
 
 Lazy chunk files      | Names                  |  Raw size | Estimated transfer size
 chunk-PUC7QPWN.js     | jspdf-es-min           | 411.28 kB |               113.01 kB
 chunk-VVSZ3FP7.js     | html2canvas            | 202.84 kB |                38.46 kB
 chunk-J5YFWRN3.js     | index-es               | 159.05 kB |                47.02 kB
 chunk-EURTZJWP.js     | jsQR                   | 130.53 kB |                26.61 kB
-chunk-F56YBYNV.js     | plan-page              |  45.39 kB |                10.71 kB
-chunk-LZTLC66J.js     | equipo-page            |  32.93 kB |                 8.51 kB
+chunk-YFOS7QGY.js     | plan-page              |  45.45 kB |                10.73 kB
+chunk-GBX3RYY5.js     | equipo-page            |  33.00 kB |                 8.51 kB
 chunk-EAWTTOUU.js     | jspdf-plugin-autotable |  31.07 kB |                 9.00 kB
-chunk-QDNYY4TE.js     | reporte-page           |  28.88 kB |                 8.17 kB
-chunk-XGEWYKGW.js     | hoy-page               |  28.88 kB |                 7.58 kB
+chunk-IXZVBHCI.js     | hoy-page               |  29.28 kB |                 7.63 kB
+chunk-2D7JDQN3.js     | reporte-page           |  28.94 kB |                 8.18 kB
 chunk-J2QAXL6D.js     | purify-es              |  28.58 kB |                 9.90 kB
-chunk-SIZZ5DIW.js     | -                      |  25.30 kB |                 8.83 kB
+chunk-5IO4DEDZ.js     | -                      |  25.30 kB |                 8.82 kB
 chunk-C5UPQYBU.js     | browser                |  24.61 kB |                 8.33 kB
-chunk-5UKVR225.js     | home-page              |  21.94 kB |                 6.07 kB
-chunk-GFXU6BZU.js     | -                      |  17.26 kB |                 5.91 kB
-chunk-DFCA2ZKT.js     | semaforo-page          |  17.19 kB |                 5.01 kB
-...and 41 more lazy chunks files. Use "--verbose" to show all the files.
+chunk-DPCID2KL.js     | home-page              |  22.12 kB |                 6.12 kB
+chunk-H7G7FSOG.js     | -                      |  17.29 kB |                 5.92 kB
+chunk-TP7ML3EJ.js     | semaforo-page          |  17.25 kB |                 4.98 kB
+...and 49 more lazy chunks files. Use "--verbose" to show all the files.
 
-Application bundle generation complete. [9.028 seconds] - 2026-10-31T20:39:45.202Z
+Application bundle generation complete. [9.539 seconds] - 2026-10-31T21:45:01.985Z
 
 ▲ [WARNING] Module 'core-js/modules/es.promise.js' used by 'node_modules/canvg/lib/index.es.js' is not ESM
 

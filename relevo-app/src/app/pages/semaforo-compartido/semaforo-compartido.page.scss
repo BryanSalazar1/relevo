@@ -1,0 +1,12 @@
+// Semáforo compartido: usa los estilos del semáforo de la app (../semaforo/semaforo.page.scss);
+// aquí solo la nota de abajo, que dice que es de solo lectura o desde cuándo no se actualiza.
+.barra {
+  min-height: 42px;
+}
+
+.solo-ver {
+  margin: 12px 0 0;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--tenue);
+}

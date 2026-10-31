@@ -1,0 +1,104 @@
+<ion-content [fullscreen]="true" [attr.data-color]="color()">
+  <div class="pantalla" [class.vistazo]="!detalles()">
+    <header class="barra">
+      <span class="quien">{{ nombre() || 'Semáforo' }}</span>
+      <span class="reloj">{{ ahora() | date: 'HH:mm' }}</span>
+    </header>
+
+    @if (problema() === 'invalido') {
+      <div class="cuerpo">
+        <main class="mensaje" aria-live="polite">
+          <p class="estado">Enlace no válido</p>
+          <h1>Este enlace del semáforo ya no funciona</h1>
+          <p class="detalle">Pide el enlace o el QR nuevo a quien te lo compartió.</p>
+        </main>
+      </div>
+    } @else if (cargando()) {
+      <div class="cuerpo centro"><ion-spinner name="crescent" color="light" /></div>
+    } @else if (sinDatos()) {
+      <!-- Nunca "Todo al día" sin datos: podría hacer creer que no falta nada -->
+      <div class="cuerpo">
+        <main class="mensaje" aria-live="polite">
+          <p class="estado">Sin conexión</p>
+          <h1>No se pudo cargar el semáforo</h1>
+          <p class="detalle">Revisa el internet de este dispositivo; se vuelve a intentar cada minuto.</p>
+        </main>
+      </div>
+    } @else {
+      @let e = estado();
+      <div class="cuerpo" (click)="alternarDetalles()">
+        <div class="luces" aria-hidden="true">
+          <span class="luz rojo" [class.encendida]="e.color === 'rojo'"></span>
+          <span class="luz amarillo" [class.encendida]="e.color === 'amarillo'"></span>
+          <span class="luz verde" [class.encendida]="e.color === 'verde'"></span>
+        </div>
+
+        <main class="mensaje" aria-live="polite">
+          <p class="estado">{{ titulo() }}</p>
+          @if (e.principal; as p) {
+            @if (e.fase === 'despues') {
+              <p class="sigue">Sigue</p>
+            }
+            <h1><ion-icon [name]="p.icono" aria-hidden="true" /> {{ p.titulo }}</h1>
+            @if (p.detalle) {
+              <p class="detalle">{{ p.detalle }}</p>
+            }
+            <p class="cuando">{{ cuando() }}</p>
+          } @else {
+            <h1>No queda nada pendiente por hoy</h1>
+          }
+        </main>
+      </div>
+
+      @if (!detalles()) {
+        @if (pista()) {
+          <button type="button" class="pista" (click)="alternarDetalles()">{{ pista() }}</button>
+        }
+      } @else {
+        <footer class="pie">
+          @if (despues().length > 0) {
+            <p class="pie-titulo">También pendiente hoy</p>
+            <ul>
+              @for (x of despues(); track x.pendiente.clave) {
+                <li>
+                  <span class="hora">{{ x.pendiente.hora | date: 'HH:mm' }}</span>
+                  <ion-icon [name]="x.pendiente.icono" aria-hidden="true" />
+                  <span class="nombre">{{ x.pendiente.titulo }}</span>
+                  @if (etiquetaFase[x.fase]) {
+                    <span class="fase" [attr.data-fase]="x.fase">{{ etiquetaFase[x.fase] }}</span>
+                  }
+                </li>
+              }
+            </ul>
+            @if (masDespues() > 0) {
+              <p class="mas">y {{ masDespues() }} más</p>
+            }
+          }
+          @if (avance().total > 0) {
+            <p class="avance">Hoy: {{ avance().registradas }} de {{ avance().total }} registradas</p>
+            <div
+              class="progreso"
+              role="progressbar"
+              [attr.aria-valuenow]="avance().registradas"
+              [attr.aria-valuemax]="avance().total"
+            >
+              <span [style.width.%]="(100 * avance().registradas) / avance().total"></span>
+            </div>
+          } @else {
+            <p class="avance">No hay tomas ni tareas programadas para hoy.</p>
+          }
+        </footer>
+      }
+    }
+
+    <p class="solo-ver">
+      @if (problema() === 'red' && actualizado(); as t) {
+        Sin conexión · actualizado a las {{ t | date: 'HH:mm' }}
+      } @else if (problema()) {
+        Relevo · semáforo compartido
+      } @else {
+        Solo para ver · se actualiza cada minuto
+      }
+    </p>
+  </div>
+</ion-content>

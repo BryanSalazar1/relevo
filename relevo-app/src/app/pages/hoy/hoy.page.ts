@@ -79,6 +79,7 @@ import { EditarCitaService } from '../citas/editar-cita.service';
 import { MarcarTomaService } from '../medicamentos/marcar-toma.service';
 import { ResurtirService } from '../medicamentos/resurtir.service';
 import { MarcarTareaService } from '../rutina/marcar-tarea.service';
+import { OpcionesSemaforoService } from '../semaforo/opciones-semaforo.service';
 
 /** Cada cuánto se vuelve a calcular el estado del día (ms). */
 const REFRESCO_MS = 30_000;
@@ -170,6 +171,7 @@ export class HoyPage {
   private readonly editarCita = inject(EditarCitaService);
   private readonly toast = inject(ToastController);
   private readonly router = inject(Router);
+  private readonly opcionesSemaforo = inject(OpcionesSemaforoService);
 
   private readonly ctx = personaActual();
   readonly persona = this.ctx.persona;
@@ -476,6 +478,12 @@ export class HoyPage {
 
   textoNo(f: FilaDia): string {
     return f.tipo === 'toma' ? 'Marcar no tomada' : 'Marcar no hecha';
+  }
+
+  /** Tarjeta del semáforo: abrirlo, copiar su enlace o mostrar su QR. */
+  semaforo() {
+    const p = this.persona();
+    if (p) void this.opcionesSemaforo.abrir(p);
   }
 
   /** Marca una fila como hecha / tomada (true) o no (false), con la confirmación de cada tipo. */

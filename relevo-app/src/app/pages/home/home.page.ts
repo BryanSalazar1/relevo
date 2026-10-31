@@ -24,6 +24,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { PersonasService } from '../../core/services/personas.service';
 import { edad } from '../../core/utils/fechas';
 import { pedirTipoCuenta } from '../../core/utils/tipo-cuenta';
+import { OpcionesSemaforoService } from '../semaforo/opciones-semaforo.service';
 import { PerfilModal } from './perfil.modal';
 import { DatosPersona, PersonaModal } from './persona.modal';
 
@@ -65,6 +66,7 @@ export class HomePage {
   private readonly auth = inject(AuthService);
   private readonly personasSvc = inject(PersonasService);
   private readonly router = inject(Router);
+  private readonly opcionesSemaforo = inject(OpcionesSemaforoService);
   private readonly alertCtrl = inject(AlertController);
   private readonly actionSheetCtrl = inject(ActionSheetController);
   private readonly modalCtrl = inject(ModalController);
@@ -142,10 +144,10 @@ export class HomePage {
     if (p.id) void this.router.navigate(['/personas', p.id, 'ficha']);
   }
 
-  /** El semáforo del día, directo desde el inicio (sin pasar por las pestañas). */
+  /** El semáforo del día desde el inicio: abrirlo, copiar su enlace o mostrar su QR. */
   abrirSemaforo(p: PersonaCuidada, event: Event) {
     event.stopPropagation();
-    if (p.id) void this.router.navigate(['/personas', p.id, 'semaforo']);
+    void this.opcionesSemaforo.abrir(p);
   }
 
   /** El perfil vive en la esquina: nombre, notificaciones y cerrar sesión. */

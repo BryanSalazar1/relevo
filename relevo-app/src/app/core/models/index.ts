@@ -139,6 +139,8 @@ export interface PersonaCuidada {
   miembrosUids: string[];
   creadoPor: string;
   creadoEn: Timestamp;
+  /** Token vigente del semáforo compartido por enlace (/s/<token>); lo crea y lo cambia el responsable */
+  enlaceSemaforo?: string;
 }
 
 /**

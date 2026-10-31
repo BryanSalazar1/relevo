@@ -6,10 +6,10 @@ Registros de ejecución citados en `Relevo_Proyecto_Modular.docx` (preevaluació
 |---|---|---|
 | `2026-10-31/00_entorno.txt` | Sistema, Node.js, Java y Firebase CLI usados | — |
 | `2026-10-31/01_tipos.txt` | Compilación estricta de TypeScript | `npx tsc -p tsconfig.app.json --noEmit` |
-| `2026-10-31/02_reglas_firestore.txt` | 37 pruebas de reglas (permisos, invitaciones, aislamiento, revocación, canjes simultáneos, contador de la IA, fecha de cambio de tratamiento, indicación de los medicamentos según necesidad) | `npm run test:rules` |
-| `2026-10-31/03_funciones.txt` | 55 pruebas de la lógica de las Cloud Functions (incluido el límite diario de la IA) | `npm run test:functions` |
+| `2026-10-31/02_reglas_firestore.txt` | 38 pruebas de reglas (permisos, invitaciones, aislamiento, revocación, canjes simultáneos, contador de la IA, fecha de cambio de tratamiento, indicación de los medicamentos según necesidad, enlace del semáforo compartido) | `npm run test:rules` |
+| `2026-10-31/03_funciones.txt` | 57 pruebas de la lógica de las Cloud Functions (incluidos el límite diario de la IA y el semáforo compartido) | `npm run test:functions` |
 | `2026-10-31/03b_eliminar_persona_emulador.txt` | Borrado en cascada de una persona contra el emulador | `firebase emulators:exec --only firestore "node --test functions/eliminar-persona.emulador.test.mjs"` |
-| `2026-10-31/04_unitarias.txt` | 86 pruebas unitarias del cliente (incluidos los cambios respecto a lo habitual, la tendencia, el semáforo y los medicamentos según necesidad) | `npx ng test --watch=false --browsers=ChromeHeadless` |
+| `2026-10-31/04_unitarias.txt` | 88 pruebas unitarias del cliente (incluidos los cambios respecto a lo habitual, la tendencia, el semáforo, el semáforo compartido y los medicamentos según necesidad) | `npx ng test --watch=false --browsers=ChromeHeadless` |
 | `2026-10-31/05_build.txt` | Build de producción y tamaño | `npm run build` |
 | `2026-10-31/06_asistente_ia.txt` / `.json` | Banco de 8 preguntas con respuesta conocida y 2 accesos no autorizados contra la función publicada (corrido el 30/10/2026) | `RELEVO_DEMO_EMAIL=… RELEVO_DEMO_PASSWORD=… node tests/evidencias/prueba-asistente.mjs <salida>` |
 | `2026-10-31/07_navegador_sincronizacion_revocacion.txt` | Latencia entre dos sesiones, revocación con la app abierta y borrado de la caché local | Emuladores + semilla + `ng serve --port 4300`, luego `node tests/evidencias/evidencias-navegador.mjs <salida>` |
@@ -18,6 +18,7 @@ Registros de ejecución citados en `Relevo_Proyecto_Modular.docx` (preevaluació
 | `2026-10-31/10_cuota_ia_produccion.txt` | Límite diario de la IA en producción: el contador baja con cada consulta | `RELEVO_DEMO_EMAIL=… RELEVO_DEMO_PASSWORD=… node tests/evidencias/verificar-cuota-ia.mjs` |
 | `2026-10-31/11_cambios_personales_navegador.txt` | Lecturas comparadas con lo habitual y la zona clínica en la app; reinicio por cambio de dosis; casos de las pruebas unitarias | Emuladores + semilla + `ng serve --port 4300` |
 | `2026-10-31/12_segun_necesidad_navegador.txt` | Medicamentos según necesidad: indicación del médico (cuándo, máximo al día, horas entre tomas), avisos sin impedir, motivo e intensidad del dolor y resumen de excesos en la hoja y en Seguimiento | Emuladores + semilla + `ng serve --port 4300` |
+| `2026-10-31/13_semaforo_compartido_navegador.txt` | Semáforo por enlace o QR sin iniciar sesión: opciones por rol, QR leído, mismo estado que la app, actualización tras registrar, cambio de enlace y token inventado | Emuladores (con Functions, sin secretos) + semilla + `ng serve --port 4300` |
 
 El recorrido completo por roles está en `tests/evidencias/recorrido-roles.mjs` (mismos requisitos que el de navegador).
 Las pruebas de reglas y de navegador corren contra los emuladores con la semilla (`npm run semilla`): no tocan datos reales.

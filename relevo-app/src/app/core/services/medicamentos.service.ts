@@ -209,6 +209,41 @@ export function fechaDe(dia: Date, hhmm: string): Date {
   return d;
 }
 
+/** ¿El medicamento entra en la agenda de ese día? (activo y dentro de su tratamiento) */
+export function medicamentoDelDia(m: Medicamento, dia: Date): boolean {
+  return m.activo !== false && !!m.id && vigenteEnDia(m, dia);
+}
+
+/**
+ * Agenda del día de los medicamentos: cada horario cruzado con su toma registrada; los según
+ * necesidad, una fila por cada toma dada ese día, a la hora en que se dio. Pura: la usan el servicio
+ * (en tiempo real) y el semáforo compartido por enlace (con lo que devuelve la función).
+ */
+export function dosisDelDia(pares: { m: Medicamento; tomas: Toma[] }[], dia: Date): DosisProgramada[] {
+  return pares
+    .flatMap(({ m, tomas }): DosisProgramada[] => {
+      if (m.segunNecesidad) {
+        return tomas.map((t) => {
+          const hora = t.horaProgramada.toDate();
+          return {
+            medicamento: m,
+            horario: formatDate(hora, 'HH:mm', 'es'),
+            hora,
+            idToma: t.id ?? idTomaAhora(hora),
+            toma: t,
+            aDemanda: true,
+          };
+        });
+      }
+      return (m.horarios ?? []).map((horario) => {
+        const hora = fechaDe(dia, horario);
+        const id = idToma(hora);
+        return { medicamento: m, horario, hora, idToma: id, toma: tomas.find((t) => t.id === id) };
+      });
+    })
+    .sort((a, b) => a.hora.getTime() - b.hora.getTime());
+}
+
 @Injectable({ providedIn: 'root' })
 export class MedicamentosService {
   private readonly db = inject(Firestore);
@@ -248,39 +283,13 @@ export class MedicamentosService {
   agendaDelDia(personaId: string, dia: Date): Observable<DosisProgramada[]> {
     return this.medicamentos(personaId).pipe(
       switchMap((meds) => {
-        const activos = meds.filter((m) => m.activo !== false && m.id && vigenteEnDia(m, dia));
+        const activos = meds.filter((m) => medicamentoDelDia(m, dia));
         if (!activos.length) return of([] as DosisProgramada[]);
         return combineLatest(
           activos.map((m) =>
             this.tomasDelDia(personaId, m.id!, dia).pipe(map((tomas) => ({ m, tomas }))),
           ),
-        ).pipe(
-          map((pares) =>
-            pares
-              .flatMap(({ m, tomas }): DosisProgramada[] => {
-                // Según necesidad: cada toma registrada ese día es una fila, a la hora en que se dio
-                if (m.segunNecesidad) {
-                  return tomas.map((t) => {
-                    const hora = t.horaProgramada.toDate();
-                    return {
-                      medicamento: m,
-                      horario: formatDate(hora, 'HH:mm', 'es'),
-                      hora,
-                      idToma: t.id ?? idTomaAhora(hora),
-                      toma: t,
-                      aDemanda: true,
-                    };
-                  });
-                }
-                return (m.horarios ?? []).map((horario) => {
-                  const hora = fechaDe(dia, horario);
-                  const id = idToma(hora);
-                  return { medicamento: m, horario, hora, idToma: id, toma: tomas.find((t) => t.id === id) };
-                });
-              })
-              .sort((a, b) => a.hora.getTime() - b.hora.getTime()),
-          ),
-        );
+        ).pipe(map((pares) => dosisDelDia(pares, dia)));
       }),
     );
   }

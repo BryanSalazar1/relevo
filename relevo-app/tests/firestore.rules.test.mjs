@@ -999,3 +999,54 @@ test('según necesidad: indicación del médico en el medicamento y motivo de la
   await assertFails(setDoc(toma('t4'), { ...datos, motivo: 'dolor', intensidad: 11 }));
   await assertFails(setDoc(toma('t5'), { ...datos, motivo: 'dolor', intensidad: 5.5 }));
 });
+
+test('semáforo compartido: solo el responsable crea o cambia el enlace; nadie lee los tokens desde la app', async () => {
+  await anaCreaPersona();
+  await agregarComo('marta', 'cuidador_turno');
+  const T1 = 'a'.repeat(20) + 'B_-'.repeat(4); // 32 caracteres
+  const T2 = 'z9'.repeat(18);
+  const persona = (db) => doc(db, `personas_cuidadas/${PERSONA_ID}`);
+  const enlace = (db, t) => doc(db, `semaforos_compartidos/${t}`);
+  const crear = (db, uid, nuevo, viejo) => {
+    const b = writeBatch(db);
+    b.update(persona(db), { enlaceSemaforo: nuevo });
+    b.set(enlace(db, nuevo), { personaId: PERSONA_ID, creadoPor: uid, creadoEn: serverTimestamp() });
+    if (viejo) b.delete(enlace(db, viejo));
+    return b.commit();
+  };
+
+  // La enfermera no puede crear el enlace
+  await assertFails(crear(marta(), 'marta', T1));
+  // El responsable sí, en un solo batch
+  await assertSucceeds(crear(ana(), 'ana', T1));
+  // Los miembros ven el token en la persona (para copiarlo o mostrar el QR)...
+  const p = await assertSucceeds(getDoc(persona(marta())));
+  assert.equal(p.data().enlaceSemaforo, T1);
+  // ...pero nadie lee ni lista la colección de enlaces desde la app (solo la Cloud Function)
+  await assertFails(getDoc(enlace(ana(), T1)));
+  await assertFails(getDoc(enlace(anon(), T1)));
+  await assertFails(getDocs(collection(ana(), 'semaforos_compartidos')));
+  // Un token vigente no se puede borrar suelto (dejaría la persona apuntando a nada)
+  await assertFails(deleteDoc(enlace(ana(), T1)));
+  // Apuntar la persona a un token que no se creó para ella, o con formato inválido
+  await assertFails(updateDoc(persona(ana()), { enlaceSemaforo: T2 }));
+  await assertFails(crear(ana(), 'ana', 'corto'));
+  // Crear el documento de un token que no es el que queda en la persona
+  await assertFails(
+    setDoc(enlace(ana(), T2), { personaId: PERSONA_ID, creadoPor: 'ana', creadoEn: serverTimestamp() }),
+  );
+  // Campos extra o a nombre de otro
+  const dbAna = ana();
+  const b = writeBatch(dbAna);
+  b.update(persona(dbAna), { enlaceSemaforo: T2 });
+  b.set(enlace(dbAna, T2), { personaId: PERSONA_ID, creadoPor: 'marta', creadoEn: serverTimestamp() });
+  await assertFails(b.commit());
+  // Cambiar el enlace: el nuevo queda y el anterior se borra en el mismo batch
+  await assertSucceeds(crear(ana(), 'ana', T2, T1));
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    assert.equal((await getDoc(enlace(ctx.firestore(), T1))).exists(), false);
+    assert.equal((await getDoc(enlace(ctx.firestore(), T2))).data().personaId, PERSONA_ID);
+  });
+  // Editar otros datos de la persona sigue funcionando igual
+  await assertSucceeds(updateDoc(persona(ana()), { descripcion: 'Le gusta caminar' }));
+});

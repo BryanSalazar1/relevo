@@ -48,6 +48,27 @@ export interface TareaProgramada {
   registro?: RegistroTarea;
 }
 
+/** ¿La tarea entra en la agenda de ese día? (activa y de ese día de la semana) */
+export function tareaDelDia(t: Tarea, dia: Date): boolean {
+  return t.activo !== false && !!t.id && tareaEnDia(t.dias, dia);
+}
+
+/**
+ * Agenda del día de la rutina: cada horario de cada tarea cruzado con su registro. Pura: la usan el
+ * servicio (en tiempo real) y el semáforo compartido por enlace.
+ */
+export function tareasDelDia(pares: { t: Tarea; registros: RegistroTarea[] }[], dia: Date): TareaProgramada[] {
+  return pares
+    .flatMap(({ t, registros }) =>
+      (t.horarios ?? []).map((horario) => {
+        const hora = fechaDe(dia, horario);
+        const id = idToma(hora);
+        return { tarea: t, horario, hora, idRegistro: id, registro: registros.find((r) => r.id === id) };
+      }),
+    )
+    .sort((a, b) => a.hora.getTime() - b.hora.getTime());
+}
+
 export type EstadoRegistro = 'hecha' | 'omitida' | 'quitar';
 
 /** Registro de tarea junto con su tarea, para la bitácora. */
@@ -108,7 +129,7 @@ export class TareasService {
   agendaDelDia(personaId: string, dia: Date): Observable<TareaProgramada[]> {
     return this.tareas(personaId).pipe(
       switchMap((tareas) => {
-        const activas = tareas.filter((t) => t.activo !== false && t.id && tareaEnDia(t.dias, dia));
+        const activas = tareas.filter((t) => tareaDelDia(t, dia));
         if (!activas.length) return of([] as TareaProgramada[]);
         return combineLatest(
           activas.map((t) =>
@@ -116,25 +137,7 @@ export class TareasService {
               map((registros) => ({ t, registros })),
             ),
           ),
-        ).pipe(
-          map((pares) =>
-            pares
-              .flatMap(({ t, registros }) =>
-                (t.horarios ?? []).map((horario) => {
-                  const hora = fechaDe(dia, horario);
-                  const id = idToma(hora);
-                  return {
-                    tarea: t,
-                    horario,
-                    hora,
-                    idRegistro: id,
-                    registro: registros.find((r) => r.id === id),
-                  };
-                }),
-              )
-              .sort((a, b) => a.hora.getTime() - b.hora.getTime()),
-          ),
-        );
+        ).pipe(map((pares) => tareasDelDia(pares, dia)));
       }),
     );
   }

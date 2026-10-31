@@ -71,7 +71,7 @@
 
     @if (esHoy()) {
       @let e = estado();
-      <ion-card class="estado" [attr.data-color]="e.color" button routerLink="../semaforo">
+      <ion-card class="estado" [attr.data-color]="e.color" button (click)="semaforo()">
         <div class="fila">
           <span class="luz" aria-hidden="true"></span>
           <div class="texto">

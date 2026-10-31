@@ -74,6 +74,8 @@ import {
   tokensInvalidos,
   cuotaIa,
   LIMITE_IA_DIARIO,
+  datosSemaforo,
+  peticionSemaforo,
 } from './logica.js';
 
 initializeApp();
@@ -717,9 +719,13 @@ export const eliminarPersona = onCall({ cors: true }, async (req) => {
     throw new HttpsError('permission-denied', 'Solo el responsable puede eliminar a la persona.');
   }
   const uids = pSnap.data().miembrosUids ?? [];
-  const invitaciones = await db().collection('invitaciones').where('personaId', '==', personaId).get();
+  const [invitaciones, enlaces] = await Promise.all([
+    db().collection('invitaciones').where('personaId', '==', personaId).get(),
+    db().collection('semaforos_compartidos').where('personaId', '==', personaId).get(),
+  ]);
   const batch = db().batch();
   for (const inv of invitaciones.docs) batch.delete(inv.ref);
+  for (const e of enlaces.docs) batch.delete(e.ref);
   for (const u of uids) {
     batch.set(db().doc(`usuarios/${u}`), { personas: FieldValue.arrayRemove(personaId) }, { merge: true });
   }
@@ -727,6 +733,62 @@ export const eliminarPersona = onCall({ cors: true }, async (req) => {
   await db().recursiveDelete(ref);
   logger.info('Persona eliminada por su responsable', { personaId, uid, miembros: uids.length });
   return { eliminada: true };
+});
+
+/**
+ * Semáforo compartido por enlace (https://<app>/s/<token>): cualquiera con el enlace ve el semáforo
+ * del día de la persona sin iniciar sesión, por ejemplo en una tableta de la casa. El token lo crea
+ * el responsable desde la app y no vence; deja de servir en cuanto lo cambia, porque la persona
+ * guarda el vigente en `enlaceSemaforo`. Solo lectura y solo lo mínimo (datosSemaforo en logica.js).
+ * El día [desde, hasta) lo pone el dispositivo que mira, igual que en la app.
+ */
+export const semaforoCompartido = onCall({ cors: true }, async (req) => {
+  const pet = peticionSemaforo(req.data, Date.now());
+  if (pet.error === 'token') throw new HttpsError('not-found', 'Este enlace del semáforo no es válido.');
+  if (pet.error) throw new HttpsError('invalid-argument', 'Revisa la fecha y la hora del dispositivo.');
+  const enlace = await db().doc(`semaforos_compartidos/${pet.token}`).get();
+  const personaId = enlace.data()?.personaId;
+  const personaRef = typeof personaId === 'string' && personaId ? db().doc(`personas_cuidadas/${personaId}`) : null;
+  const persona = personaRef ? await personaRef.get() : null;
+  if (!persona?.exists || persona.data().enlaceSemaforo !== pet.token) {
+    throw new HttpsError('not-found', 'Este enlace del semáforo ya no funciona.');
+  }
+  const desde = Timestamp.fromMillis(pet.desde);
+  const hasta = Timestamp.fromMillis(pet.hasta);
+  const delDia = (col) => col.where('horaProgramada', '>=', desde).where('horaProgramada', '<', hasta).get();
+  const [medsSnap, tareasSnap] = await Promise.all([
+    personaRef.collection('medicamentos').get(),
+    personaRef.collection('tareas').get(),
+  ]);
+  const medicamentos = medsSnap.docs.map((d) => ({ ...d.data(), id: d.id })).filter((m) => m.activo !== false);
+  const tareas = tareasSnap.docs.map((d) => ({ ...d.data(), id: d.id })).filter((t) => t.activo !== false);
+  const [tomas, registros] = await Promise.all([
+    Promise.all(
+      medicamentos.map(async (m) =>
+        (await delDia(personaRef.collection(`medicamentos/${m.id}/tomas`))).docs.map((d) => ({
+          ...d.data(),
+          medicamentoId: m.id,
+          id: d.id,
+        })),
+      ),
+    ),
+    Promise.all(
+      tareas.map(async (t) =>
+        (await delDia(personaRef.collection(`tareas/${t.id}/registros`))).docs.map((d) => ({
+          ...d.data(),
+          tareaId: t.id,
+          id: d.id,
+        })),
+      ),
+    ),
+  ]);
+  return datosSemaforo({
+    persona: persona.data(),
+    medicamentos,
+    tomas: tomas.flat(),
+    tareas,
+    registros: registros.flat(),
+  });
 });
 
 /** Cliente de Gemini según IA_BACKEND (ver arriba). */
