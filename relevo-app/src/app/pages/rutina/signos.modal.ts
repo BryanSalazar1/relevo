@@ -39,6 +39,16 @@ export interface DatosSignos {
   nota?: string;
 }
 
+/** Indicaciones para medir bien la presión en casa (ESH, AHA). */
+export const PASOS_MEDIR_PRESION = [
+  '30 minutos antes: sin café, cigarro ni ejercicio, y con la vejiga vacía.',
+  'Sentado, con la espalda apoyada y los pies en el piso, sin cruzar las piernas.',
+  'Descansar 5 minutos en silencio antes de medir; no hablar durante la medición.',
+  'Brazo apoyado en una mesa, con el manguito sobre la piel a la altura del corazón.',
+  'Tomar 2 mediciones con 1 minuto de diferencia y anotar el promedio.',
+  'De preferencia a la misma hora cada día (por la mañana, antes de los medicamentos).',
+];
+
 /**
  * Captura de signos vitales al marcar como hecha una tarea de tipo "Signos vitales".
  * Solo pide los signos que el responsable eligió para esa tarea. Todo es opcional: lo que no se
@@ -79,6 +89,16 @@ export interface DatosSignos {
       @for (s of signos; track s.valor) {
         @if (s.valor === 'presion') {
           <ion-note class="titulo">{{ s.etiqueta }}</ion-note>
+          <!-- Cómo medir bien en casa (guías de presión en casa: ESH, AHA): una medición mal tomada
+               cambia el promedio que ve el médico -->
+          <details class="como-medir" open>
+            <summary>Antes de medir la presión</summary>
+            <ul>
+              @for (paso of pasosPresion; track paso) {
+                <li>{{ paso }}</li>
+              }
+            </ul>
+          </details>
           <div class="presion">
             <ion-input
               type="number"
@@ -156,6 +176,26 @@ export interface DatosSignos {
   `,
   styles: [
     `
+      .como-medir {
+        margin: 6px 0 12px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: var(--ion-color-light);
+        font-size: 0.9rem;
+      }
+      .como-medir summary {
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .como-medir ul {
+        margin: 8px 0 0;
+        padding-left: 18px;
+      }
+      .como-medir li {
+        margin: 3px 0;
+      }
+    `,
+    `
       ion-note {
         display: block;
       }
@@ -204,6 +244,12 @@ export interface DatosSignos {
 })
 export class SignosModal implements OnInit {
   private readonly modalCtrl = inject(ModalController);
+
+  /**
+   * Cómo medir la presión en casa para que el valor sirva (guías de medición en casa de la ESH y la
+   * AHA). Se muestran antes de capturarla; se pueden ocultar.
+   */
+  readonly pasosPresion = PASOS_MEDIR_PRESION;
 
   /** Se rellenan desde componentProps */
   titulo = 'Signos vitales';
