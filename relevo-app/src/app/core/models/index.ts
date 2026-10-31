@@ -357,6 +357,11 @@ export interface Medicamento {
   notas?: string;
   creadoEn?: Timestamp;
   /**
+   * Última vez que cambió el tratamiento (nombre, dosis, horarios o "según necesidad"). La hoja para
+   * la consulta vuelve a calcular lo habitual de los signos desde aquí.
+   */
+  tratamientoCambiadoEn?: Timestamp;
+  /**
    * Última vez que el responsable guardó el formulario. Las Cloud Functions la usan para distinguir
    * una corrección del inventario a mano (rearma el aviso de inventario bajo) de deshacer una toma.
    */

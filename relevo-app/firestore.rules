@@ -181,7 +181,9 @@ service cloud.firestore {
         && inventarioValido(d)
         && resurtidoValido(d)
         // Marca de la última edición desde el formulario (opcional; medicamentos antiguos no la tienen)
-        && (!('editadoEn' in d) || d.editadoEn is timestamp);
+        && (!('editadoEn' in d) || d.editadoEn is timestamp)
+        // Cuándo cambió el tratamiento (nombre, dosis u horarios): la hoja recalcula lo habitual desde ahí
+        && (!('tratamientoCambiadoEn' in d) || d.tratamientoCambiadoEn is timestamp);
     }
 
     // Registrar o deshacer una toma mueve el inventario de uno en uno

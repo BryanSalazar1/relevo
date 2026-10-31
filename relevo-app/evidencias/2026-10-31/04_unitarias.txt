@@ -9,7 +9,7 @@ polyfills.js               | polyfills               |   1.04 MB |
 spec-app.spec.js           | spec-app.spec           | 672.52 kB | 
 jasmine-cleanup-1.js       | jasmine-cleanup-1       |  67.20 kB | 
 chunk-PGKX2UUY.js          | -                       |  59.71 kB | 
-spec-hoja-consulta.spec.js | spec-hoja-consulta.spec |  25.57 kB | 
+spec-hoja-consulta.spec.js | spec-hoja-consulta.spec |  34.68 kB | 
 chunk-2TLHAW3C.js          | -                       |  21.95 kB | 
 test_main.js               | test_main               |  21.83 kB | 
 spec-entrega-turno.spec.js | spec-entrega-turno.spec |  17.42 kB | 
@@ -18,22 +18,22 @@ chunk-LTWLZIFM.js          | -                       |  13.83 kB |
 styles.css                 | styles                  |  10.66 kB | 
 chunk-VWVWFTQH.js          | -                       |  10.20 kB | 
 chunk-3UHWGW3C.js          | -                       |   9.51 kB | 
-spec-agenda-dia.spec.js    | spec-agenda-dia.spec    |   6.82 kB | 
-spec-semaforo.spec.js      | spec-semaforo.spec      |   5.56 kB | 
-chunk-OW2TYAW5.js          | -                       |   3.96 kB | 
-chunk-T3OO2JEN.js          | -                       |   3.79 kB | 
+spec-agenda-dia.spec.js    | spec-agenda-dia.spec    |   6.91 kB | 
+spec-semaforo.spec.js      | spec-semaforo.spec      |   6.69 kB | 
+chunk-XZ2WSI2O.js          | -                       |   3.96 kB | 
+chunk-HG2GT45B.js          | -                       |   3.79 kB | 
 chunk-DS6OBVQD.js          | -                       |   2.88 kB | 
 chunk-4QQELFDY.js          | -                       |   2.37 kB | 
 chunk-KN7HTUM7.js          | -                       |   2.19 kB | 
 chunk-IJINKETP.js          | -                       |   2.14 kB | 
-chunk-EUDCLPVL.js          | -                       |   2.03 kB | 
+chunk-MBGX5KQ2.js          | -                       |   2.10 kB | 
 chunk-P2QYWYRC.js          | -                       |   1.91 kB | 
 spec-fechas.spec.js        | spec-fechas.spec        |   1.63 kB | 
 chunk-KCTVXG5W.js          | -                       |   1.55 kB | 
 chunk-SJJKIAKY.js          | -                       | 567 bytes | 
 jasmine-cleanup-0.js       | jasmine-cleanup-0       | 519 bytes | 
 
-                           | Initial total           |   5.74 MB
+                           | Initial total           |   5.75 MB
 
 Lazy chunk files           | Names                   |  Raw size
 chunk-4EFXGKYQ.js          | ion-icon-entry          |   9.15 kB | 
@@ -51,12 +51,12 @@ chunk-VYGH2PFT.js          | p-5ldEpNdG              | 336 bytes |
 chunk-Q3QBKF4V.js          | p-CG_zZq_I              | 315 bytes | 
 chunk-TM5BFUUM.js          | p-D0YpjgON              | 219 bytes | 
 
-Application bundle generation complete. [34.365 seconds] - 2026-10-31T17:46:57.412Z
+Application bundle generation complete. [2.564 seconds] - 2026-10-31T18:51:48.527Z
 
-31 10 2026 11:46:59.570:INFO [karma-server]: Karma v6.4.4 server started at http://localhost:9876/
-31 10 2026 11:46:59.576:INFO [launcher]: Launching browsers ChromeHeadless with concurrency unlimited
-31 10 2026 11:46:59.799:INFO [launcher]: Starting browser ChromeHeadless
-31 10 2026 11:47:00.853:INFO [Chrome Headless 156.0.0.0 (Windows 10)]: Connected on socket S8xFeDriq9q3YGKeAAAA with id 23392943
-Chrome Headless 156.0.0.0 (Windows 10): Executed 62 of 62 SUCCESS (0.094 secs / 0.067 secs)
-TOTAL: 62 SUCCESS
-31 10 2026 11:47:03.722:WARN [launcher]: ChromeHeadless was not killed in 2000 ms, sending SIGKILL.
+31 10 2026 12:51:49.283:INFO [karma-server]: Karma v6.4.4 server started at http://localhost:9876/
+31 10 2026 12:51:49.284:INFO [launcher]: Launching browsers ChromeHeadless with concurrency unlimited
+31 10 2026 12:51:49.302:INFO [launcher]: Starting browser ChromeHeadless
+31 10 2026 12:51:50.098:INFO [Chrome Headless 156.0.0.0 (Windows 10)]: Connected on socket YY9QnoBXRvP4AqiWAAAA with id 58109509
+Chrome Headless 156.0.0.0 (Windows 10): Executed 75 of 75 SUCCESS (0.087 secs / 0.062 secs)
+TOTAL: 75 SUCCESS
+31 10 2026 12:51:52.804:WARN [launcher]: ChromeHeadless was not killed in 2000 ms, sending SIGKILL.

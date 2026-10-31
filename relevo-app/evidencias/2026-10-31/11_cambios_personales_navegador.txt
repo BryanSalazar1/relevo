@@ -1,0 +1,25 @@
+Lecturas comparadas con lo habitual de la persona y con su zona clínica (31/10/2026), en la app contra
+los emuladores con la semilla (Chromium 390x844).
+
+  ✔ Reporte: la presión de Carmen sale como fuera de lo habitual y del rango
+      Presión 138/90 mmHg el 30 oct: más alta de lo habitual y fuera del rango recomendado (lo habitual en esta persona: 121/78 mmHg, 8 lecturas)
+  ✔ Seguimiento (médico): la misma bandera
+  ✔ Editar solo las notas del Losartán no reinicia lo habitual (la bandera sigue)
+  ✔ Cambiar la dosis del Losartán reinicia lo habitual: ya no compara contra lo de antes
+      (siguen las banderas clínicas generales: promedio 134/88, adherencia, caída)
+  ✔ Semáforo: lo que se muestra coincide con el color y la lista va en orden
+  ✔ Recorrido por roles: 19 de 19 pasos
+errores de consola: ninguno · FALLOS: 0
+
+Casos cubiertos por pruebas unitarias (04_unitarias.txt, hoja-consulta.spec.ts):
+  - Habitual sano 121 y lectura 138: salió del rango (aviso)
+  - Habitual alto 160 y lectura 122: volvió al rango recomendado (buena noticia, nunca alarma)
+  - Habitual bajo 93 y lectura 118: volvió al rango recomendado
+  - Habitual alto 160 y lectura 195: empeoró, además de la bandera urgente por 180/110
+  - Habitual alto 160 y lectura 162: nada personal; avisa el promedio arriba de la meta
+  - Cambio de tratamiento: lo habitual se calcula desde esa fecha
+  - Una lectura mal tomada (200) no mueve lo habitual (mediana)
+  - Desde los 80 años la meta es 145/85
+  - Glucosa solo contra el mismo momento; oxigenación solo hacia abajo
+  - Tendencia: subió de 140/90 a 152/95 en 4 semanas (y no se compara si hubo cambio de tratamiento)
+  - Presión sistólica de 90 o menos: bandera urgente

@@ -513,6 +513,13 @@ export class MedicamentoModal implements OnInit {
       const editado: Partial<DatosMedicamento> = { ...datos };
       if (datos.inventario === this.inventarioInicial) delete editado.inventario;
       if (!this.inicioInicial && datos.inicio === this.hoy) delete editado.inicio;
+      // ¿Cambió el tratamiento? (no basta con corregir notas, inventario o fechas)
+      const m = this.medicamento;
+      editado.cambioTratamiento =
+        datos.nombre !== m.nombre ||
+        datos.dosis !== m.dosis ||
+        datos.segunNecesidad !== (m.segunNecesidad === true) ||
+        datos.horarios.join(',') !== (m.horarios ?? []).join(',');
       void this.modalCtrl.dismiss(editado, 'guardar');
       return;
     }

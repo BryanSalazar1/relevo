@@ -54,6 +54,9 @@ ion-item h3 {
         color: var(--ion-color-warning);
       }
 
+      &.buena ion-icon {
+        color: var(--ion-color-success);
+      }
       &.alta ion-icon {
         color: var(--ion-color-danger);
       }

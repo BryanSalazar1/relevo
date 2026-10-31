@@ -15,8 +15,6 @@ import {
 } from '../models';
 
 export const UMBRALES_HOJA = {
-  /** Promedio en casa a partir del cual se habla de hipertensión (ESH) */
-  presionPromedio: { sistolica: 135, diastolica: 85 },
   /** Una lectura así amerita atención el mismo día */
   presionUrgente: { sistolica: 180, diastolica: 110 },
   /** Hipoglucemia nivel 1 (ADA) */
@@ -56,11 +54,19 @@ export interface ResumenPresion {
   hasta: Date;
   /** Lecturas del periodo de 180/110 o más */
   urgentes: number;
+  /** Lecturas con sistólica de 90 o menos (peligro según NEWS2) */
+  bajas: number;
+  /** Meta en casa con que se juzgó el promedio (135/85; 145/85 desde los 80 años) */
+  meta: { sistolica: number; diastolica: number };
   /** El promedio está por arriba de 135/85 */
   alto: boolean;
 }
 
-export function promedioPresion(signos: SignoVital[], dias = UMBRALES_HOJA.diasPresion): ResumenPresion | null {
+export function promedioPresion(
+  signos: SignoVital[],
+  dias: number = UMBRALES_HOJA.diasPresion,
+  edad?: number | null,
+): ResumenPresion | null {
   const lecturas = signos.filter((s) => s.tipo === 'presion' && s.valorSecundario != null).sort(porFecha);
   if (!lecturas.length) return null;
   const ultima = lecturas[lecturas.length - 1];
@@ -79,7 +85,9 @@ export function promedioPresion(signos: SignoVital[], dias = UMBRALES_HOJA.diasP
     urgentes: lecturas.filter(
       (s) => s.valor >= u.presionUrgente.sistolica || (s.valorSecundario as number) >= u.presionUrgente.diastolica,
     ).length,
-    alto: sistolica >= u.presionPromedio.sistolica || diastolica >= u.presionPromedio.diastolica,
+    bajas: lecturas.filter((s) => s.valor <= 90).length,
+    meta: metaPresion(edad),
+    alto: sistolica >= metaPresion(edad).sistolica || diastolica >= metaPresion(edad).diastolica,
   };
 }
 
@@ -250,10 +258,10 @@ export interface ResumenClinico {
   pulso: ResumenSimple | null;
 }
 
-export function resumenClinico(signos: SignoVital[]): ResumenClinico {
+export function resumenClinico(signos: SignoVital[], edad?: number | null): ResumenClinico {
   const pesos = signos.filter((s) => s.tipo === 'peso');
   return {
-    presion: promedioPresion(signos),
+    presion: promedioPresion(signos, UMBRALES_HOJA.diasPresion, edad),
     glucosa: resumenGlucosa(signos),
     peso: cambioPeso(signos),
     pesoUnico: pesos.length === 1 ? pesos[0] : null,
@@ -279,7 +287,7 @@ export function filasSignos(rc: ResumenClinico): FilaSigno[] {
   if (rc.presion) {
     const p = rc.presion;
     const fuera: string[] = [];
-    if (p.alto) fuera.push(`promedio por arriba de ${u.presionPromedio.sistolica}/${u.presionPromedio.diastolica}`);
+    if (p.alto) fuera.push(`promedio por arriba de ${p.meta.sistolica}/${p.meta.diastolica}`);
     if (p.urgentes) fuera.push(`${p.urgentes} ${plural(p.urgentes, 'lectura', 'lecturas')} de 180/110 o más`);
     filas.push({
       etiqueta: 'Presión arterial',
@@ -344,70 +352,141 @@ export function filasSignos(rc: ResumenClinico): FilaSigno[] {
 }
 
 // ---------------------------------------------------------------------------
-// Anomalías respecto a la propia persona: una lectura puede estar dentro del rango general y
-// aun así ser muy distinta de lo habitual en ella (p. ej. 150/95 en alguien que suele tener 120/75).
-// Línea base = lecturas anteriores a la última semana (hasta 60 días antes del periodo); se compara cada lectura reciente contra el
-// promedio y la desviación estándar de esa línea base (puntuación z) y, para no alarmar por
-// variaciones pequeñas, también contra una diferencia mínima absoluta.
+// Cambios respecto a la propia persona, leídos con la zona clínica (31/10/2026)
+//
+// Una lectura se juzga en tres pasos:
+//   1. Zona clínica fija (guías): peligro, baja, sana o alta. Lo peligroso se avisa siempre.
+//   2. Lo habitual de la persona (mediana de sus lecturas anteriores) y hacia dónde va el cambio:
+//      salir de lo sano o alejarse más es un aviso; volver a lo sano es una buena noticia, nunca una
+//      alarma (alguien que llegó con 160 y hoy tiene 122 mejoró, no "está más bajo de lo habitual").
+//   3. Si cambió el tratamiento (medicamento nuevo o editado, indicación del médico), lo habitual
+//      se vuelve a calcular desde esa fecha: el cambio busca justo mover los números.
+// Lo habitual usa mediana y desviación absoluta mediana (MAD), que una sola lectura mal tomada no
+// mueve. Aparte, la tendencia compara el promedio de presión de la última semana con el de tres
+// semanas antes para ver un empeoramiento lento.
+// Rangos: presión en casa 135/85 (145/85 desde los 80 años) y peligro de NEWS2 (≤ 90 sistólica,
+// pulso ≤ 40 o ≥ 131, oxigenación ≤ 91 %); glucosa ADA (en ayunas 70–130; hipoglucemia < 70).
 // ---------------------------------------------------------------------------
-export const ANOMALIAS = {
-  /** Días previos al periodo que se suman a la línea base */
+export type ZonaClinica = 'peligro_bajo' | 'baja' | 'sana' | 'alta' | 'peligro_alto';
+export type TipoCambio = 'presion' | 'glucosa' | 'pulso' | 'oxigenacion';
+
+export const CAMBIOS = {
+  /** Días previos al periodo que pueden formar lo habitual */
   diasLineaBase: 60,
   /** Lecturas recientes que se revisan: las de la última semana del periodo */
   diasRecientes: 7,
-  /** Lecturas mínimas en la línea base para que el promedio sea confiable */
+  /** Lecturas mínimas para saber qué es lo habitual */
   minLecturas: 5,
-  /** Desviaciones estándar a partir de las cuales una lectura es inusual */
+  /** Desviaciones (robustas) a partir de las cuales un cambio es importante */
   z: 2.5,
-  /**
-   * Por tipo: desviación mínima que se supone (evita z enormes con datos muy parejos), diferencia
-   * absoluta mínima para marcar y en qué dirección importa.
-   */
+  /** Por tipo: variación mínima que se supone y diferencia mínima en sus unidades */
   tipos: {
-    presion: { piso: 5, minDiferencia: 15, direccion: 'ambas' },
-    glucosa: { piso: 10, minDiferencia: 30, direccion: 'ambas' },
-    pulso: { piso: 4, minDiferencia: 15, direccion: 'ambas' },
-    oxigenacion: { piso: 1, minDiferencia: 3, direccion: 'baja' },
+    presion: { piso: 5, minDiferencia: 15 },
+    glucosa: { piso: 10, minDiferencia: 30 },
+    pulso: { piso: 4, minDiferencia: 15 },
+    oxigenacion: { piso: 1, minDiferencia: 3 },
   },
+  /** Tendencia de presión: subida o bajada sostenida entre la última semana y tres semanas antes */
+  tendencia: { minDiferencia: 10, minLecturas: 3 },
 } as const;
 
-export type TipoAnomalia = keyof typeof ANOMALIAS.tipos;
-
-export interface Anomalia {
-  tipo: TipoAnomalia;
-  fecha: Date;
-  /** "158/96 mmHg", "245 mg/dL en ayunas" */
-  valor: string;
-  /** "126/80 mmHg": promedio de la línea base, mismo formato */
-  habitual: string;
-  /** Lecturas de la línea base */
-  n: number;
-  /** Desviaciones estándar respecto a lo habitual (con signo) */
-  z: number;
-  direccion: 'alta' | 'baja';
+/** Meta de presión en casa: 135/85; desde los 80 años, 145/85 (algunas guías la suben en esa edad). */
+export function metaPresion(edad: number | null | undefined): { sistolica: number; diastolica: number } {
+  return { sistolica: edad != null && edad >= 80 ? 145 : 135, diastolica: 85 };
 }
 
-const ETIQUETA_ANOMALIA: Record<TipoAnomalia, string> = {
+/** Zona clínica de un valor (para la glucosa, según el momento en que se midió). */
+export function zonaClinica(
+  tipo: TipoCambio,
+  valor: number,
+  opciones: { edad?: number | null; momento?: MomentoGlucosa | null } = {},
+): ZonaClinica {
+  switch (tipo) {
+    case 'presion': {
+      const meta = metaPresion(opciones.edad).sistolica;
+      if (valor <= 90) return 'peligro_bajo';
+      if (valor >= 180) return 'peligro_alto';
+      if (valor <= 100) return 'baja';
+      return valor >= meta ? 'alta' : 'sana';
+    }
+    case 'glucosa': {
+      if (valor < 54) return 'peligro_bajo';
+      if (valor > 250) return 'peligro_alto';
+      if (valor < 70) return 'baja';
+      const tope = opciones.momento === 'ayunas' ? 130 : 180;
+      return valor > tope ? 'alta' : 'sana';
+    }
+    case 'pulso':
+      if (valor <= 40) return 'peligro_bajo';
+      if (valor >= 131) return 'peligro_alto';
+      if (valor < 50) return 'baja';
+      return valor > 100 ? 'alta' : 'sana';
+    case 'oxigenacion':
+      if (valor <= 91) return 'peligro_bajo';
+      return valor <= 93 ? 'baja' : 'sana';
+  }
+}
+
+const ORDEN_ZONA: Record<ZonaClinica, number> = { peligro_bajo: -2, baja: -1, sana: 0, alta: 1, peligro_alto: 2 };
+
+export type ClaseCambio = 'salio_del_rango' | 'empeoro' | 'mejoro';
+
+export interface CambioPersonal {
+  tipo: TipoCambio;
+  clase: ClaseCambio;
+  fecha: Date;
+  /** "158/96 mmHg", "160 mg/dL en ayunas" */
+  valor: string;
+  /** "121/78 mmHg": lo habitual (mediana de la línea base), mismo formato */
+  habitual: string;
+  /** Lecturas que forman lo habitual */
+  n: number;
+  /** Desviaciones robustas respecto a lo habitual (con signo) */
+  z: number;
+  direccion: 'alta' | 'baja';
+  zona: ZonaClinica;
+  zonaHabitual: ZonaClinica;
+}
+
+const ETIQUETA_CAMBIO: Record<TipoCambio, string> = {
   presion: 'Presión',
   glucosa: 'Glucosa',
   pulso: 'Pulso',
   oxigenacion: 'Oxigenación',
 };
 
-function desviacionEstandar(xs: number[], media: number): number {
-  if (xs.length < 2) return 0;
-  return Math.sqrt(xs.reduce((a, x) => a + (x - media) ** 2, 0) / (xs.length - 1));
+function mediana(xs: number[]): number {
+  const o = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(o.length / 2);
+  return o.length % 2 ? o[m] : (o[m - 1] + o[m]) / 2;
+}
+
+/** Variación robusta: 1.4826 × la mediana de las distancias a la mediana (equivale a la desviación estándar). */
+function variacionRobusta(xs: number[], centro: number): number {
+  return 1.4826 * mediana(xs.map((x) => Math.abs(x - centro)));
+}
+
+export interface OpcionesCambios {
+  edad?: number | null;
+  /** Último cambio de tratamiento: lo habitual se calcula solo con lecturas desde esta fecha */
+  reinicio?: Date | null;
 }
 
 /**
- * Para cada tipo de signo, la lectura reciente más alejada de lo habitual en esta persona, si lo
- * está lo suficiente. La presión se compara por la sistólica (la diastólica se muestra); la
- * glucosa, solo contra lecturas del mismo momento (en ayunas no se compara con después de comer).
+ * Para cada tipo de signo, el cambio más importante de las lecturas recientes respecto a lo habitual
+ * en esta persona, leído con su zona clínica. Un empeoramiento o una salida del rango sano gana a
+ * una mejoría; entre iguales, el más alejado.
  */
-export function anomaliasPersonales(lineaBase: SignoVital[], recientes: SignoVital[]): Anomalia[] {
-  const salida: Anomalia[] = [];
-  for (const tipo of Object.keys(ANOMALIAS.tipos) as TipoAnomalia[]) {
-    const conf = ANOMALIAS.tipos[tipo];
+export function cambiosPersonales(
+  lineaBase: SignoVital[],
+  recientes: SignoVital[],
+  opciones: OpcionesCambios = {},
+): CambioPersonal[] {
+  const desde = opciones.reinicio?.getTime() ?? -Infinity;
+  const base = lineaBase.filter((x) => x.fecha.toMillis() >= desde);
+  const salida: CambioPersonal[] = [];
+  for (const tipo of Object.keys(CAMBIOS.tipos) as TipoCambio[]) {
+    const conf = CAMBIOS.tipos[tipo];
     const clave = (x: SignoVital) => (tipo === 'glucosa' ? (x.momento ?? 'sin_momento') : tipo);
     const grupos = new Map<string, { base: SignoVital[]; recientes: SignoVital[] }>();
     const agregar = (x: SignoVital, campo: 'base' | 'recientes') => {
@@ -416,59 +495,137 @@ export function anomaliasPersonales(lineaBase: SignoVital[], recientes: SignoVit
       g[campo].push(x);
       grupos.set(clave(x), g);
     };
-    lineaBase.forEach((x) => agregar(x, 'base'));
+    base.forEach((x) => agregar(x, 'base'));
     recientes.forEach((x) => agregar(x, 'recientes'));
 
-    let peor: Anomalia | null = null;
-    for (const [momento, g] of grupos) {
-      if (g.base.length < ANOMALIAS.minLecturas || !g.recientes.length) continue;
+    let elegido: CambioPersonal | null = null;
+    const peso = (c: CambioPersonal) => (c.clase === 'mejoro' ? 0 : 1);
+    for (const [grupo, g] of grupos) {
+      if (g.base.length < CAMBIOS.minLecturas || !g.recientes.length) continue;
+      const momento = tipo === 'glucosa' && grupo !== 'sin_momento' ? (grupo as MomentoGlucosa) : null;
       const xs = g.base.map((x) => x.valor);
-      const media = xs.reduce((a, b) => a + b, 0) / xs.length;
-      const sd = Math.max(desviacionEstandar(xs, media), conf.piso);
+      const centro = mediana(xs);
+      const escala = Math.max(variacionRobusta(xs, centro), conf.piso);
       const diast = g.base.map((x) => x.valorSecundario).filter((v): v is number => typeof v === 'number');
-      const mediaDiast = diast.length ? diast.reduce((a, b) => a + b, 0) / diast.length : null;
+      const centroDiast = diast.length ? mediana(diast) : null;
+      const zonaHabitual = zonaClinica(tipo, centro, { edad: opciones.edad, momento });
       const fmt = (v: number, d: number | null) =>
         tipo === 'presion' && d !== null ? `${Math.round(v)}/${Math.round(d)}` : `${redondear(v, tipo === 'oxigenacion' ? 1 : 0)}`;
-      const etiquetaMomento =
-        tipo === 'glucosa' && momento !== 'sin_momento'
-          ? ` ${(MOMENTO_GLUCOSA_ETIQUETA[momento as MomentoGlucosa] ?? '').toLowerCase()}`.trimEnd()
-          : '';
+      const etiquetaMomento = momento ? ` ${(MOMENTO_GLUCOSA_ETIQUETA[momento] ?? '').toLowerCase()}`.trimEnd() : '';
+
       for (const x of g.recientes) {
-        const diferencia = x.valor - media;
-        const z = diferencia / sd;
-        const direccion = diferencia >= 0 ? 'alta' : 'baja';
-        if (conf.direccion === 'baja' && direccion === 'alta') continue;
-        if (Math.abs(z) < ANOMALIAS.z || Math.abs(diferencia) < conf.minDiferencia) continue;
-        if (peor && Math.abs(z) <= Math.abs(peor.z)) continue;
-        peor = {
+        const diferencia = x.valor - centro;
+        if (Math.abs(diferencia) < conf.minDiferencia) continue;
+        const z = diferencia / escala;
+        const zona = zonaClinica(tipo, x.valor, { edad: opciones.edad, momento });
+        const nivel = ORDEN_ZONA[zona];
+        const nivelHabitual = ORDEN_ZONA[zonaHabitual];
+        let clase: ClaseCambio | null = null;
+        if (nivelHabitual !== 0 && nivel === 0) {
+          // Lo habitual estaba fuera de lo sano y esta lectura volvió al rango: mejoría
+          clase = 'mejoro';
+        } else if (Math.abs(z) >= CAMBIOS.z) {
+          if (nivelHabitual === 0 && nivel !== 0) clase = 'salio_del_rango';
+          // Ya estaba fuera y se alejó más en la misma dirección (más alta si era alta, más baja si era baja)
+          else if (nivelHabitual !== 0 && Math.sign(nivel) === Math.sign(nivelHabitual) && Math.sign(diferencia) === Math.sign(nivelHabitual)) {
+            clase = 'empeoro';
+          }
+        }
+        if (!clase) continue;
+        const candidato: CambioPersonal = {
           tipo,
+          clase,
           fecha: x.fecha.toDate(),
           valor: `${fmt(x.valor, x.valorSecundario ?? null)} ${x.unidad}${etiquetaMomento}`,
-          habitual: `${fmt(media, mediaDiast)} ${x.unidad}`,
+          habitual: `${fmt(centro, centroDiast)} ${x.unidad}`,
           n: xs.length,
           z: redondear(z, 1),
-          direccion,
+          direccion: diferencia >= 0 ? 'alta' : 'baja',
+          zona,
+          zonaHabitual,
         };
+        if (
+          !elegido ||
+          peso(candidato) > peso(elegido) ||
+          (peso(candidato) === peso(elegido) && Math.abs(candidato.z) > Math.abs(elegido.z))
+        ) {
+          elegido = candidato;
+        }
       }
     }
-    if (peor) salida.push(peor);
+    if (elegido) salida.push(elegido);
   }
   return salida;
 }
 
-/** "Presión 158/96 mmHg el 29 oct: más alta de lo habitual en esta persona (126/80 mmHg, 12 lecturas previas)" */
-export function textoAnomalia(a: Anomalia): string {
-  const cuando = formatDate(a.fecha, 'd MMM', 'es');
-  const masculino = a.tipo === 'pulso';
-  const comparado = a.direccion === 'alta' ? (masculino ? 'más alto' : 'más alta') : masculino ? 'más bajo' : 'más baja';
-  return `${ETIQUETA_ANOMALIA[a.tipo]} ${a.valor} el ${cuando}: ${comparado} de lo habitual en esta persona (${a.habitual}, ${a.n} lecturas previas)`;
+/** Texto de la bandera de un cambio personal. */
+export function textoCambio(c: CambioPersonal): string {
+  const cuando = formatDate(c.fecha, 'd MMM', 'es');
+  const nombre = ETIQUETA_CAMBIO[c.tipo];
+  const masculino = c.tipo === 'pulso';
+  const sube = c.direccion === 'alta';
+  const comparado = sube ? (masculino ? 'más alto' : 'más alta') : masculino ? 'más bajo' : 'más baja';
+  const habitual = `(lo habitual en esta persona: ${c.habitual}, ${c.n} lecturas)`;
+  switch (c.clase) {
+    case 'mejoro':
+      return `${nombre} ${c.valor} el ${cuando}: volvió al rango recomendado ${habitual}`;
+    case 'empeoro':
+      return `${nombre} ${c.valor} el ${cuando}: empeoró, ${comparado} que lo habitual ${habitual}`;
+    default:
+      return `${nombre} ${c.valor} el ${cuando}: ${comparado} de lo habitual y fuera del rango recomendado ${habitual}`;
+  }
+}
+
+export interface TendenciaPresion {
+  /** Promedio sistólico/diastólico de la última semana */
+  reciente: { sistolica: number; diastolica: number; n: number };
+  /** Promedio de la semana de hace tres semanas */
+  anterior: { sistolica: number; diastolica: number; n: number };
+  direccion: 'sube' | 'baja';
+}
+
+/**
+ * Tendencia de la presión: promedio de la última semana (hasta `hasta`) contra el de la semana de
+ * 21 a 28 días antes. Se informa si la sistólica cambió 10 mmHg o más y el promedio reciente quedó
+ * fuera de lo sano en esa dirección (subió y está alta, o bajó y está baja). Si hubo un cambio de
+ * tratamiento en medio, no se compara: se espera que los números cambien.
+ */
+export function tendenciaPresion(signos: SignoVital[], hasta: Date, opciones: OpcionesCambios = {}): TendenciaPresion | null {
+  const t = hasta.getTime();
+  const dia = 86_400_000;
+  const presiones = signos.filter((x) => x.tipo === 'presion' && typeof x.valor === 'number' && x.valorSecundario != null);
+  const entre = (a: number, b: number) => presiones.filter((x) => x.fecha.toMillis() >= a && x.fecha.toMillis() < b);
+  const reciente = entre(t - 7 * dia, t);
+  const anterior = entre(t - 28 * dia, t - 21 * dia);
+  const minimo = CAMBIOS.tendencia.minLecturas;
+  if (reciente.length < minimo || anterior.length < minimo) return null;
+  if (opciones.reinicio && opciones.reinicio.getTime() > t - 28 * dia) return null;
+  const prom = (xs: SignoVital[]) => ({
+    sistolica: promedio(xs.map((x) => x.valor)),
+    diastolica: promedio(xs.map((x) => x.valorSecundario as number)),
+    n: xs.length,
+  });
+  const r = prom(reciente);
+  const a = prom(anterior);
+  const cambio = r.sistolica - a.sistolica;
+  if (Math.abs(cambio) < CAMBIOS.tendencia.minDiferencia) return null;
+  const zona = ORDEN_ZONA[zonaClinica('presion', r.sistolica, { edad: opciones.edad })];
+  if (cambio > 0 && zona <= 0) return null;
+  if (cambio < 0 && zona >= 0) return null;
+  return { reciente: r, anterior: a, direccion: cambio > 0 ? 'sube' : 'baja' };
+}
+
+export function textoTendencia(t: TendenciaPresion): string {
+  const verbo = t.direccion === 'sube' ? 'subió' : 'bajó';
+  return `La presión promedio ${verbo} de ${t.anterior.sistolica}/${t.anterior.diastolica} a ${t.reciente.sistolica}/${t.reciente.diastolica} mmHg en las últimas 4 semanas`;
 }
 
 // ---------------------------------------------------------------------------
 // Banderas: lo que conviene comentar con el médico, de lo más delicado a lo menos
 // ---------------------------------------------------------------------------
 export interface Bandera {
-  nivel: 'alta' | 'media';
+  /** alta = urgente; media = para comentar; buena = mejoría que conviene comentar */
+  nivel: 'alta' | 'media' | 'buena';
   texto: string;
 }
 
@@ -482,14 +639,17 @@ export function banderasHoja(datos: {
   resumen: ResumenClinico;
   caidas: ResumenCaidas;
   medicamentos: MedicamentoParaBanderas[];
-  /** Lecturas inusuales para esta persona (anomaliasPersonales) */
-  anomalias?: Anomalia[];
+  /** Cambios respecto a lo habitual en esta persona (cambiosPersonales) */
+  cambios?: CambioPersonal[];
+  /** Tendencia sostenida de la presión (tendenciaPresion) */
+  tendencia?: TendenciaPresion | null;
 }): Bandera[] {
   const u = UMBRALES_HOJA;
   const { resumen: rc, caidas } = datos;
   const lista: Bandera[] = [];
   const alta = (texto: string) => lista.push({ nivel: 'alta', texto });
   const media = (texto: string) => lista.push({ nivel: 'media', texto });
+  const buena = (texto: string) => lista.push({ nivel: 'buena', texto });
 
   if (caidas.total) {
     alta(`${caidas.total} ${plural(caidas.total, 'caída', 'caídas')} en el periodo${caidas.conLesion ? `, ${caidas.conLesion} con lesión` : ''}`);
@@ -509,14 +669,16 @@ export function banderasHoja(datos: {
   }
   if (rc.presion) {
     const p = rc.presion;
+    if (p.bajas) alta(`${p.bajas} ${plural(p.bajas, 'lectura', 'lecturas')} de presión sistólica de 90 o menos`);
     if (p.urgentes) alta(`${p.urgentes} ${plural(p.urgentes, 'lectura', 'lecturas')} de presión de 180/110 o más`);
-    if (p.alto) media(`Presión promedio ${p.sistolica}/${p.diastolica} mmHg (meta en casa menor de ${u.presionPromedio.sistolica}/${u.presionPromedio.diastolica})`);
+    if (p.alto) media(`Presión promedio ${p.sistolica}/${p.diastolica} mmHg (meta en casa menor de ${p.meta.sistolica}/${p.meta.diastolica})`);
   }
   if (rc.temperatura?.fuera) alta(`${rc.temperatura.fuera} ${plural(rc.temperatura.fuera, 'registro', 'registros')} de fiebre (${u.fiebre} °C o más)`);
   if (rc.oxigenacion?.fuera) alta(`${rc.oxigenacion.fuera} ${plural(rc.oxigenacion.fuera, 'oxigenación', 'oxigenaciones')} por debajo de ${u.oxigenacionBaja} %`);
   if (rc.pulso?.fuera) media(`${rc.pulso.fuera} ${plural(rc.pulso.fuera, 'pulso', 'pulsos')} fuera de ${u.pulso.min}–${u.pulso.max} lpm`);
 
-  for (const a of datos.anomalias ?? []) media(textoAnomalia(a));
+  if (datos.tendencia) media(textoTendencia(datos.tendencia));
+  for (const c of datos.cambios ?? []) (c.clase === 'mejoro' ? buena : media)(textoCambio(c));
 
   for (const m of datos.medicamentos) {
     const { omitidas, patron } = m.omisiones;
@@ -526,5 +688,6 @@ export function banderasHoja(datos: {
       media(`${m.nombre}: se omite casi siempre la misma dosis (${patron})`);
     }
   }
-  return lista.sort((a, b) => Number(b.nivel === 'alta') - Number(a.nivel === 'alta'));
+  const orden = { alta: 0, media: 1, buena: 2 } as const;
+  return lista.sort((a, b) => orden[a.nivel] - orden[b.nivel]);
 }

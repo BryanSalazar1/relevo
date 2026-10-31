@@ -970,3 +970,11 @@ test('uso de la IA: el contador diario solo lo escriben las funciones; nadie lo 
   await assertFails(deleteDoc(doc(ana(), 'uso_ia/ana')));
   await assertFails(getDoc(doc(luis(), 'uso_ia/ana')));
 });
+
+test('medicamentos: la fecha de cambio de tratamiento la guarda el responsable y debe ser una fecha', async () => {
+  await anaCreaPersona();
+  const ref = doc(ana(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m1`);
+  await assertSucceeds(setDoc(ref, { nombre: 'Losartán', dosis: '50 mg', horarios: ['08:00'], inventario: 10, activo: true }));
+  await assertSucceeds(updateDoc(ref, { dosis: '100 mg', tratamientoCambiadoEn: serverTimestamp() }));
+  await assertFails(updateDoc(ref, { dosis: '50 mg', tratamientoCambiadoEn: 'ayer' }));
+});

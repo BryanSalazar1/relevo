@@ -415,10 +415,17 @@ decisión: en la web se avisa por correo.
 
 ### Refuerzos en sistemas inteligentes y seguridad — 31/10/2026
 
-- **Lecturas inusuales para cada persona** (`anomaliasPersonales` en `core/utils/hoja-consulta.ts`): la hoja
-  y Seguimiento comparan cada signo de la última semana contra la línea base de la misma persona (hasta 60 días
-  antes, mínimo 5 lecturas, glucosa solo contra el mismo momento) y marcan la que se aleja 2.5 desviaciones
-  estándar o más y una diferencia mínima (15 mmHg, 30 mg/dL, 15 lpm, 3 puntos de oxigenación hacia abajo).
+- **Cambios respecto a lo habitual, leídos con la zona clínica** (`cambiosPersonales`, `tendenciaPresion`
+  y `zonaClinica` en `core/utils/hoja-consulta.ts`). Cada lectura de la última semana se juzga en tres pasos:
+  1. zona clínica fija (presión en casa 135/85, 145/85 desde los 80 años; peligro de NEWS2: sistólica ≤ 90,
+     pulso ≤ 40 o ≥ 131, oxigenación ≤ 91 %; glucosa ADA en ayunas 70–130);
+  2. lo habitual de la persona (mediana y MAD de hasta 60 días, mínimo 5 lecturas) y hacia dónde va el cambio:
+     salir de lo sano o alejarse más es un aviso; **volver al rango sano es una buena noticia** (bandera
+     `buena`), nunca una alarma;
+  3. si cambió el tratamiento (medicamento nuevo, o editado en nombre, dosis, horarios o "según
+     necesidad": `tratamientoCambiadoEn`), lo habitual se recalcula desde esa fecha.
+  Aparte, la tendencia avisa si el promedio de presión de la última semana cambió 10 mmHg o más contra el
+  de tres semanas antes y quedó fuera del rango sano, y se marca toda sistólica de 90 o menos.
 - **Límite diario de la IA:** 30 consultas por usuario al día (`cuotaIa` en `functions/logica.js`), contadas
   en una transacción en `uso_ia/{uid}` antes de llamar a Gemini; las funciones devuelven `restantes`.
 - **Contraseñas de 8 caracteres** al crear la cuenta o cambiarla (`CONTRASENA_MIN`); las cuentas creadas con 6
@@ -1003,7 +1010,7 @@ flotante de cada pantalla.
   `NoDefaultCurrentDirectoryInExePath` cmd no encuentra el archivo aunque esté en la carpeta.
 
 ### Pruebas
-- `npm run test:rules` — 35 pruebas de Security Rules contra el emulador.
+- `npm run test:rules` — 36 pruebas de Security Rules contra el emulador.
 - `npm run test:functions` — 55 pruebas de la lógica de notificaciones y del asistente (mensajes, destinatarios,
   turnos de guardia, alertas, dosis vencidas, avisos previos, duración de tratamientos, días de la
   semana, zona horaria, inventario bajo y su aviso). Corren con Node solo, sin emulador ni Java.

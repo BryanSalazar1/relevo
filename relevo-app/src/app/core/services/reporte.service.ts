@@ -30,8 +30,9 @@ import {
   FilaSigno,
   ResumenCaidas,
   ResumenClinico,
-  ANOMALIAS,
-  anomaliasPersonales,
+  CAMBIOS,
+  cambiosPersonales,
+  tendenciaPresion,
   banderasHoja,
   filasSignos,
   patronOmisiones,
@@ -144,7 +145,7 @@ export class ReporteService {
       getDocs(
         query(
           collection(this.db, `${base}/signos_vitales`),
-          where('fecha', '>=', Timestamp.fromDate(sumarDias(desde, -ANOMALIAS.diasLineaBase))),
+          where('fecha', '>=', Timestamp.fromDate(sumarDias(desde, -CAMBIOS.diasLineaBase))),
           where('fecha', '<', Timestamp.fromDate(desde)),
           orderBy('fecha', 'asc'),
         ),
@@ -175,15 +176,20 @@ export class ReporteService {
       .filter((x) => x.m.activo !== false)
       .map((x) => this.resumirMedicamento(x.m, x.tomas, desde));
 
-    const resumen = resumenClinico(signos);
-    // Lo reciente = la última semana del periodo; lo habitual = todo lo anterior (hasta 60 días antes
-    // del periodo). Así funciona igual en el reporte semanal que en Seguimiento de 30 o 90 días.
-    const corte = sumarDias(hasta, -ANOMALIAS.diasRecientes).getTime();
+    // Lo reciente = la última semana del periodo; lo habitual = lo anterior (hasta 60 días antes del
+    // periodo), desde el último cambio de tratamiento. Así funciona igual en el reporte semanal que
+    // en Seguimiento de 30 o 90 días.
+    const anios = edad(persona.fechaNacimiento);
+    const corte = sumarDias(hasta, -CAMBIOS.diasRecientes).getTime();
     const todos = [...(signosPreviosSnap?.docs.map((d) => d.data() as SignoVital) ?? []), ...signos];
-    const anomalias = anomaliasPersonales(
+    const reinicio = ultimoCambioTratamiento(medicamentos, hasta);
+    const cambios = cambiosPersonales(
       todos.filter((x) => x.fecha.toMillis() < corte),
       todos.filter((x) => x.fecha.toMillis() >= corte),
+      { edad: anios, reinicio },
     );
+    const tendencia = tendenciaPresion(todos, hasta, { edad: anios, reinicio });
+    const resumen = resumenClinico(signos, anios);
     const caidas = resumenCaidas(entradas);
     const indicaciones = [...entradasPrevias, ...entradas]
       .filter((e) => e.tipo === 'indicacion')
@@ -201,7 +207,8 @@ export class ReporteService {
           adherencia: m.adherencia,
           omisiones: { omitidas: m.omitidas, patron: m.patronOmision },
         })),
-        anomalias,
+        cambios,
+        tendencia,
       }),
       indicaciones,
       preguntas: preguntasSnap?.exists() ? String(preguntasSnap.get('texto') ?? '') : '',
@@ -292,6 +299,7 @@ export class ReporteService {
     const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
     const teal: [number, number, number] = [15, 157, 138];
     const rojo: [number, number, number] = [200, 56, 56];
+    const verde: [number, number, number] = [30, 130, 80];
     const gris = 110;
     const ancho = 182;
     const f = (d: Date, fmt = 'dd/MM/yyyy') => formatDate(d, fmt, 'es');
@@ -395,7 +403,7 @@ export class ReporteService {
     if (!preguntas.length && !h.banderas.length) {
       linea('Sin banderas en el periodo según los registros; la familia no dejó preguntas.', { color: gris });
     }
-    for (const b of h.banderas) vineta(b.texto, b.nivel === 'alta' ? rojo : undefined);
+    for (const b of h.banderas) vineta(b.texto, b.nivel === 'alta' ? rojo : b.nivel === 'buena' ? verde : undefined);
     for (const q of preguntas) vineta(`Pregunta de la familia: ${q}`);
 
     seccion('Medicamentos vigentes');
@@ -716,4 +724,16 @@ export class ReporteService {
       lector.readAsDataURL(blob);
     });
   }
+}
+
+/**
+ * El último cambio de tratamiento hasta `hasta`: un medicamento nuevo o editado en su nombre, dosis,
+ * horarios o "según necesidad". Las indicaciones del médico son texto libre y no cuentan.
+ */
+export function ultimoCambioTratamiento(medicamentos: Medicamento[], hasta: Date): Date | null {
+  const fechas = medicamentos
+    .flatMap((m) => [m.creadoEn, m.tratamientoCambiadoEn])
+    .map((t) => (t && typeof t.toDate === 'function' ? t.toDate() : null))
+    .filter((d): d is Date => !!d && d.getTime() <= hasta.getTime());
+  return fechas.length ? new Date(Math.max(...fechas.map((d) => d.getTime()))) : null;
 }

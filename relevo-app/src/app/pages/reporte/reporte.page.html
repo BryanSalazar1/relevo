@@ -85,8 +85,8 @@
         @if (r.hoja.banderas.length) {
           <ul class="banderas">
             @for (b of r.hoja.banderas; track b.texto) {
-              <li [class.alta]="b.nivel === 'alta'">
-                <ion-icon [name]="b.nivel === 'alta' ? 'alert-circle-outline' : 'information-circle-outline'" aria-hidden="true" />
+              <li [class.alta]="b.nivel === 'alta'" [class.buena]="b.nivel === 'buena'">
+                <ion-icon [name]="b.nivel === 'alta' ? 'alert-circle-outline' : b.nivel === 'buena' ? 'checkmark-circle-outline' : 'information-circle-outline'" aria-hidden="true" />
                 <span>{{ b.texto }}</span>
               </li>
             }

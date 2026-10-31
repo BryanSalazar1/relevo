@@ -38,6 +38,8 @@ export interface DatosMedicamento {
   duracionDias?: number | null;
   inventario: number | null;
   notas?: string;
+  /** Al editar: cambió el nombre, la dosis, los horarios o "según necesidad" (no solo notas o inventario) */
+  cambioTratamiento?: boolean;
 }
 
 /** Una dosis programada de un día concreto, con su registro (si existe). */
@@ -367,6 +369,7 @@ export class MedicamentosService {
     await updateDoc(doc(this.ref(personaId), id), {
       ...this.limpiar(datos),
       ...(datos.inventario !== undefined ? { editadoEn: serverTimestamp() } : {}),
+      ...(datos.cambioTratamiento ? { tratamientoCambiadoEn: serverTimestamp() } : {}),
     });
   }
 
