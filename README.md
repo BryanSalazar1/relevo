@@ -9,8 +9,8 @@ código/QR, reportes en PDF y un asistente con IA que responde preguntas sobre l
 
 - **App en producción:** https://relevo-e5eaf.web.app
 - **Código y guía técnica:** [`relevo-app/`](relevo-app/README.md) (Ionic 9 + Angular 20 + Capacitor 8 + Firebase)
-- **Documentación del proyecto:** `Relevo_Documentacion.docx`, `Relevo_Presentacion.pptx`,
-  `Relevo_Proyecto_Modular_v2.docx` (formato IEEE) y `Relevo_Registro_Proyecto.docx`
+- **Documentación del proyecto:** `Relevo_Proyecto_Modular.docx` (artículo IEEE, versión 1.0.0, corregido tras la
+  preevaluación del 27/10/2026); evidencias de las pruebas en `relevo-app/evidencias/`.
 
 ## Qué hay en la app (13/10/2026)
 

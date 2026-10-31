@@ -1,6 +1,6 @@
 # Evidencias de la versión 1.0.0 (30/10/2026)
 
-Registros de ejecución citados en `Relevo_Proyecto_Modular_v3` (preevaluación PM-2026B-ICOM-INC-0019).
+Registros de ejecución citados en `Relevo_Proyecto_Modular.docx` (preevaluación PM-2026B-ICOM-INC-0019).
 
 | Archivo | Qué es | Cómo se reproduce |
 |---|---|---|

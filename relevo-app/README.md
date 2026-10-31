@@ -1,7 +1,7 @@
 # Relevo — bitácora compartida de cuidado
 
 App multiplataforma (móvil + web/PWA) para que familiares, cuidadores y médicos lleven un
-historial compartido y en tiempo real del cuidado de una persona. Ver `../Relevo_Documentacion.docx`.
+historial compartido y en tiempo real del cuidado de una persona. Ver `../Relevo_Proyecto_Modular.docx`.
 
 | Capa | Tecnología |
 | --- | --- |
