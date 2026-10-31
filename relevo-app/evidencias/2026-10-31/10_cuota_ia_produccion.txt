@@ -1,0 +1,6 @@
+Límite diario de la IA verificado en producción (relevo-e5eaf) el 31/10/2026, después de publicar las funciones.
+$ RELEVO_DEMO_EMAIL=… RELEVO_DEMO_PASSWORD=… node tests/evidencias/verificar-cuota-ia.mjs
+consulta 1: restantes hoy = 29 · respuesta: Hola. No, por el momento no hay registros en la bitácora durante esta semana para Elena Ra…
+consulta 2: restantes hoy = 28 · respuesta: Hola. Te comento que no hay registros anotados para Elena Ramírez durante este periodo.
+El contador baja con cada consulta (30 por usuario al día). Al llegar a 0 la función responde resource-exhausted
+con { motivo: 'limite_diario' } sin llamar a Gemini; esa rama la cubre la prueba unitaria de cuotaIa (registro 03).
