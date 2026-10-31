@@ -13,7 +13,7 @@ Registros de ejecución citados en `Relevo_Proyecto_Modular.docx` (preevaluació
 | `2026-10-31/05_build.txt` | Build de producción y tamaño | `npm run build` |
 | `2026-10-31/06_asistente_ia.txt` / `.json` | Banco de 8 preguntas con respuesta conocida y 2 accesos no autorizados contra la función publicada (corrido el 30/10/2026) | `RELEVO_DEMO_EMAIL=… RELEVO_DEMO_PASSWORD=… node tests/evidencias/prueba-asistente.mjs <salida>` |
 | `2026-10-31/07_navegador_sincronizacion_revocacion.txt` | Latencia entre dos sesiones, revocación con la app abierta y borrado de la caché local | Emuladores + semilla + `ng serve --port 4300`, luego `node tests/evidencias/evidencias-navegador.mjs <salida>` |
-| `2026-10-31/08_hoja_consulta_ejemplo.pdf` | Hoja para la consulta generada con los datos de demostración (incluye la bandera de presión inusual) | Reporte → Exportar hoja |
+| `2026-10-31/08_hoja_consulta_ejemplo.pdf` | Hoja para la consulta generada con los datos de demostración (incluye la bandera de presión inusual y los excesos del Paracetamol según necesidad) | Reporte → Exportar hoja |
 | `2026-10-31/09_mejoras_y_recorrido.txt` | Lecturas inusuales, contraseñas de 8 caracteres y recorrido de regresión por roles (19 pasos) | `node tests/evidencias/recorrido-roles.mjs http://localhost:4300 <salida>` con emuladores y semilla |
 | `2026-10-31/10_cuota_ia_produccion.txt` | Límite diario de la IA en producción: el contador baja con cada consulta | `RELEVO_DEMO_EMAIL=… RELEVO_DEMO_PASSWORD=… node tests/evidencias/verificar-cuota-ia.mjs` |
 | `2026-10-31/11_cambios_personales_navegador.txt` | Lecturas comparadas con lo habitual y la zona clínica en la app; reinicio por cambio de dosis; casos de las pruebas unitarias | Emuladores + semilla + `ng serve --port 4300` |
