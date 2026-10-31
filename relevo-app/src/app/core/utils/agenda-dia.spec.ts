@@ -150,13 +150,15 @@ describe('agenda del día', () => {
       expect(textoCuando(e, a('12:00'))).toBe('Era a las 08:00 · hace 4 h');
     });
 
-    it('con algo viejo sin anotar y una dosis por venir, manda la que sigue y el título avisa', () => {
+    it('con algo viejo sin anotar y una dosis por venir, muestra lo que falta anotar (lo que da el amarillo)', () => {
       const filas = filasDelDia([dosis('08:00'), dosis('20:00')], []);
       const e = estadoSemaforo(pendientesDelDia(filas), a('15:00'));
       expect(e.color).toBe('amarillo');
-      expect(e.principal?.horario).toBe('20:00');
+      expect(e.principal?.horario).toBe('08:00');
       expect(tituloEstado(e)).toBe('1 sin registrar');
-      expect(textoCuando(e, a('15:00'))).toBe('A las 20:00 · en 5 h');
+      expect(textoCuando(e, a('15:00'))).toBe('Era a las 08:00 · hace 7 h');
+      // Lo de más tarde sigue en la lista, en orden
+      expect(e.resto.map((x) => x.pendiente.horario)).toEqual(['20:00']);
     });
 
     it('una tarea con rango es "ahora" mientras dura', () => {

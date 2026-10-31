@@ -4,6 +4,7 @@
  *   - rojo: algo se pasó de su hora hace poco y sigue sin registrarse (todavía se puede dar)
  *   - amarillo: algo está por tocar (dentro de su aviso), es su hora, o quedó algo viejo sin
  *     registrar (ya no es urgente darlo, pero hay que anotar qué pasó)
+ *   - el pendiente que se muestra es siempre el que da el color; los demás van por hora
  *   - verde: nada urgente; se muestra lo que sigue
  * Funciones puras (sin Angular ni Firebase) para poder probarlas.
  */
@@ -66,13 +67,27 @@ export function faseDe(p: PendienteSemaforo, ahora: Date): FaseSemaforo {
   return 'despues';
 }
 
-/** Lo viejo sin registrar va al final: lo que manda es lo que toca ahora o lo que sigue */
+/**
+ * Qué manda en el semáforo: lo atrasado, luego lo que toca ahora o está por tocar, luego lo viejo
+ * sin registrar y al final lo que sigue más tarde. El pendiente que se muestra arriba es siempre el
+ * que da el color (antes, con solo pendientes viejos, el semáforo quedaba en amarillo mostrando una
+ * actividad de más tarde que aún no tocaba).
+ */
 const URGENCIA: Record<FaseSemaforo, number> = {
   atrasado: 0,
   ahora: 1,
-  pronto: 1,
-  despues: 2,
+  pronto: 2,
   sin_registrar: 3,
+  despues: 4,
+};
+
+/** El color que da cada fase; el del semáforo es el de su pendiente principal. */
+const COLOR_FASE: Record<FaseSemaforo, ColorSemaforo> = {
+  atrasado: 'rojo',
+  ahora: 'amarillo',
+  pronto: 'amarillo',
+  sin_registrar: 'amarillo',
+  despues: 'verde',
 };
 
 /** Estado del semáforo con los pendientes de hoy (solo los que aún no tienen registro). */
@@ -91,12 +106,8 @@ export function estadoSemaforo<T extends PendienteSemaforo>(
   const atrasados = lista.filter((x) => x.fase === 'atrasado').length;
   const sinRegistrar = lista.filter((x) => x.fase === 'sin_registrar').length;
   const primero = lista[0] ?? null;
-  const color: ColorSemaforo =
-    atrasados > 0
-      ? 'rojo'
-      : (primero && primero.fase !== 'despues') || sinRegistrar > 0
-        ? 'amarillo'
-        : 'verde';
+  // El color es el del pendiente que se muestra: así lo que se ve y el color siempre coinciden
+  const color: ColorSemaforo = primero ? COLOR_FASE[primero.fase] : 'verde';
   return {
     color,
     principal: primero?.pendiente ?? null,

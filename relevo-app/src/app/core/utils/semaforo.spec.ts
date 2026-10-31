@@ -116,6 +116,29 @@ describe('semáforo', () => {
       ]);
     });
 
+    it('con algo viejo sin registrar y lo siguiente aún lejos, muestra lo viejo (no lo de más tarde)', () => {
+      const e = estadoSemaforo([p('Caminata', '17:00'), p('Desayuno', '08:30'), p('Baño', '10:00')], a('14:05'));
+      // Amarillo por lo que falta anotar, y eso es lo que se muestra; lo demás en orden de hora
+      expect(e.color).toBe('amarillo');
+      expect(e.principal?.nombre).toBe('Desayuno');
+      expect(e.fase).toBe('sin_registrar');
+      expect(e.resto.map((x) => `${x.pendiente.nombre}:${x.fase}`)).toEqual(['Baño:sin_registrar', 'Caminata:despues']);
+    });
+
+    it('el color siempre es el del pendiente que se muestra', () => {
+      const casos: [string[], string][] = [
+        [['Desayuno 08:30', 'Cena 19:30'], '09:00'],
+        [['Desayuno 08:30', 'Cena 19:30'], '14:00'],
+        [['Comida 14:00', 'Cena 19:30'], '13:50'],
+        [['Cena 19:30'], '12:00'],
+      ];
+      const colorDe: Record<string, string> = { atrasado: 'rojo', ahora: 'amarillo', pronto: 'amarillo', sin_registrar: 'amarillo', despues: 'verde' };
+      for (const [items, hora] of casos) {
+        const e = estadoSemaforo(items.map((t) => p(t.split(' ')[0], t.split(' ')[1])), a(hora));
+        expect(e.color).toBe(colorDe[e.fase!] as never);
+      }
+    });
+
     it('de noche, con solo dosis viejas sin anotar, es amarillo y manda la más antigua', () => {
       const e = estadoSemaforo([p('Losartán', '08:00'), p('Metformina', '08:00')], a('22:30'));
       expect(e.color).toBe('amarillo');
