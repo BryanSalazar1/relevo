@@ -72,6 +72,8 @@ import {
   partesEnZona,
   proximos,
   tokensInvalidos,
+  cuotaIa,
+  LIMITE_IA_DIARIO,
 } from './logica.js';
 
 initializeApp();
@@ -688,6 +690,7 @@ export const limpiarUsuarioEliminado = authV1.user().onDelete(async (user) => {
     await batch.commit();
   }
   await db().doc(`usuarios/${uid}`).delete();
+  await db().doc(`uso_ia/${uid}`).delete().catch(() => undefined);
   logger.info('Cuenta eliminada: datos limpiados', {
     uid,
     equipos: equipos.size,
@@ -759,6 +762,31 @@ function claveGemini() {
  * sus permisos) y esta función solo llama a Gemini con la clave del servidor. Se exige sesión y ser
  * miembro de la persona; así no hace falta App Check (reCAPTCHA / Play Integrity) en el cliente.
  */
+/**
+ * Cuenta una consulta a la IA del usuario (preguntas y resúmenes) en uso_ia/{uid}, en una
+ * transacción para que dos consultas al mismo tiempo no se salten el límite. La colección solo la
+ * escriben las funciones (las rules no la abren a la app). Al pasar el límite responde
+ * resource-exhausted con { motivo: 'limite_diario' } para que la app lo explique.
+ */
+async function consumirCuotaIa(uid) {
+  const hoy = partesEnZona(new Date(), ZONA_HORARIA.value()).fecha;
+  const ref = db().doc(`uso_ia/${uid}`);
+  const r = await db().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const cuenta = cuotaIa(snap.exists ? snap.data() : null, hoy, LIMITE_IA_DIARIO);
+    if (cuenta.permitido) tx.set(ref, cuenta.datos);
+    return cuenta;
+  });
+  if (!r.permitido) {
+    throw new HttpsError(
+      'resource-exhausted',
+      `Llegaste al límite de ${LIMITE_IA_DIARIO} consultas al asistente por hoy. Vuelve a intentarlo mañana.`,
+      { motivo: 'limite_diario', limite: LIMITE_IA_DIARIO },
+    );
+  }
+  return r.restantes;
+}
+
 /** Comprueba sesión, datos básicos y que el usuario sea miembro de la persona. */
 async function verificarAcceso(req) {
   const uid = req.auth?.uid;
@@ -787,9 +815,10 @@ function fechaHoy(hoy) {
  */
 export const resumirReporte = onCall({ secrets: [GEMINI_API_KEY], cors: true }, async (req) => {
   const { uid, personaId, contexto } = await verificarAcceso(req);
+  const restantes = await consumirCuotaIa(uid);
   const { rango, hoy } = req.data ?? {};
   const periodo = typeof rango === 'string' && rango ? rango : 'indicado';
-  return generarConGemini({
+  const respuesta = await generarConGemini({
     uid,
     personaId,
     contents: [
@@ -807,6 +836,8 @@ export const resumirReporte = onCall({ secrets: [GEMINI_API_KEY], cors: true }, 
 
 `),
   });
+  // Cuántas consultas a la IA le quedan hoy (la app no lo usa; sirve para verificar el límite)
+  return { ...respuesta, restantes };
 });
 
 export const preguntarAsistente = onCall({ secrets: [GEMINI_API_KEY], cors: true }, async (req) => {
@@ -815,7 +846,8 @@ export const preguntarAsistente = onCall({ secrets: [GEMINI_API_KEY], cors: true
   if (typeof pregunta !== 'string' || !pregunta.trim()) {
     throw new HttpsError('invalid-argument', 'Falta la pregunta.');
   }
-  return generarConGemini({
+  const restantesPregunta = await consumirCuotaIa(uid);
+  const respuesta = await generarConGemini({
     uid,
     personaId,
     contents: [
@@ -826,6 +858,7 @@ export const preguntarAsistente = onCall({ secrets: [GEMINI_API_KEY], cors: true
 
 `),
   });
+  return { ...respuesta, restantes: restantesPregunta };
 });
 
 /** Llama a Gemini (según IA_BACKEND) y traduce los fallos a errores con mensaje para el usuario. */

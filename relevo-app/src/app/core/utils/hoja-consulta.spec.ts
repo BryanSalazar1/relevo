@@ -3,6 +3,7 @@ import localeEs from '@angular/common/locales/es';
 import { Timestamp } from '@angular/fire/firestore';
 import { EntradaBitacora, SignoVital, Toma } from '../models';
 import {
+  anomaliasPersonales,
   banderasHoja,
   cambioPeso,
   filasSignos,
@@ -11,6 +12,7 @@ import {
   resumenCaidas,
   resumenClinico,
   resumenGlucosa,
+  textoAnomalia,
 } from './hoja-consulta';
 
 registerLocaleData(localeEs, 'es');
@@ -29,6 +31,57 @@ const signo = (tipo: SignoVital['tipo'], valor: number, dia: number, extra: Part
 const presion = (sis: number, dia: number, dia2 = 80) => signo('presion', sis, dia, { valorSecundario: dia2 });
 
 describe('hoja para la consulta', () => {
+  describe('anomaliasPersonales (lo inusual para esta persona)', () => {
+    // Línea base: presión 118–124 / 76–80 durante dos semanas
+    const base = [118, 122, 120, 124, 119, 121, 120, 123].map((sis, i) =>
+      signo('presion', sis, 1 + i, { valorSecundario: 76 + (i % 4), unidad: 'mmHg' }),
+    );
+
+    it('marca la lectura muy por encima de lo habitual aunque esté bajo 180/110', () => {
+      const r = anomaliasPersonales(base, [
+        signo('presion', 125, 25, { valorSecundario: 80, unidad: 'mmHg' }),
+        signo('presion', 152, 27, { valorSecundario: 94, unidad: 'mmHg' }),
+      ]);
+      expect(r.length).toBe(1);
+      expect(r[0].tipo).toBe('presion');
+      expect(r[0].valor).toBe('152/94 mmHg');
+      expect(r[0].habitual).toBe('121/78 mmHg');
+      expect(r[0].n).toBe(8);
+      expect(r[0].direccion).toBe('alta');
+      expect(textoAnomalia(r[0])).toContain('más alta de lo habitual en esta persona (121/78 mmHg, 8 lecturas previas)');
+    });
+
+    it('no marca variaciones pequeñas ni nada sin suficientes lecturas previas', () => {
+      expect(anomaliasPersonales(base, [signo('presion', 130, 25, { valorSecundario: 82, unidad: 'mmHg' })])).toEqual([]);
+      expect(anomaliasPersonales(base.slice(0, 4), [signo('presion', 170, 25, { valorSecundario: 100, unidad: 'mmHg' })])).toEqual([]);
+    });
+
+    it('la glucosa solo se compara contra lecturas del mismo momento', () => {
+      const ayunas = [95, 100, 98, 102, 97, 99].map((v, i) => signo('glucosa', v, 1 + i, { momento: 'ayunas', unidad: 'mg/dL' }));
+      // 160 después de comer es normal frente a la línea de ayunas que no tiene ese momento: no se compara
+      expect(anomaliasPersonales(ayunas, [signo('glucosa', 160, 25, { momento: 'despues_comer', unidad: 'mg/dL' })])).toEqual([]);
+      const r = anomaliasPersonales(ayunas, [signo('glucosa', 160, 25, { momento: 'ayunas', unidad: 'mg/dL' })]);
+      expect(r.length).toBe(1);
+      expect(r[0].valor).toBe('160 mg/dL en ayunas');
+    });
+
+    it('la oxigenación solo importa hacia abajo y se elige la lectura más alejada', () => {
+      const ox = [97, 96, 97, 98, 97, 96].map((v, i) => signo('oxigenacion', v, 1 + i, { unidad: '%' }));
+      expect(anomaliasPersonales(ox, [signo('oxigenacion', 100, 25, { unidad: '%' })])).toEqual([]);
+      const r = anomaliasPersonales(ox, [signo('oxigenacion', 93, 25, { unidad: '%' }), signo('oxigenacion', 90, 26, { unidad: '%' })]);
+      expect(r.length).toBe(1);
+      expect(r[0].valor).toBe('90 %');
+      expect(r[0].direccion).toBe('baja');
+    });
+
+    it('las anomalías llegan a la hoja como banderas para comentar', () => {
+      const anomalias = anomaliasPersonales(base, [signo('presion', 152, 27, { valorSecundario: 94, unidad: 'mmHg' })]);
+      const banderas = banderasHoja({ resumen: resumenClinico([]), caidas: resumenCaidas([]), medicamentos: [], anomalias });
+      expect(banderas.map((b) => b.nivel)).toEqual(['media']);
+      expect(banderas[0].texto).toContain('Presión 152/94 mmHg');
+    });
+  });
+
   describe('promedioPresion', () => {
     it('promedia solo la última semana con lecturas y cuenta las urgentes de todo el periodo', () => {
       const lecturas = [

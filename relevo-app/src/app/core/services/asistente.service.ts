@@ -90,6 +90,10 @@ export class AsistenteService {
     }
     if (code.endsWith('permission-denied')) return 'No tienes acceso a los datos de esta persona.';
     if (code.endsWith('unauthenticated')) return 'Tu sesión expiró. Vuelve a iniciar sesión.';
+    const detalles = (error as { details?: { motivo?: string; limite?: number } } | null)?.details;
+    if (detalles?.motivo === 'limite_diario') {
+      return `Llegaste al límite de ${detalles.limite ?? 30} consultas al asistente por hoy. Vuelve a intentarlo mañana.`;
+    }
     if (code.endsWith('resource-exhausted') || /quota|RESOURCE_EXHAUSTED|429/i.test(texto)) {
       return 'Se alcanzó el límite de consultas del asistente por ahora. Intenta en unos minutos.';
     }

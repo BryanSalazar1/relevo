@@ -413,6 +413,8 @@ service cloud.firestore {
         }
       }
 
+      // uso_ia/{uid} (colección raíz): consultas a la IA del día de cada usuario. Solo la escriben las
+      // Cloud Functions; sin regla que la abra, la app no la lee ni la escribe.
       // recordatorios/{id}: qué dosis, tareas y avisos previos ya se enviaron. Solo lo escriben las Cloud Functions
       // (Admin SDK, no pasa por estas reglas); desde la app no hay acceso (denegado por defecto).
 

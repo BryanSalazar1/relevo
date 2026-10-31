@@ -30,7 +30,7 @@ import {
   where,
 } from '@angular/fire/firestore';
 import { Observable, catchError, of, switchMap } from 'rxjs';
-import { ROL_POR_TIPO, Rol, TipoUsuario, Usuario } from '../models';
+import { CONTRASENA_MIN, ROL_POR_TIPO, Rol, TipoUsuario, Usuario } from '../models';
 import { NotificacionesService } from './notificaciones.service';
 
 @Injectable({ providedIn: 'root' })
@@ -213,7 +213,7 @@ export class AuthService {
       case 'auth/invalid-email':
         return 'El correo no es válido.';
       case 'auth/weak-password':
-        return 'La contraseña debe tener al menos 6 caracteres.';
+        return `La contraseña debe tener al menos ${CONTRASENA_MIN} caracteres.`;
       case 'auth/network-request-failed':
         return 'Sin conexión. Revisa tu internet.';
       case 'auth/too-many-requests':

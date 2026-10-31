@@ -27,6 +27,12 @@ export const TIPOS_USUARIO: { valor: TipoUsuario; etiqueta: string; icono: strin
   },
 ];
 
+/**
+ * Largo mínimo de una contraseña nueva (al crear la cuenta o cambiarla). Las cuentas creadas antes
+ * con 6 caracteres siguen entrando; Firebase solo exige 6.
+ */
+export const CONTRASENA_MIN = 8;
+
 export const TIPO_USUARIO_ETIQUETA: Record<TipoUsuario, string> = {
   familiar: 'Familiar',
   enfermero: 'Enfermero/a',

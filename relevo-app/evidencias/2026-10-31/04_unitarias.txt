@@ -9,9 +9,9 @@ polyfills.js               | polyfills               |   1.04 MB |
 spec-app.spec.js           | spec-app.spec           | 672.52 kB | 
 jasmine-cleanup-1.js       | jasmine-cleanup-1       |  67.20 kB | 
 chunk-PGKX2UUY.js          | -                       |  59.71 kB | 
+spec-hoja-consulta.spec.js | spec-hoja-consulta.spec |  25.57 kB | 
 chunk-2TLHAW3C.js          | -                       |  21.95 kB | 
 test_main.js               | test_main               |  21.83 kB | 
-spec-hoja-consulta.spec.js | spec-hoja-consulta.spec |  18.82 kB | 
 spec-entrega-turno.spec.js | spec-entrega-turno.spec |  17.42 kB | 
 chunk-ZUXKQIVC.js          | -                       |  14.73 kB | 
 chunk-LTWLZIFM.js          | -                       |  13.83 kB | 
@@ -20,20 +20,20 @@ chunk-VWVWFTQH.js          | -                       |  10.20 kB |
 chunk-3UHWGW3C.js          | -                       |   9.51 kB | 
 spec-agenda-dia.spec.js    | spec-agenda-dia.spec    |   6.82 kB | 
 spec-semaforo.spec.js      | spec-semaforo.spec      |   5.56 kB | 
-chunk-Q7WTGPDR.js          | -                       |   3.96 kB | 
-chunk-P2ESLV2R.js          | -                       |   3.79 kB | 
+chunk-OW2TYAW5.js          | -                       |   3.96 kB | 
+chunk-T3OO2JEN.js          | -                       |   3.79 kB | 
 chunk-DS6OBVQD.js          | -                       |   2.88 kB | 
 chunk-4QQELFDY.js          | -                       |   2.37 kB | 
 chunk-KN7HTUM7.js          | -                       |   2.19 kB | 
 chunk-IJINKETP.js          | -                       |   2.14 kB | 
-chunk-7EPPEE2K.js          | -                       |   2.03 kB | 
+chunk-EUDCLPVL.js          | -                       |   2.03 kB | 
 chunk-P2QYWYRC.js          | -                       |   1.91 kB | 
 spec-fechas.spec.js        | spec-fechas.spec        |   1.63 kB | 
 chunk-KCTVXG5W.js          | -                       |   1.55 kB | 
 chunk-SJJKIAKY.js          | -                       | 567 bytes | 
 jasmine-cleanup-0.js       | jasmine-cleanup-0       | 519 bytes | 
 
-                           | Initial total           |   5.73 MB
+                           | Initial total           |   5.74 MB
 
 Lazy chunk files           | Names                   |  Raw size
 chunk-4EFXGKYQ.js          | ion-icon-entry          |   9.15 kB | 
@@ -51,11 +51,12 @@ chunk-VYGH2PFT.js          | p-5ldEpNdG              | 336 bytes |
 chunk-Q3QBKF4V.js          | p-CG_zZq_I              | 315 bytes | 
 chunk-TM5BFUUM.js          | p-D0YpjgON              | 219 bytes | 
 
-Application bundle generation complete. [34.830 seconds] - 2026-10-31T05:43:49.803Z
+Application bundle generation complete. [34.365 seconds] - 2026-10-31T17:46:57.412Z
 
-30 10 2026 23:43:52.047:INFO [karma-server]: Karma v6.4.4 server started at http://localhost:9876/
-30 10 2026 23:43:52.050:INFO [launcher]: Launching browsers ChromeHeadless with concurrency unlimited
-30 10 2026 23:43:52.133:INFO [launcher]: Starting browser ChromeHeadless
-30 10 2026 23:43:53.562:INFO [Chrome Headless 156.0.0.0 (Windows 10)]: Connected on socket tLkz5lPnJc6BGqZLAAAA with id 26581485
-Chrome Headless 156.0.0.0 (Windows 10): Executed 57 of 57 SUCCESS (0.246 secs / 0.151 secs)
-TOTAL: 57 SUCCESS
+31 10 2026 11:46:59.570:INFO [karma-server]: Karma v6.4.4 server started at http://localhost:9876/
+31 10 2026 11:46:59.576:INFO [launcher]: Launching browsers ChromeHeadless with concurrency unlimited
+31 10 2026 11:46:59.799:INFO [launcher]: Starting browser ChromeHeadless
+31 10 2026 11:47:00.853:INFO [Chrome Headless 156.0.0.0 (Windows 10)]: Connected on socket S8xFeDriq9q3YGKeAAAA with id 23392943
+Chrome Headless 156.0.0.0 (Windows 10): Executed 62 of 62 SUCCESS (0.094 secs / 0.067 secs)
+TOTAL: 62 SUCCESS
+31 10 2026 11:47:03.722:WARN [launcher]: ChromeHeadless was not killed in 2000 ms, sending SIGKILL.

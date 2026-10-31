@@ -5,10 +5,11 @@
 //  E2 revocación con la app abierta (Ana quita a Marta)
 //  E3 cerrar sesión borra la copia local de Firestore (IndexedDB)
 //  y capturas para las figuras.
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 const BASE = 'http://localhost:4300';
-const OUT = process.argv[2];
+const OUT = process.argv[2] || 'capturas-evidencias';
+mkdirSync(OUT, { recursive: true });
 const PASS = 'relevo123';
 const log = [];
 const L = (s) => { console.log(s); log.push(s); };

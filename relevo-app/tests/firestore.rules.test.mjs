@@ -960,3 +960,13 @@ test('invitaciones: dos canjes simultáneos del último uso → entra uno solo y
   assert.ok(inv.data().usos <= 5, `usos quedó en ${inv.data().usos}`);
   assert.equal(persona.data().miembrosUids.length, 1 + ok);
 });
+
+test('uso de la IA: el contador diario solo lo escriben las funciones; nadie lo lee ni lo cambia desde la app', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'uso_ia/ana'), { fecha: '2026-10-31', usados: 30 });
+  });
+  await assertFails(getDoc(doc(ana(), 'uso_ia/ana')));
+  await assertFails(setDoc(doc(ana(), 'uso_ia/ana'), { fecha: '2026-10-31', usados: 0 }));
+  await assertFails(deleteDoc(doc(ana(), 'uso_ia/ana')));
+  await assertFails(getDoc(doc(luis(), 'uso_ia/ana')));
+});

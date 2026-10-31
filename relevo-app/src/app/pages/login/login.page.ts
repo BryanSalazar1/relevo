@@ -19,7 +19,7 @@ import {
   IonToolbar,
   ToastController,
 } from '@ionic/angular';
-import { TIPOS_USUARIO, TipoUsuario } from '../../core/models';
+import { CONTRASENA_MIN, TIPOS_USUARIO, TipoUsuario } from '../../core/models';
 import { AuthService } from '../../core/services/auth.service';
 
 type Modo = 'login' | 'registro';
@@ -81,7 +81,11 @@ export class LoginPage {
     const email = this.email.trim();
     if (this.modo() === 'registro' && this.nombre.trim().length < 2) return 'Escribe tu nombre.';
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return 'Escribe un correo válido.';
-    if (this.password.length < 6) return 'La contraseña debe tener al menos 6 caracteres.';
+    // Las cuentas nuevas piden 8; al entrar se acepta lo que ya existía (Firebase pedía 6)
+    if (this.modo() === 'registro' && this.password.length < CONTRASENA_MIN) {
+      return `La contraseña debe tener al menos ${CONTRASENA_MIN} caracteres.`;
+    }
+    if (this.password.length < 6) return 'Revisa tu contraseña.';
     if (this.modo() === 'registro' && !this.aceptaPrivacidad) {
       return 'Para crear tu cuenta acepta el aviso de privacidad.';
     }

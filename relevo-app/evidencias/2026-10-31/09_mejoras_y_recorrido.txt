@@ -1,0 +1,33 @@
+Pruebas en navegador del 31/10/2026 contra los emuladores con la semilla (npm run semilla), Chromium 390x844.
+Guiones: tests/evidencias/recorrido-roles.mjs y la prueba de mejoras (mismos pasos descritos abajo).
+
+Mejoras del 31/10/2026
+  ✔ Reporte (responsable): la hoja marca la presión inusual para Carmen
+      Presión 138/90 mmHg el 30 oct: más alta de lo habitual en esta persona (121/78 mmHg, 8 lecturas previas)
+  ✔ Perfil: cambiar a una contraseña de 7 caracteres se rechaza ("al menos 8 caracteres")
+  ✔ Seguimiento (médico): la misma bandera aparece para el doctor
+  ✔ Registro: una contraseña de 7 caracteres no deja crear la cuenta; con 8 sí
+      aviso: La contraseña debe tener al menos 8 caracteres.
+errores de consola: ninguno · FALLOS: 0
+
+Recorrido por roles (regresión)
+  ✔ entra y ve Hoy sin el icono duplicado del semáforo
+  ✔ día anterior muestra "Hoy" y vuelve
+  ✔ al volver a la pestaña Hoy desde otro día abre en hoy
+  ✔ la entrega de turno conserva lo que mostraba tras ir y volver
+  ✔ responsable: opciones de una toma ya tomada (sin repetir "tomada")
+  ✔ marca la dosis pendiente de Metformina 20:00
+  ✔ Plan: editar solo las notas no toca el inventario
+  ✔ Plan: un medicamento nuevo de las 00:05 no aparece atrasado hoy
+  ✔ Bitácora: la indicación del médico solo se puede eliminar
+  ✔ Equipo: sin "Turnos" duplicado y sin opciones en la propia fila
+  ✔ Reporte: lo escrito en preguntas no se pierde al cambiar de periodo
+  ✔ Perfil: la única responsable no puede borrar su cuenta sin ceder el rol
+  ✔ Ficha y Semáforo desde el inicio vuelven al inicio
+  ✔ una toma registrada por Ana es solo informativa
+  ✔ lo que ella registra sí lo puede corregir
+  ✔ sin insignia de resurtir en Plan (no puede resurtir)
+  ✔ sin semáforo en el inicio y entra a Seguimiento
+  ✔ "Ver todas" las indicaciones filtra el historial aunque ya estuviera abierto
+  ✔ registro con aviso de privacidad y unión con código
+errores de consola: ninguno · FALLOS: 0

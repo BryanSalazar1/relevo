@@ -56,3 +56,4 @@ emulator-data/
 
 # Token de depuración de App Check (solo pruebas locales)
 tests/.appcheck-debug.json
+capturas-evidencias/

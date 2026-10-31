@@ -693,3 +693,21 @@ export function destinatariosCita(miembros, evento, ahora) {
   }
   return [...uids];
 }
+
+// ---------------------------------------------------------------------------
+// Límite diario de consultas al asistente con IA por usuario
+// ---------------------------------------------------------------------------
+
+/** Consultas a la IA (preguntas y resúmenes) que cada usuario puede hacer por día. */
+export const LIMITE_IA_DIARIO = 30;
+
+/**
+ * Cuenta una consulta más del usuario en el día `hoyIso` (yyyy-mm-dd, zona de México).
+ * `previo` = lo guardado ({ fecha, usados }) o null. Devuelve si se permite y lo que hay que guardar;
+ * al cambiar el día el contador vuelve a empezar. Si no se permite, no se cuenta.
+ */
+export function cuotaIa(previo, hoyIso, limite = LIMITE_IA_DIARIO) {
+  const usados = previo && previo.fecha === hoyIso && Number.isFinite(previo.usados) ? previo.usados : 0;
+  if (usados >= limite) return { permitido: false, usados, restantes: 0, datos: null };
+  return { permitido: true, usados: usados + 1, restantes: limite - usados - 1, datos: { fecha: hoyIso, usados: usados + 1 } };
+}

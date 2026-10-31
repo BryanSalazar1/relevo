@@ -1,9 +1,11 @@
 // Requiere: npm run emulators, npm run semilla y npx ng serve --port 4300 (FORZAR_EMULADORES = true).
 // Uso: node tests/evidencias/recorrido-roles.mjs <carpeta de salida>
 // Recorrido de la rama agenda-coherente contra los EMULADORES con semilla: cada corrección, rol por rol.
+import { mkdirSync } from 'node:fs';
 import { chromium } from 'playwright';
 const BASE = process.argv[2] || 'http://localhost:4300';
-const OUT = process.argv[3];
+const OUT = process.argv[3] || 'capturas-evidencias';
+mkdirSync(OUT, { recursive: true });
 const PASS = 'relevo123';
 const P = 'persona-demo';
 const errores = [];

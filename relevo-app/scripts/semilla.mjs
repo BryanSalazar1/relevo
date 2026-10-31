@@ -173,6 +173,11 @@ async function main() {
   b.set(doc(personaRef, 'signos_vitales', 'sv3'), { tipo: 'glucosa', valor: 128, valorSecundario: null, unidad: 'mg/dL', fecha: hace(0, 7, 45), autorUid: ana, momento: 'ayunas' });
   b.set(doc(personaRef, 'signos_vitales', 'sv4'), { tipo: 'glucosa', valor: 142, valorSecundario: null, unidad: 'mg/dL', fecha: hace(1, 7, 45), autorUid: ana, momento: 'ayunas' });
   b.set(doc(personaRef, 'consulta', 'preguntas'), { texto: '¿Conviene juntar la Metformina en una sola toma? Se le olvida la de la noche.\n¿Le hace falta fisioterapia para la rodilla?', actualizadoPor: ana, actualizadoNombre: 'Ana García', actualizadoEn: hace(0, 9) });
+  // Presión de las semanas anteriores (alrededor de 121/78): la línea base con la que la hoja detecta
+  // que 138/90 es inusual para Carmen aunque no pase de 180/110
+  [118, 122, 120, 124, 119, 121, 120, 123].forEach((sis, i) => {
+    b.set(doc(personaRef, 'signos_vitales', `sv-base-${i}`), { tipo: 'presion', valor: sis, valorSecundario: 76 + (i % 4), unidad: 'mmHg', fecha: hace(12 + i * 3, 8, 30), autorUid: ana });
+  });
   b.set(doc(personaRef, 'signos_vitales', 'sv5'), { tipo: 'peso', valor: 68.2, valorSecundario: null, unidad: 'kg', fecha: hace(2, 9), autorUid: ana });
   b.set(doc(personaRef, 'signos_vitales', 'sv6'), { tipo: 'temperatura', valor: 36.6, valorSecundario: null, unidad: '°C', fecha: hace(0, 8, 35), autorUid: ana });
 

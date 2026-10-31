@@ -30,6 +30,8 @@ import {
   FilaSigno,
   ResumenCaidas,
   ResumenClinico,
+  ANOMALIAS,
+  anomaliasPersonales,
   banderasHoja,
   filasSignos,
   patronOmisiones,
@@ -118,7 +120,8 @@ export class ReporteService {
 
   async generar(personaId: string, desde: Date, hasta: Date): Promise<Reporte> {
     const base = `personas_cuidadas/${personaId}`;
-    const [personaSnap, entradas, signosSnap, medsSnap, entradasPrevias, preguntasSnap] = await Promise.all([
+    const [personaSnap, entradas, signosSnap, medsSnap, entradasPrevias, preguntasSnap, signosPreviosSnap] =
+      await Promise.all([
       getDoc(doc(this.db, base)),
       this.bitacoraSvc.entre(personaId, desde, hasta),
       getDocs(
@@ -137,6 +140,15 @@ export class ReporteService {
         console.warn('No se pudieron leer las preguntas para el médico', error);
         return null;
       }),
+      // Línea base de los signos (días previos al periodo) para detectar lo inusual en esta persona
+      getDocs(
+        query(
+          collection(this.db, `${base}/signos_vitales`),
+          where('fecha', '>=', Timestamp.fromDate(sumarDias(desde, -ANOMALIAS.diasLineaBase))),
+          where('fecha', '<', Timestamp.fromDate(desde)),
+          orderBy('fecha', 'asc'),
+        ),
+      ).catch(() => null),
     ]);
     if (!personaSnap.exists()) throw new Error('La persona no existe o no tienes acceso');
     const persona = { id: personaSnap.id, ...(personaSnap.data() as PersonaCuidada) };
@@ -164,6 +176,14 @@ export class ReporteService {
       .map((x) => this.resumirMedicamento(x.m, x.tomas, desde));
 
     const resumen = resumenClinico(signos);
+    // Lo reciente = la última semana del periodo; lo habitual = todo lo anterior (hasta 60 días antes
+    // del periodo). Así funciona igual en el reporte semanal que en Seguimiento de 30 o 90 días.
+    const corte = sumarDias(hasta, -ANOMALIAS.diasRecientes).getTime();
+    const todos = [...(signosPreviosSnap?.docs.map((d) => d.data() as SignoVital) ?? []), ...signos];
+    const anomalias = anomaliasPersonales(
+      todos.filter((x) => x.fecha.toMillis() < corte),
+      todos.filter((x) => x.fecha.toMillis() >= corte),
+    );
     const caidas = resumenCaidas(entradas);
     const indicaciones = [...entradasPrevias, ...entradas]
       .filter((e) => e.tipo === 'indicacion')
@@ -181,6 +201,7 @@ export class ReporteService {
           adherencia: m.adherencia,
           omisiones: { omitidas: m.omitidas, patron: m.patronOmision },
         })),
+        anomalias,
       }),
       indicaciones,
       preguntas: preguntasSnap?.exists() ? String(preguntasSnap.get('texto') ?? '') : '',

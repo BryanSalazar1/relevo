@@ -1,0 +1,6 @@
+E1 sincronización (emulador local, 10 repeticiones, del toque en Guardar en la sesión A a que el texto aparece en la sesión B sin recargar): mín 204 ms, mediana 224 ms, máx 347 ms; [204,208,213,219,222,224,224,225,330,347]
+E2 revocación: Marta fue enviada a su inicio 468 ms después de que Ana la quitó; la tarjeta de Carmen en su inicio: ya no aparece ✔
+E2b URL directa a la bitácora tras la revocación: redirigida a inicio ✔; registros visibles: 0
+E3 copia local de Firestore (IndexedDB) antes de cerrar sesión: ["firestore/[DEFAULT]/demo-relevo/main"]; después: []
+PDF de la hoja guardado
+errores de consola: ninguno

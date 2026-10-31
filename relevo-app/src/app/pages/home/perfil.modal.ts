@@ -19,7 +19,7 @@ import {
   IonToolbar,
   ModalController,
 } from '@ionic/angular';
-import { TIPO_USUARIO_ETIQUETA } from '../../core/models';
+import { CONTRASENA_MIN, TIPO_USUARIO_ETIQUETA } from '../../core/models';
 import { firstValueFrom } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { MiembrosService } from '../../core/services/miembros.service';
@@ -190,7 +190,7 @@ export class PerfilModal implements OnInit {
       header: 'Cambiar contraseña',
       inputs: [
         { name: 'actual', type: 'password', placeholder: 'Contraseña actual', attributes: { autocomplete: 'current-password' } },
-        { name: 'nueva', type: 'password', placeholder: 'Nueva (mínimo 6 caracteres)', attributes: { autocomplete: 'new-password' } },
+        { name: 'nueva', type: 'password', placeholder: `Nueva (mínimo ${CONTRASENA_MIN} caracteres)`, attributes: { autocomplete: 'new-password' } },
       ],
       buttons: [
         { text: 'Cancelar', role: 'cancel' },
@@ -202,10 +202,10 @@ export class PerfilModal implements OnInit {
     if (role !== 'confirm') return;
     const actual = data?.values?.actual ?? '';
     const nueva = data?.values?.nueva ?? '';
-    if (!actual || nueva.length < 6) {
+    if (!actual || nueva.length < CONTRASENA_MIN) {
       const aviso = await this.alertCtrl.create({
         header: 'Revisa los datos',
-        message: 'Escribe tu contraseña actual y una nueva de al menos 6 caracteres.',
+        message: `Escribe tu contraseña actual y una nueva de al menos ${CONTRASENA_MIN} caracteres.`,
         buttons: ['Entendido'],
       });
       await aviso.present();

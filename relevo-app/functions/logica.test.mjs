@@ -1118,3 +1118,23 @@ test('dosisVencidas: no recuerda dosis programadas antes de dar de alta el medic
   // Sin el instante (llamadas anteriores) se comporta como antes
   assert.equal(dosisVencidas(meds, ahora).length, 2);
 });
+
+test('cuotaIa: cuenta por usuario y por día; al llegar al límite se niega sin contar y al día siguiente se reinicia', async () => {
+  const { cuotaIa, LIMITE_IA_DIARIO } = await import('./logica.js');
+  assert.equal(LIMITE_IA_DIARIO, 30);
+  // Primera consulta del día
+  let r = cuotaIa(null, '2026-10-31', 3);
+  assert.deepEqual(r, { permitido: true, usados: 1, restantes: 2, datos: { fecha: '2026-10-31', usados: 1 } });
+  r = cuotaIa(r.datos, '2026-10-31', 3);
+  r = cuotaIa(r.datos, '2026-10-31', 3);
+  assert.equal(r.usados, 3);
+  assert.equal(r.restantes, 0);
+  // La cuarta se niega y no se guarda nada
+  const negada = cuotaIa(r.datos, '2026-10-31', 3);
+  assert.equal(negada.permitido, false);
+  assert.equal(negada.datos, null);
+  // Otro día empieza de cero
+  assert.deepEqual(cuotaIa(r.datos, '2026-11-01', 3).datos, { fecha: '2026-11-01', usados: 1 });
+  // Datos raros guardados no rompen la cuenta
+  assert.equal(cuotaIa({ fecha: '2026-10-31', usados: 'x' }, '2026-10-31', 3).usados, 1);
+});

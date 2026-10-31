@@ -89,7 +89,8 @@
         name="password"
         [autocomplete]="modo() === 'login' ? 'current-password' : 'new-password'"
         required
-        minlength="6"
+        [minlength]="modo() === 'registro' ? 8 : 6"
+        [helperText]="modo() === 'registro' ? 'Mínimo 8 caracteres' : ''"
         [(ngModel)]="password"
         class="ion-margin-bottom"
       >

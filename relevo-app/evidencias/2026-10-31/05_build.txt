@@ -7,13 +7,13 @@ $ npm run build
 ✔ Building...
 Initial chunk files   | Names                  |  Raw size | Estimated transfer size
 chunk-6F6EDAMT.js     | -                      |   1.14 MB |               192.43 kB
-chunk-UYXV5LD6.js     | -                      | 461.74 kB |               120.46 kB
-main-67LR77NA.js      | main                   |  55.70 kB |                13.61 kB
+chunk-UXSPQJNJ.js     | -                      | 461.75 kB |               120.34 kB
+main-CRCVPX3Z.js      | main                   |  55.70 kB |                13.57 kB
 styles-K336ILGL.css   | styles                 |  53.51 kB |                 7.00 kB
 chunk-6YBQKZT7.js     | -                      |  37.37 kB |                13.04 kB
 polyfills-5CFQRCPP.js | polyfills              |  34.59 kB |                11.33 kB
 chunk-N45FIBO2.js     | -                      |   9.98 kB |                 2.59 kB
-chunk-OJ7CYFRP.js     | -                      |   9.22 kB |                 3.24 kB
+chunk-Q5JL35OL.js     | -                      |   9.22 kB |                 3.24 kB
 chunk-AI2R6BSV.js     | -                      |   9.03 kB |                 3.34 kB
 chunk-EWC5PBYO.js     | -                      |   8.53 kB |                 2.95 kB
 chunk-57QE64AC.js     | -                      |   5.54 kB |                 2.07 kB
@@ -29,27 +29,27 @@ chunk-KO6BY2AT.js     | -                      | 544 bytes |               544 b
 chunk-6V7DZCEA.js     | -                      | 366 bytes |               366 bytes
 chunk-NMFL75IO.js     | -                      |  99 bytes |                99 bytes
 
-                      | Initial total          |   1.84 MB |               380.05 kB
+                      | Initial total          |   1.84 MB |               379.89 kB
 
 Lazy chunk files      | Names                  |  Raw size | Estimated transfer size
 chunk-PUC7QPWN.js     | jspdf-es-min           | 411.28 kB |               113.01 kB
 chunk-VVSZ3FP7.js     | html2canvas            | 202.84 kB |                38.46 kB
 chunk-J5YFWRN3.js     | index-es               | 159.05 kB |                47.02 kB
 chunk-EURTZJWP.js     | jsQR                   | 130.53 kB |                26.61 kB
-chunk-D5B74MDE.js     | plan-page              |  42.08 kB |                10.05 kB
-chunk-Q73GQXGY.js     | equipo-page            |  32.93 kB |                 8.49 kB
+chunk-PLNGNOKZ.js     | plan-page              |  42.08 kB |                10.07 kB
+chunk-TPL5YESE.js     | equipo-page            |  32.93 kB |                 8.49 kB
 chunk-EAWTTOUU.js     | jspdf-plugin-autotable |  31.07 kB |                 9.00 kB
 chunk-J2QAXL6D.js     | purify-es              |  28.58 kB |                 9.90 kB
-chunk-THUIG76V.js     | reporte-page           |  28.45 kB |                 8.10 kB
-chunk-G7EPIGY4.js     | hoy-page               |  28.08 kB |                 7.33 kB
+chunk-3VWTY7HU.js     | reporte-page           |  28.45 kB |                 8.07 kB
+chunk-34IMMQUL.js     | hoy-page               |  28.08 kB |                 7.36 kB
 chunk-C5UPQYBU.js     | browser                |  24.61 kB |                 8.33 kB
-chunk-4LOYF3VK.js     | home-page              |  21.93 kB |                 6.04 kB
-chunk-EEI5T4CQ.js     | -                      |  20.12 kB |                 6.91 kB
-chunk-7UZ6QSNR.js     | semaforo-page          |  17.18 kB |                 5.00 kB
-chunk-MBUUAAHU.js     | -                      |  16.91 kB |                 5.76 kB
+chunk-WOJAFZGU.js     | -                      |  22.36 kB |                 7.74 kB
+chunk-JDJ7S6GV.js     | home-page              |  21.94 kB |                 6.07 kB
+chunk-HX5SQ46H.js     | semaforo-page          |  17.18 kB |                 4.98 kB
+chunk-4HB2U5MV.js     | -                      |  17.08 kB |                 5.83 kB
 ...and 41 more lazy chunks files. Use "--verbose" to show all the files.
 
-Application bundle generation complete. [26.454 seconds] - 2026-10-31T05:44:28.484Z
+Application bundle generation complete. [40.968 seconds] - 2026-10-31T17:47:48.780Z
 
 ▲ [WARNING] Module 'core-js/modules/es.promise.js' used by 'node_modules/canvg/lib/index.es.js' is not ESM
 

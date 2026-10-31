@@ -344,6 +344,127 @@ export function filasSignos(rc: ResumenClinico): FilaSigno[] {
 }
 
 // ---------------------------------------------------------------------------
+// Anomalías respecto a la propia persona: una lectura puede estar dentro del rango general y
+// aun así ser muy distinta de lo habitual en ella (p. ej. 150/95 en alguien que suele tener 120/75).
+// Línea base = lecturas anteriores a la última semana (hasta 60 días antes del periodo); se compara cada lectura reciente contra el
+// promedio y la desviación estándar de esa línea base (puntuación z) y, para no alarmar por
+// variaciones pequeñas, también contra una diferencia mínima absoluta.
+// ---------------------------------------------------------------------------
+export const ANOMALIAS = {
+  /** Días previos al periodo que se suman a la línea base */
+  diasLineaBase: 60,
+  /** Lecturas recientes que se revisan: las de la última semana del periodo */
+  diasRecientes: 7,
+  /** Lecturas mínimas en la línea base para que el promedio sea confiable */
+  minLecturas: 5,
+  /** Desviaciones estándar a partir de las cuales una lectura es inusual */
+  z: 2.5,
+  /**
+   * Por tipo: desviación mínima que se supone (evita z enormes con datos muy parejos), diferencia
+   * absoluta mínima para marcar y en qué dirección importa.
+   */
+  tipos: {
+    presion: { piso: 5, minDiferencia: 15, direccion: 'ambas' },
+    glucosa: { piso: 10, minDiferencia: 30, direccion: 'ambas' },
+    pulso: { piso: 4, minDiferencia: 15, direccion: 'ambas' },
+    oxigenacion: { piso: 1, minDiferencia: 3, direccion: 'baja' },
+  },
+} as const;
+
+export type TipoAnomalia = keyof typeof ANOMALIAS.tipos;
+
+export interface Anomalia {
+  tipo: TipoAnomalia;
+  fecha: Date;
+  /** "158/96 mmHg", "245 mg/dL en ayunas" */
+  valor: string;
+  /** "126/80 mmHg": promedio de la línea base, mismo formato */
+  habitual: string;
+  /** Lecturas de la línea base */
+  n: number;
+  /** Desviaciones estándar respecto a lo habitual (con signo) */
+  z: number;
+  direccion: 'alta' | 'baja';
+}
+
+const ETIQUETA_ANOMALIA: Record<TipoAnomalia, string> = {
+  presion: 'Presión',
+  glucosa: 'Glucosa',
+  pulso: 'Pulso',
+  oxigenacion: 'Oxigenación',
+};
+
+function desviacionEstandar(xs: number[], media: number): number {
+  if (xs.length < 2) return 0;
+  return Math.sqrt(xs.reduce((a, x) => a + (x - media) ** 2, 0) / (xs.length - 1));
+}
+
+/**
+ * Para cada tipo de signo, la lectura reciente más alejada de lo habitual en esta persona, si lo
+ * está lo suficiente. La presión se compara por la sistólica (la diastólica se muestra); la
+ * glucosa, solo contra lecturas del mismo momento (en ayunas no se compara con después de comer).
+ */
+export function anomaliasPersonales(lineaBase: SignoVital[], recientes: SignoVital[]): Anomalia[] {
+  const salida: Anomalia[] = [];
+  for (const tipo of Object.keys(ANOMALIAS.tipos) as TipoAnomalia[]) {
+    const conf = ANOMALIAS.tipos[tipo];
+    const clave = (x: SignoVital) => (tipo === 'glucosa' ? (x.momento ?? 'sin_momento') : tipo);
+    const grupos = new Map<string, { base: SignoVital[]; recientes: SignoVital[] }>();
+    const agregar = (x: SignoVital, campo: 'base' | 'recientes') => {
+      if (x.tipo !== tipo || typeof x.valor !== 'number') return;
+      const g = grupos.get(clave(x)) ?? { base: [], recientes: [] };
+      g[campo].push(x);
+      grupos.set(clave(x), g);
+    };
+    lineaBase.forEach((x) => agregar(x, 'base'));
+    recientes.forEach((x) => agregar(x, 'recientes'));
+
+    let peor: Anomalia | null = null;
+    for (const [momento, g] of grupos) {
+      if (g.base.length < ANOMALIAS.minLecturas || !g.recientes.length) continue;
+      const xs = g.base.map((x) => x.valor);
+      const media = xs.reduce((a, b) => a + b, 0) / xs.length;
+      const sd = Math.max(desviacionEstandar(xs, media), conf.piso);
+      const diast = g.base.map((x) => x.valorSecundario).filter((v): v is number => typeof v === 'number');
+      const mediaDiast = diast.length ? diast.reduce((a, b) => a + b, 0) / diast.length : null;
+      const fmt = (v: number, d: number | null) =>
+        tipo === 'presion' && d !== null ? `${Math.round(v)}/${Math.round(d)}` : `${redondear(v, tipo === 'oxigenacion' ? 1 : 0)}`;
+      const etiquetaMomento =
+        tipo === 'glucosa' && momento !== 'sin_momento'
+          ? ` ${(MOMENTO_GLUCOSA_ETIQUETA[momento as MomentoGlucosa] ?? '').toLowerCase()}`.trimEnd()
+          : '';
+      for (const x of g.recientes) {
+        const diferencia = x.valor - media;
+        const z = diferencia / sd;
+        const direccion = diferencia >= 0 ? 'alta' : 'baja';
+        if (conf.direccion === 'baja' && direccion === 'alta') continue;
+        if (Math.abs(z) < ANOMALIAS.z || Math.abs(diferencia) < conf.minDiferencia) continue;
+        if (peor && Math.abs(z) <= Math.abs(peor.z)) continue;
+        peor = {
+          tipo,
+          fecha: x.fecha.toDate(),
+          valor: `${fmt(x.valor, x.valorSecundario ?? null)} ${x.unidad}${etiquetaMomento}`,
+          habitual: `${fmt(media, mediaDiast)} ${x.unidad}`,
+          n: xs.length,
+          z: redondear(z, 1),
+          direccion,
+        };
+      }
+    }
+    if (peor) salida.push(peor);
+  }
+  return salida;
+}
+
+/** "Presión 158/96 mmHg el 29 oct: más alta de lo habitual en esta persona (126/80 mmHg, 12 lecturas previas)" */
+export function textoAnomalia(a: Anomalia): string {
+  const cuando = formatDate(a.fecha, 'd MMM', 'es');
+  const masculino = a.tipo === 'pulso';
+  const comparado = a.direccion === 'alta' ? (masculino ? 'más alto' : 'más alta') : masculino ? 'más bajo' : 'más baja';
+  return `${ETIQUETA_ANOMALIA[a.tipo]} ${a.valor} el ${cuando}: ${comparado} de lo habitual en esta persona (${a.habitual}, ${a.n} lecturas previas)`;
+}
+
+// ---------------------------------------------------------------------------
 // Banderas: lo que conviene comentar con el médico, de lo más delicado a lo menos
 // ---------------------------------------------------------------------------
 export interface Bandera {
@@ -361,6 +482,8 @@ export function banderasHoja(datos: {
   resumen: ResumenClinico;
   caidas: ResumenCaidas;
   medicamentos: MedicamentoParaBanderas[];
+  /** Lecturas inusuales para esta persona (anomaliasPersonales) */
+  anomalias?: Anomalia[];
 }): Bandera[] {
   const u = UMBRALES_HOJA;
   const { resumen: rc, caidas } = datos;
@@ -392,6 +515,8 @@ export function banderasHoja(datos: {
   if (rc.temperatura?.fuera) alta(`${rc.temperatura.fuera} ${plural(rc.temperatura.fuera, 'registro', 'registros')} de fiebre (${u.fiebre} °C o más)`);
   if (rc.oxigenacion?.fuera) alta(`${rc.oxigenacion.fuera} ${plural(rc.oxigenacion.fuera, 'oxigenación', 'oxigenaciones')} por debajo de ${u.oxigenacionBaja} %`);
   if (rc.pulso?.fuera) media(`${rc.pulso.fuera} ${plural(rc.pulso.fuera, 'pulso', 'pulsos')} fuera de ${u.pulso.min}–${u.pulso.max} lpm`);
+
+  for (const a of datos.anomalias ?? []) media(textoAnomalia(a));
 
   for (const m of datos.medicamentos) {
     const { omitidas, patron } = m.omisiones;
