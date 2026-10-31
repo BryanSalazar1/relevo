@@ -14,7 +14,7 @@ import {
   writeBatch,
 } from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, catchError, map, of, switchMap } from 'rxjs';
+import { BehaviorSubject, Observable, catchError, combineLatest, map, of, switchMap } from 'rxjs';
 import { AVISOS_POR_DEFECTO, PersonaCuidada } from '../models';
 import { AuthService } from './auth.service';
 
@@ -35,6 +35,17 @@ export class PersonasService {
   }
 
   /** Personas cuidadas a las que el usuario actual tiene acceso, en tiempo real. */
+  /**
+   * Personas de las que este usuario dejó de ser miembro durante la sesión (lo quitaron del equipo).
+   * La consulta en vivo puede conservar la versión anterior del documento, que ya no se puede leer;
+   * se ocultan de la lista hasta la próxima vez que se abra la app.
+   */
+  private readonly sinAcceso$ = new BehaviorSubject<ReadonlySet<string>>(new Set());
+
+  marcarSinAcceso(personaId: string) {
+    this.sinAcceso$.next(new Set([...this.sinAcceso$.value, personaId]));
+  }
+
   misPersonas(): Observable<PersonaCuidada[]> {
     return this.authSvc.user$.pipe(
       switchMap((user) => {
@@ -43,8 +54,13 @@ export class PersonasService {
           collection(this.db, 'personas_cuidadas'),
           where('miembrosUids', 'array-contains', user.uid),
         );
-        return (collectionData(q, { idField: 'id' }) as Observable<PersonaCuidada[]>).pipe(
-          map((lista) => [...lista].sort((a, b) => a.nombre.localeCompare(b.nombre))),
+        return combineLatest([
+          collectionData(q, { idField: 'id' }) as Observable<PersonaCuidada[]>,
+          this.sinAcceso$,
+        ]).pipe(
+          map(([lista, fuera]) =>
+            lista.filter((p) => !p.id || !fuera.has(p.id)).sort((a, b) => a.nombre.localeCompare(b.nombre)),
+          ),
           // Al cerrar sesión el listener puede recibir permission-denied antes de cancelarse
           catchError(() => of([] as PersonaCuidada[])),
         );

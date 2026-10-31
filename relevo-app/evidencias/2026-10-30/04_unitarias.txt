@@ -1,0 +1,61 @@
+$ npx ng test --watch=false --browsers=ChromeHeadless
+❯ Building...
+✔ Building...
+Initial chunk files        | Names                   |  Raw size
+chunk-M5WI6W4G.js          | -                       |   1.37 MB | 
+chunk-5LH36JVF.js          | -                       |   1.18 MB | 
+chunk-FMSHA25T.js          | -                       |   1.17 MB | 
+polyfills.js               | polyfills               |   1.04 MB | 
+spec-app.spec.js           | spec-app.spec           | 672.52 kB | 
+jasmine-cleanup-1.js       | jasmine-cleanup-1       |  67.20 kB | 
+chunk-PGKX2UUY.js          | -                       |  59.71 kB | 
+chunk-2TLHAW3C.js          | -                       |  21.95 kB | 
+test_main.js               | test_main               |  21.83 kB | 
+spec-hoja-consulta.spec.js | spec-hoja-consulta.spec |  18.82 kB | 
+spec-entrega-turno.spec.js | spec-entrega-turno.spec |  17.42 kB | 
+chunk-ZUXKQIVC.js          | -                       |  14.73 kB | 
+chunk-LTWLZIFM.js          | -                       |  13.83 kB | 
+styles.css                 | styles                  |  10.66 kB | 
+chunk-VWVWFTQH.js          | -                       |  10.20 kB | 
+chunk-3UHWGW3C.js          | -                       |   9.51 kB | 
+spec-agenda-dia.spec.js    | spec-agenda-dia.spec    |   6.82 kB | 
+spec-semaforo.spec.js      | spec-semaforo.spec      |   5.56 kB | 
+chunk-Q7WTGPDR.js          | -                       |   3.96 kB | 
+chunk-P2ESLV2R.js          | -                       |   3.79 kB | 
+chunk-DS6OBVQD.js          | -                       |   2.88 kB | 
+chunk-4QQELFDY.js          | -                       |   2.37 kB | 
+chunk-KN7HTUM7.js          | -                       |   2.19 kB | 
+chunk-IJINKETP.js          | -                       |   2.14 kB | 
+chunk-7EPPEE2K.js          | -                       |   2.03 kB | 
+chunk-P2QYWYRC.js          | -                       |   1.91 kB | 
+spec-fechas.spec.js        | spec-fechas.spec        |   1.63 kB | 
+chunk-KCTVXG5W.js          | -                       |   1.55 kB | 
+chunk-SJJKIAKY.js          | -                       | 567 bytes | 
+jasmine-cleanup-0.js       | jasmine-cleanup-0       | 519 bytes | 
+
+                           | Initial total           |   5.73 MB
+
+Lazy chunk files           | Names                   |  Raw size
+chunk-4EFXGKYQ.js          | ion-icon-entry          |   9.15 kB | 
+chunk-HNEG2IBM.js          | p-C-NbvXu4              |   8.14 kB | 
+chunk-S3QZS4XM.js          | web                     |   3.09 kB | 
+chunk-L6QLKVCL.js          | p-BQyuFxYc              |   3.04 kB | 
+chunk-I7KALWZV.js          | p-D7-vHX0A              |   2.26 kB | 
+chunk-JZQCUUTI.js          | p-BmVRXR1y              |   1.69 kB | 
+chunk-VHKHAAWZ.js          | p-CWuIRJQN              |   1.56 kB | 
+chunk-FGQPHGY2.js          | -                       |   1.42 kB | 
+chunk-HRP4CLKF.js          | p-BT9-hMMz              |   1.26 kB | 
+chunk-EKJPGVZ6.js          | -                       |   1.14 kB | 
+chunk-CVPCMFSB.js          | p-BWoa-cki              | 410 bytes | 
+chunk-VYGH2PFT.js          | p-5ldEpNdG              | 336 bytes | 
+chunk-Q3QBKF4V.js          | p-CG_zZq_I              | 315 bytes | 
+chunk-TM5BFUUM.js          | p-D0YpjgON              | 219 bytes | 
+
+Application bundle generation complete. [34.830 seconds] - 2026-10-31T05:43:49.803Z
+
+30 10 2026 23:43:52.047:INFO [karma-server]: Karma v6.4.4 server started at http://localhost:9876/
+30 10 2026 23:43:52.050:INFO [launcher]: Launching browsers ChromeHeadless with concurrency unlimited
+30 10 2026 23:43:52.133:INFO [launcher]: Starting browser ChromeHeadless
+30 10 2026 23:43:53.562:INFO [Chrome Headless 156.0.0.0 (Windows 10)]: Connected on socket tLkz5lPnJc6BGqZLAAAA with id 26581485
+Chrome Headless 156.0.0.0 (Windows 10): Executed 57 of 57 SUCCESS (0.246 secs / 0.151 secs)
+TOTAL: 57 SUCCESS

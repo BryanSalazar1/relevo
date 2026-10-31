@@ -16,6 +16,7 @@ import {
 } from '@angular/fire/auth';
 import {
   Firestore,
+  clearIndexedDbPersistence,
   collection,
   doc,
   docData,
@@ -24,6 +25,7 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  terminate,
   updateDoc,
   where,
 } from '@angular/fire/firestore';
@@ -164,6 +166,7 @@ export class AuthService {
     await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, password));
     await this.notificaciones.quitarDispositivo();
     await deleteUser(user);
+    await this.borrarCopiaLocal();
   }
 
   async iniciarSesion(email: string, password: string): Promise<User> {
@@ -171,10 +174,30 @@ export class AuthService {
     return cred.user;
   }
 
-  /** Da de baja este teléfono de las notificaciones (requiere sesión) y luego cierra la sesión. */
+  /**
+   * Da de baja este teléfono de las notificaciones (requiere sesión), cierra la sesión y borra la
+   * copia local de Firestore (modo sin conexión), para que nada de la bitácora quede en el equipo.
+   */
   async cerrarSesion(): Promise<void> {
     await this.notificaciones.quitarDispositivo();
     await signOut(this.auth);
+    await this.borrarCopiaLocal();
+  }
+
+  /**
+   * Borra la caché persistente de Firestore (IndexedDB) de este dispositivo. Firestore queda
+   * detenido, así que después se recarga la app en la pantalla de entrada. Si hay otra pestaña de
+   * Relevo abierta el navegador no deja borrarla; la sesión igual queda cerrada y las reglas impiden
+   * leer del servidor.
+   */
+  private async borrarCopiaLocal(): Promise<void> {
+    try {
+      await terminate(this.db);
+      await clearIndexedDbPersistence(this.db);
+    } catch (error) {
+      console.warn('No se pudo borrar la copia local de Firestore', error);
+    }
+    window.location.replace('/login');
   }
 
   /** Traduce los códigos de error de Firebase Auth a mensajes para el usuario. */

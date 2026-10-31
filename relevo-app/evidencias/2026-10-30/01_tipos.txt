@@ -1,0 +1,2 @@
+$ npx tsc -p tsconfig.app.json --noEmit
+Sin errores de tipos.

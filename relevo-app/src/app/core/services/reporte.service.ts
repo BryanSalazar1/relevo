@@ -465,11 +465,12 @@ export class ReporteService {
       pdf.setPage(i);
       pdf.setFontSize(7.5);
       pdf.setTextColor(130);
-      pdf.text(
+      // El pie cabe en el ancho de la página (182 mm): si no, se parte en dos líneas
+      const pie = pdf.splitTextToSize(
         `Relevo · Hoja para la consulta de ${p.nombre} · página ${i} de ${paginas} · Preparada por ${r.generadoPor} con los registros del equipo de cuidado; no sustituye el expediente clínico.`,
-        14,
-        291,
-      );
+        182,
+      ) as string[];
+      pdf.text(pie, 14, pie.length > 1 ? 287 : 291);
     }
     return pdf.output('blob');
   }

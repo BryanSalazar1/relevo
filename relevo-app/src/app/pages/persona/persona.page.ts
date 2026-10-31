@@ -1,9 +1,10 @@
 import { Component, computed, effect, inject, untracked } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
-import { IonBadge, IonIcon, IonLabel, IonTabBar, IonTabButton, IonTabs } from '@ionic/angular';
+import { IonBadge, IonIcon, IonLabel, IonTabBar, IonTabButton, IonTabs, ToastController } from '@ionic/angular';
 import { filter, map, switchMap } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
+import { PersonasService } from '../../core/services/personas.service';
 import { MedicamentosService, estadoInventario } from '../../core/services/medicamentos.service';
 import { personaActual } from '../../core/utils/persona-actual';
 
@@ -76,6 +77,8 @@ export class PersonaPage {
   private readonly medsSvc = inject(MedicamentosService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly toast = inject(ToastController);
+  private readonly personasSvc = inject(PersonasService);
   private readonly ctx = personaActual();
 
   private readonly medicamentos = toSignal(
@@ -99,6 +102,18 @@ export class PersonaPage {
     () => this.auth.tipoActual === 'medico' || this.ctx.rol() === 'medico',
   );
 
+  private async sinAcceso(personaId: string) {
+    this.personasSvc.marcarSinAcceso(personaId);
+    await this.router.navigateByUrl('/home', { replaceUrl: true });
+    const t = await this.toast.create({
+      message: 'Ya no formas parte de este equipo de cuidado.',
+      color: 'warning',
+      duration: 4000,
+      position: 'top',
+    });
+    await t.present();
+  }
+
   /** Solo el responsable resurte: a los demás el aviso les sale en Hoy, sin insignia en Plan */
   readonly esResponsable = computed(() => this.ctx.rol() === 'cuidador_principal');
 
@@ -110,6 +125,13 @@ export class PersonaPage {
   });
 
   constructor() {
+    // Sin rol = no es (o dejó de ser) miembro: p. ej. el responsable lo quitó del equipo con la
+    // pantalla abierta, o abrió un enlace viejo. Las reglas ya le niegan los datos; aquí se le saca
+    // a su inicio con un aviso y la persona deja de aparecer en su lista
+    effect(() => {
+      const id = this.ctx.personaId();
+      if (id && this.ctx.rol() === null) untracked(() => void this.sinAcceso(id));
+    });
     effect(() => {
       const id = this.ctx.personaId();
       const url = this.url();

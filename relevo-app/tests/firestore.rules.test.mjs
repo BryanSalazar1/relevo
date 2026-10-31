@@ -887,3 +887,76 @@ test('citas: el responsable y los familiares agendan, editan y borran citas vál
   await assertFails(deleteDoc(cita(marta())));
   await assertSucceeds(deleteDoc(cita(pedro())));
 });
+
+// ---------------------------------------------------------------------------
+// Evidencias pedidas en la preevaluación (28/10/2026): aislamiento, revocación y canjes simultáneos
+
+test('aislamiento: el miembro de una persona no lee ni escribe nada de otra persona cuidada', async () => {
+  await anaCreaPersona();
+  await agregarComo('marta', 'cuidador_turno');
+  // Otra persona cuidada, de otro equipo (Pedro es su responsable)
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'personas_cuidadas/otra'), { nombre: 'Don José', miembrosUids: ['pedro'] });
+    await setDoc(doc(db, 'personas_cuidadas/otra/miembros/pedro'), { uid: 'pedro', rol: 'cuidador_principal' });
+    await setDoc(doc(db, 'personas_cuidadas/otra/entradas_bitacora/e1'), { tipo: 'sintoma', texto: 'Mareo', autorUid: 'pedro' });
+    await setDoc(doc(db, 'personas_cuidadas/otra/signos_vitales/s1'), { tipo: 'pulso', valor: 80, autorUid: 'pedro' });
+    await setDoc(doc(db, 'personas_cuidadas/otra/medicamentos/m1'), { nombre: 'X', dosis: '1', horarios: [], inventario: null, activo: true });
+  });
+  const otra = 'personas_cuidadas/otra';
+  for (const db of [marta(), ana()]) {
+    await assertFails(getDoc(doc(db, otra)));
+    await assertFails(getDocs(collection(db, `${otra}/entradas_bitacora`)));
+    await assertFails(getDocs(collection(db, `${otra}/signos_vitales`)));
+    await assertFails(getDocs(collection(db, `${otra}/medicamentos`)));
+    await assertFails(getDocs(collection(db, `${otra}/miembros`)));
+    await assertFails(setDoc(doc(db, `${otra}/entradas_bitacora/x`), { tipo: 'nota', texto: 'x', autorUid: 'marta' }));
+  }
+  // Tampoco se puede listar todas las personas, solo las propias
+  await assertFails(getDocs(collection(marta(), 'personas_cuidadas')));
+  const mias = await getDocs(query(collection(marta(), 'personas_cuidadas'), where('miembrosUids', 'array-contains', 'marta')));
+  assert.deepEqual(mias.docs.map((d) => d.id), [PERSONA_ID]);
+});
+
+test('revocación: al quitar a un miembro pierde de inmediato la lectura y la escritura', async () => {
+  await anaCreaPersona();
+  await agregarComo('marta', 'cuidador_turno');
+  const p = `personas_cuidadas/${PERSONA_ID}`;
+  await assertSucceeds(getDoc(doc(marta(), p)));
+  await assertSucceeds(setDoc(doc(marta(), `${p}/entradas_bitacora/antes`), { tipo: 'nota', texto: 'ok', autorUid: 'marta' }));
+  // Mismo batch que MiembrosService.quitar(): borra su miembro y lo saca de miembrosUids
+  const dbAna = ana();
+  const b = writeBatch(dbAna);
+  b.delete(doc(dbAna, `${p}/miembros/marta`));
+  b.update(doc(dbAna, p), { miembrosUids: arrayRemove('marta') });
+  await assertSucceeds(b.commit());
+  await assertFails(getDoc(doc(marta(), p)));
+  await assertFails(getDocs(collection(marta(), `${p}/entradas_bitacora`)));
+  await assertFails(getDoc(doc(marta(), `${p}/entradas_bitacora/antes`)));
+  await assertFails(setDoc(doc(marta(), `${p}/entradas_bitacora/despues`), { tipo: 'nota', texto: 'x', autorUid: 'marta' }));
+  // Y no puede volver a agregarse sola sin una invitación válida
+  await assertFails(
+    setDoc(doc(marta(), `${p}/miembros/marta`), { uid: 'marta', rol: 'cuidador_turno', nombre: 'Marta' }),
+  );
+});
+
+test('invitaciones: dos canjes simultáneos del último uso → entra uno solo y usos no pasa del máximo', async () => {
+  await anaCreaPersona();
+  await anaCreaInvitacion();
+  // Ya se gastaron 4 de 5 usos
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await updateDoc(doc(ctx.firestore(), `invitaciones/${CODIGO}`), { usos: 4 });
+  });
+  await perfil(pedro(), 'pedro', 'familiar');
+  await perfil(marta(), 'marta', 'enfermero');
+  const r = await Promise.allSettled([
+    batchUnirse(pedro(), 'pedro', CODIGO, 'familiar'),
+    batchUnirse(marta(), 'marta', CODIGO, 'cuidador_turno'),
+  ]);
+  const ok = r.filter((x) => x.status === 'fulfilled').length;
+  const inv = await getDoc(doc(ana(), `invitaciones/${CODIGO}`));
+  const persona = await getDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}`));
+  assert.ok(ok <= 1, `entraron ${ok} con un solo uso disponible`);
+  assert.ok(inv.data().usos <= 5, `usos quedó en ${inv.data().usos}`);
+  assert.equal(persona.data().miembrosUids.length, 1 + ok);
+});

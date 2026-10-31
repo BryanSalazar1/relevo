@@ -1,0 +1,17 @@
+$ firebase emulators:exec --only firestore "node --test functions/eliminar-persona.emulador.test.mjs"
++  firestore: Firestore Emulator was started in standard edition.
++  firestore: Firestore Emulator UI websocket is running on 9150.
+(node:16536) MetadataLookupWarning: received unexpected error = All promises were rejected code = UNKNOWN
+(Use `node --trace-warnings ...` to show where the warning was created)
+{"personaId":"p-borrar-1793426263916","uid":"ana","miembros":2,"severity":"INFO","message":"Persona eliminada por su responsable"}
+✔ eliminarPersona: solo el responsable; borra subcolecciones e invitaciones y la quita de cada perfil (40416.7647ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 44613.0667
++  Script exited successfully (code 0)
+!  Firestore Emulator has exited upon receiving signal: SIGINT

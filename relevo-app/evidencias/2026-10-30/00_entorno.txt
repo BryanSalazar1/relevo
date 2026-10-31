@@ -1,0 +1,8 @@
+Entorno de ejecución de las pruebas — 2026-10-30 23:41 (hora del centro de México)
+Sistema: Microsoft Windows 11 Home Single Language (x64)
+Node.js: v24.18.0
+npm: 11.16.0
+Java: openjdk version "21.0.12.1" 2026-08-18 LTS
+Firebase CLI: 15.29.0
+Commit base: 8e2ce1a (rama agenda-coherente) + cambios de esta entrega
+Versión de la app: 1.0.0

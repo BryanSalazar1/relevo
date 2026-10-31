@@ -1,0 +1,73 @@
+$ npm run test:functions
+
+> relevo-app@1.0.0 test:functions
+> npm --prefix functions test --test-reporter=spec
+
+npm warn Unknown cli config "--test-reporter". This will stop working in the next major version of npm.
+
+> test
+> node --test
+
+﹣ eliminarPersona: solo el responsable; borra subcolecciones e invitaciones y la quita de cada perfil (0.8187ms) # requiere el emulador de Firestore (FIRESTORE_EMULATOR_HOST)
+✔ mensajeEntrada: título con el tipo y cuerpo con autor y texto (6.2376ms)
+✔ mensajeEntrada: tipo desconocido no rompe y el texto largo se recorta (0.5435ms)
+✔ recortar: colapsa espacios y respeta el máximo (0.382ms)
+✔ mensajeToma: distingue tomada de no tomada e incluye quién registró (0.5815ms)
+✔ mensajeToma: según necesidad (0.4127ms)
+✔ mensajeRecordatorio (0.3069ms)
+✔ destinatarios: excluye al autor y filtra por rol (2.1754ms)
+✔ partesEnZona y horarioDe: convierten UTC a la zona de México (53.9517ms)
+✔ idTomaDe: mismo formato que la app (yyyyMMdd-HHmm) (1.0477ms)
+✔ dosisVencidas: solo horarios ya pasados dentro de la ventana, de medicamentos activos (1.5856ms)
+✔ tokensInvalidos: solo los que FCM marca como no registrados (0.5352ms)
+✔ correoHtml: escapa el contenido (0.5511ms)
+✔ elementosAgenda: une medicamentos y tareas con su anticipación (0.7343ms)
+✔ proximos: solo horarios por llegar dentro de la anticipación, de elementos activos (1.3508ms)
+✔ mensajeProximo: medicamento y tarea (0.5245ms)
+✔ partesEnZona: fecha ISO y día de la semana en la zona (0.8437ms)
+✔ sumarDiasIso y vigenteEnFecha: ventana del tratamiento (0.5499ms)
+✔ tareaEnDia: sin días = todos; con días, solo esos (0.1635ms)
+✔ dosisVencidas y proximos respetan la duración del medicamento y los días de la tarea (1.6862ms)
+✔ enTurno: diurno, nocturno que cruza la medianoche y días (1.65ms)
+✔ deGuardia: sin turnos todos; con turnos solo los activos; nadie activo → responsable (1.6572ms)
+✔ destinatariosAlertas: todos menos el autor y quienes apagaron las alertas (0.8396ms)
+✔ mensajeTarea: no hecha con nota (0.602ms)
+✔ historialGemini: filtra entradas inválidas, recorta y traduce roles (0.9061ms)
+✔ INSTRUCCIONES_RESUMEN: pide las secciones del PDF en el orden esperado (0.3943ms)
+✔ estadoInventario: umbral de 5 días según las tomas al día (0.8098ms)
+✔ estadoInventario: según necesidad usa el mínimo de unidades y no calcula días (0.4038ms)
+✔ estadoInventario: null si no se controla, está suspendido o el tratamiento terminó (0.7319ms)
+✔ estadoInventario: un inventario negativo de datos antiguos cuenta como agotado (0.2627ms)
+✔ estadoInventario: si alcanza para terminar el tratamiento está ok aunque sean pocas (1.1129ms)
+✔ avisoInventario: un tratamiento surtido con la cantidad exacta no avisa nunca; si falta un día, sí (2.2176ms)
+✔ avisoInventario: avisa una vez al cruzar a bajo y otra al agotarse (0.6949ms)
+✔ avisoInventario: deshacer una toma conserva el estado y rehacerla no repite el aviso (0.7688ms)
+✔ avisoInventario: resurtir rearma el aviso y un nuevo cruce vuelve a avisar (0.3556ms)
+✔ avisoInventario: crear con inventario bajo no avisa pero deja el estado (0.3812ms)
+✔ avisoInventario: resurtir de 0 a 3 deja bajo sin avisar y al llegar a 0 avisa agotado (0.204ms)
+✔ avisoInventario: reparar un -1 a 0 avisa del agotado una vez; resurtir desde un negativo no avisa (0.3228ms)
+✔ avisoInventario: deshacer varias tomas y volver a marcarlas no repite ningún aviso (0.2531ms)
+✔ avisoInventario: resurtir una sola unidad también rearma el aviso (cambia ultimoResurtido) (0.242ms)
+✔ avisoInventario: corregir el inventario a mano (cambia editadoEn) rearma el aviso aunque suba 1 (0.4807ms)
+✔ avisoInventario: si queda bajo por editar otra cosa, avisa la siguiente toma (0.397ms)
+✔ avisoInventario: borrar, suspender o dejar de controlar limpia el estado (0.4899ms)
+✔ mensajeInventario: plural, singular, menos de un día, según necesidad y agotado (1.0122ms)
+✔ destinatariosInventario: responsables siempre, familiares con alertas; enfermeros y médicos no (0.8612ms)
+✔ destinatariosInventario: "queda poco" solo a quien quiere todos los avisos; "agotado" también a "importantes" (0.6019ms)
+✔ modoAvisos y quiereAviso: modos, versión anterior (alertas) y "solo en turno" (1.4582ms)
+✔ destinatariosAlertas: respeta "importantes" y "solo en turno" de cada miembro (1.0256ms)
+✔ entradaImportante: incidentes, síntomas e indicaciones médicas sí; notas, ánimo y sueño no (0.4287ms)
+✔ deGuardia: quien apagó los recordatorios no los recibe, ni como respaldo (1.1148ms)
+✔ citasProximas: citas por llegar dentro de su anticipación (1 h si no dicen); 0 = sin aviso; los turnos no (0.7046ms)
+✔ textoFaltan y cuandoCita (1.5063ms)
+✔ mensajeCita: anticipación y tipo en el título; cuándo, lugar, quién acompaña y notas en el cuerpo (1.384ms)
+✔ destinatariosCita: quien acompaña siempre; responsable y familiares según sus avisos; cuidadores solo de guardia; el médico no (1.6927ms)
+✔ dosisVencidas: no recuerda dosis programadas antes de dar de alta el medicamento (1.0304ms)
+ℹ tests 55
+ℹ suites 0
+ℹ pass 54
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 1
+ℹ todo 0
+ℹ duration_ms 463.0627
