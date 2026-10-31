@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { ActionSheetController, AlertController, ToastController } from '@ionic/angular';
+import { ActionSheetController, AlertController, ModalController, ToastController } from '@ionic/angular';
 import { Medicamento, Toma } from '../../core/models';
 import { AuthService } from '../../core/services/auth.service';
 import {
@@ -9,13 +9,13 @@ import {
   TomaNoPermitida,
   agotado,
 } from '../../core/services/medicamentos.service';
-import { haceCuanto, textoDuracion } from '../../core/utils/fechas';
+import { haceCuanto, inicioDeDia, textoDuracion } from '../../core/utils/fechas';
+import { revisarNuevaToma } from '../../core/utils/segun-necesidad';
+import { DatosTomaSegunNecesidad, TomaSegunNecesidadModal } from './toma-segun-necesidad.modal';
 import { confirmar, pedirNota } from '../../core/utils/notas';
 
 /** Marcar una dosis con más de estos minutos de anticipación muestra un aviso en la confirmación. */
 const DOSIS_ADELANTADA_MIN = 60;
-/** Una toma según necesidad con otra registrada hace menos de estos minutos avisa de un posible duplicado. */
-const TOMA_RECIENTE_MIN = 60;
 /** Cambiar o quitar un registro ajeno lo impiden la app y las rules: solo quien lo hizo o el responsable. */
 const SOLO_AUTOR_O_RESPONSABLE =
   'Solo quien registró la toma o el responsable pueden cambiar o quitar el registro.';
@@ -38,6 +38,7 @@ export class MarcarTomaService {
   private readonly authSvc = inject(AuthService);
   private readonly alertCtrl = inject(AlertController);
   private readonly actionSheetCtrl = inject(ActionSheetController);
+  private readonly modalCtrl = inject(ModalController);
   private readonly toast = inject(ToastController);
 
   /** "Última toma: hace 3 h (10:15) · Ana · nota" o "Sin tomas registradas". */
@@ -106,7 +107,12 @@ export class MarcarTomaService {
     }
   }
 
-  /** Registra una toma "ahora" de un medicamento según necesidad (con confirmación y nota). */
+  /**
+   * Registra una toma "ahora" de un medicamento según necesidad. Revisa las tomas de hoy y de las
+   * últimas horas contra la indicación del médico (máximo al día, horas entre tomas) y abre la
+   * ventana de registro con la indicación, cuántas van y los avisos; pide motivo e intensidad
+   * (opcionales). Si se pasa de lo indicado avisa, pero no impide: quien cuida decide.
+   */
   async registrarAhora(
     personaId: string,
     m: Medicamento,
@@ -114,23 +120,34 @@ export class MarcarTomaService {
     { puedeResurtir = false }: OpcionesMarcarToma = {},
   ): Promise<boolean> {
     if (!m.id) return false;
-    const haceMin = ultima
-      ? (Date.now() - (ultima.horaReal ?? ultima.horaProgramada).toDate().getTime()) / 60000
-      : null;
-    const avisos = [
-      haceMin !== null && haceMin < TOMA_RECIENTE_MIN
-        ? 'Ya hay una toma de hace menos de una hora: revisa que no sea un registro repetido.'
-        : '',
-      this.avisoAgotado(m),
-    ].filter(Boolean);
-    const r = await pedirNota(this.alertCtrl, {
-      header: `¿Registrar una toma de ${m.nombre}?`,
-      message: [`${m.dosis} · ahora. ${this.ultimaTomaTexto(ultima)}.`, ...avisos].join(' '),
-      confirmar: 'Registrar',
-    });
-    if (!r.ok) return false;
+    const ahora = new Date();
+    const horas = Math.max(m.horasEntreTomas ?? 1, 1);
+    const desde = new Date(Math.min(inicioDeDia(ahora).getTime(), ahora.getTime() - horas * 3_600_000));
+    let recientes: Toma[];
     try {
-      await this.medsSvc.registrarToma(personaId, this.medsSvc.dosisAhora(m), 'tomada', r.nota);
+      recientes = await this.medsSvc.tomasDesde(personaId, m.id, desde);
+    } catch {
+      // Sin conexión y sin caché: se revisa al menos contra la última toma conocida
+      recientes = ultima ? [ultima] : [];
+    }
+    const revision = revisarNuevaToma(m, recientes, ahora);
+    const modal = await this.modalCtrl.create({
+      component: TomaSegunNecesidadModal,
+      componentProps: {
+        medicamento: m,
+        revision,
+        avisos: [...revision.avisos, this.avisoAgotado(m)].filter(Boolean),
+        ultimaTexto: this.ultimaTomaTexto(ultima),
+      },
+    });
+    await modal.present();
+    const { data, role } = await modal.onWillDismiss<DatosTomaSegunNecesidad>();
+    if (role !== 'registrar' || !data) return false;
+    try {
+      await this.medsSvc.registrarToma(personaId, this.medsSvc.dosisAhora(m), 'tomada', data.nota, {
+        motivo: data.motivo,
+        intensidad: data.intensidad,
+      });
       if (agotado(m)) await this.avisarAgotado(m, puedeResurtir);
       else await this.aviso(`Toma de ${m.nombre} registrada.`, 'success');
       return true;

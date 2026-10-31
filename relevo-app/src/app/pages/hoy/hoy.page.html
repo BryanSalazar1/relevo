@@ -270,10 +270,18 @@
             <ion-icon slot="start" name="medkit-outline" color="tertiary" />
             <ion-label class="ion-text-wrap">
               <h2>{{ m.nombre }} <ion-note>{{ m.dosis }}</ion-note></h2>
+              @if (indicacionPrn(m); as ind) {
+                <p class="indicacion-prn">{{ ind }}</p>
+              }
               @if (m.notas) {
                 <p>{{ m.notas }}</p>
               }
-              <p><strong>{{ ultimaTomaTexto(m) }}</strong></p>
+              <p>
+                <strong>{{ ultimaTomaTexto(m) }}</strong>
+                @if (usoHoyPrn(m); as uso) {
+                  · <span [class.en-maximo]="uso.enMaximo">{{ uso.texto }}</span>
+                }
+              </p>
             </ion-label>
             @if (puedeRegistrarTomas()) {
               <ion-button slot="end" fill="outline" size="small" (click)="registrarAhora(m)" [attr.aria-label]="'Registrar toma de ' + m.nombre">

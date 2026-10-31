@@ -28,6 +28,7 @@ import {
   unidadesRestantes,
 } from '../../core/services/medicamentos.service';
 import { claveDia, sumarDias } from '../../core/utils/fechas';
+import { LIMITES_SEGUN_NECESIDAD, textoIndicacion } from '../../core/utils/segun-necesidad';
 
 /** Minutos mínimos entre dos horarios del mismo medicamento. */
 const SEPARACION_MIN = 30;
@@ -115,6 +116,50 @@ const SEPARACION_MIN = 30;
           Cada toma se registra en el momento desde la sección "Según necesidad". No se programan
           avisos.
         </ion-note>
+        <!-- Indicación del médico: la app la recuerda al dar la dosis y avisa (sin impedir) si se pasa -->
+        <ion-note class="titulo-indicacion">Indicación del médico (opcional)</ion-note>
+        <ion-input
+          label="Cuándo darlo"
+          labelPlacement="stacked"
+          fill="outline"
+          name="condicion"
+          placeholder="Ej. si hay dolor"
+          [(ngModel)]="condicion"
+          [maxlength]="LP.condicion"
+          [counter]="true"
+          class="ion-margin-bottom"
+        />
+        <div class="limites">
+          <ion-input
+            type="number"
+            inputmode="numeric"
+            label="Máximo al día"
+            labelPlacement="stacked"
+            fill="outline"
+            name="maxAlDia"
+            placeholder="Ej. 3"
+            [(ngModel)]="maxAlDia"
+            [min]="LP.maxAlDia.min"
+            [max]="LP.maxAlDia.max"
+          />
+          <ion-input
+            type="number"
+            inputmode="numeric"
+            label="Horas entre tomas"
+            labelPlacement="stacked"
+            fill="outline"
+            name="horasEntreTomas"
+            placeholder="Ej. 8"
+            [(ngModel)]="horasEntreTomas"
+            [min]="LP.horasEntreTomas.min"
+            [max]="LP.horasEntreTomas.max"
+          />
+        </div>
+        @if (errorLimites(); as e) {
+          <ion-note color="danger" class="error">{{ e }}</ion-note>
+        } @else if (indicacionTexto(); as t) {
+          <ion-note color="medium" class="ayuda-bloque">Se mostrará al dar la dosis: {{ t }}.</ion-note>
+        }
       } @else {
         <ion-note>Horarios de toma</ion-note>
         <div class="horarios">
@@ -209,7 +254,7 @@ const SEPARACION_MIN = 30;
         labelPlacement="stacked"
         fill="outline"
         name="notas"
-        [placeholder]="segunNecesidad ? 'Ej. Si siente dolor, máximo 3 al día, dejar 8 h entre tomas' : 'Ej. Con alimentos; no combinar con…'"
+        [placeholder]="segunNecesidad ? 'Ej. Con agua; no dar con el estómago vacío' : 'Ej. Con alimentos; no combinar con…'"
         [autoGrow]="true"
         rows="2"
         [counter]="true"
@@ -222,6 +267,19 @@ const SEPARACION_MIN = 30;
     </ion-content>
   `,
   styles: [
+    `
+      .titulo-indicacion {
+        display: block;
+        margin: 4px 0 8px;
+        font-weight: 600;
+      }
+      .limites {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-bottom: 6px;
+      }
+    `,
     `
       .horarios {
         display: flex;
@@ -292,6 +350,11 @@ export class MedicamentoModal implements OnInit {
   /** Lo escrito en Inventario no es un número (el campo lo entrega como vacío) */
   inventarioIlegible = false;
   notas = '';
+  /** Según necesidad: indicación del médico (texto y límites opcionales) */
+  condicion = '';
+  maxAlDia: number | string | null = null;
+  horasEntreTomas: number | string | null = null;
+  readonly LP = LIMITES_SEGUN_NECESIDAD;
   /** Valores con que se abrió el formulario al editar: si no se tocan, no se envían (otro teléfono
    *  pudo descontar tomas mientras tanto, y un medicamento antiguo sin inicio debe seguir sin él). */
   private inventarioInicial: number | null = null;
@@ -315,6 +378,9 @@ export class MedicamentoModal implements OnInit {
       }
       this.inventario = unidadesRestantes(this.medicamento);
       this.inventarioInicial = this.inventario;
+      this.condicion = this.medicamento.condicion ?? '';
+      this.maxAlDia = this.medicamento.maxAlDia ?? null;
+      this.horasEntreTomas = this.medicamento.horasEntreTomas ?? null;
       this.inicioInicial = this.medicamento.inicio;
       this.notas = this.medicamento.notas ?? '';
     }
@@ -328,7 +394,8 @@ export class MedicamentoModal implements OnInit {
       !this.errorInicio() &&
       !this.errorDias() &&
       !this.errorInventario() &&
-      !this.errorNotas()
+      !this.errorNotas() &&
+      (!this.segunNecesidad || !this.errorLimites())
     );
   }
 
@@ -391,6 +458,29 @@ export class MedicamentoModal implements OnInit {
     if (!Number.isInteger(n)) return 'Usa unidades completas, sin decimales.';
     if (n > this.L.inventario) return `El máximo es ${this.L.inventario} unidades.`;
     return '';
+  }
+
+  /** Máximo al día y horas entre tomas: enteros dentro de los topes, o vacíos. */
+  errorLimites(): string {
+    const { maxAlDia: M, horasEntreTomas: H } = this.LP;
+    const max = this.numero(this.maxAlDia);
+    const horas = this.numero(this.horasEntreTomas);
+    if (this.maxAlDia !== '' && this.maxAlDia !== null && (max === null || !Number.isInteger(max) || max < M.min || max > M.max)) {
+      return `El máximo al día debe ser un número entero de ${M.min} a ${M.max}, o déjalo vacío.`;
+    }
+    if (this.horasEntreTomas !== '' && this.horasEntreTomas !== null && (horas === null || !Number.isInteger(horas) || horas < H.min || horas > H.max)) {
+      return `Las horas entre tomas deben ser un número entero de ${H.min} a ${H.max}, o déjalo vacío.`;
+    }
+    return '';
+  }
+
+  /** "Si hay dolor · máximo 3 al día · cada 8 h" con lo escrito en el formulario. */
+  indicacionTexto(): string {
+    return textoIndicacion({
+      condicion: this.condicion,
+      maxAlDia: this.numero(this.maxAlDia),
+      horasEntreTomas: this.numero(this.horasEntreTomas),
+    });
   }
 
   errorNotas(): string {
@@ -507,7 +597,19 @@ export class MedicamentoModal implements OnInit {
       duracionDias: this.modoDuracion === 'dias' ? this.diasNumero() : null,
       inventario: this.numero(this.inventario),
       notas: this.notas.trim(),
+      // La indicación solo aplica a "según necesidad"; si se quita el modo, se borra
+      condicion: this.segunNecesidad ? this.condicion.trim() : '',
+      maxAlDia: this.segunNecesidad ? this.numero(this.maxAlDia) : null,
+      horasEntreTomas: this.segunNecesidad ? this.numero(this.horasEntreTomas) : null,
     };
+    // Un medicamento con horario que nunca tuvo indicación no necesita esos campos
+    const teniaIndicacion =
+      !!this.medicamento?.condicion || this.medicamento?.maxAlDia != null || this.medicamento?.horasEntreTomas != null;
+    if (!this.segunNecesidad && !teniaIndicacion) {
+      delete datos.condicion;
+      delete datos.maxAlDia;
+      delete datos.horasEntreTomas;
+    }
     if (this.medicamento) {
       // Al editar, lo que no se tocó no se reescribe
       const editado: Partial<DatosMedicamento> = { ...datos };

@@ -290,3 +290,13 @@ h2 ion-note {
   font-size: 0.85em;
   margin-left: 4px;
 }
+
+// Según necesidad: indicación del médico y cuántas van hoy (en ámbar si ya se llegó al máximo)
+.indicacion-prn {
+  color: var(--ion-color-primary-shade);
+  font-weight: 600;
+}
+.en-maximo {
+  color: var(--ion-color-warning-shade);
+  font-weight: 700;
+}

@@ -21,9 +21,10 @@ import {
   writeBatch,
 } from '@angular/fire/firestore';
 import { Observable, catchError, combineLatest, map, of, switchMap } from 'rxjs';
-import { Medicamento, Toma } from '../models';
+import { Medicamento, MotivoToma, Toma } from '../models';
 import { claveDia, inicioDeDia, sumarDias } from '../utils/fechas';
 import { NOTA_MAX } from '../utils/notas';
+import { LIMITES_SEGUN_NECESIDAD } from '../utils/segun-necesidad';
 import { AuthService } from './auth.service';
 
 export interface DatosMedicamento {
@@ -40,6 +41,16 @@ export interface DatosMedicamento {
   notas?: string;
   /** Al editar: cambió el nombre, la dosis, los horarios o "según necesidad" (no solo notas o inventario) */
   cambioTratamiento?: boolean;
+  /** Según necesidad: indicación del médico (core/utils/segun-necesidad.ts) */
+  condicion?: string;
+  maxAlDia?: number | null;
+  horasEntreTomas?: number | null;
+}
+
+/** Motivo e intensidad de una toma según necesidad (opcionales). */
+export interface DetalleToma {
+  motivo?: MotivoToma;
+  intensidad?: number;
 }
 
 /** Una dosis programada de un día concreto, con su registro (si existe). */
@@ -286,6 +297,44 @@ export class MedicamentosService {
     };
   }
 
+  /**
+   * Tomas de un medicamento desde `desde` (para revisar una toma nueva contra la indicación del
+   * médico: las de hoy y las de las últimas horas indicadas).
+   */
+  async tomasDesde(personaId: string, medicamentoId: string, desde: Date): Promise<Toma[]> {
+    const snap = await getDocs(
+      query(
+        collection(this.db, `personas_cuidadas/${personaId}/medicamentos/${medicamentoId}/tomas`),
+        where('horaProgramada', '>=', Timestamp.fromDate(desde)),
+        orderBy('horaProgramada', 'asc'),
+      ),
+    );
+    return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Toma) }));
+  }
+
+  /** Tomas de hoy de cada medicamento según necesidad (id → tomas), en tiempo real: "hoy van 2 de 3". */
+  tomasHoySegunNecesidad(personaId: string, hoy: Date): Observable<Record<string, Toma[]>> {
+    return this.medicamentos(personaId).pipe(
+      switchMap((meds) => {
+        const prn = meds.filter((m) => m.segunNecesidad && m.activo !== false && m.id);
+        if (!prn.length) return of({} as Record<string, Toma[]>);
+        const desde = Timestamp.fromDate(inicioDeDia(hoy));
+        return combineLatest(
+          prn.map((m) => {
+            const q = query(
+              collection(this.db, `personas_cuidadas/${personaId}/medicamentos/${m.id}/tomas`),
+              where('horaProgramada', '>=', desde),
+            );
+            return (collectionData(q, { idField: 'id' }) as Observable<Toma[]>).pipe(
+              catchError(() => of([] as Toma[])),
+              map((tomas) => [m.id!, tomas] as const),
+            );
+          }),
+        ).pipe(map((pares) => Object.fromEntries(pares)));
+      }),
+    );
+  }
+
   /** Última toma registrada de cada medicamento según necesidad (id → toma), en tiempo real. */
   ultimasTomasSegunNecesidad(personaId: string): Observable<Record<string, Toma | undefined>> {
     return this.medicamentos(personaId).pipe(
@@ -421,6 +470,7 @@ export class MedicamentosService {
     dosis: DosisProgramada,
     estado: EstadoToma,
     nota?: string,
+    detalle: DetalleToma = {},
   ): Promise<void> {
     const uid = this.authSvc.uid;
     const med = dosis.medicamento;
@@ -448,6 +498,10 @@ export class MedicamentosService {
       ...(dosis.aDemanda ? { aDemanda: true } : {}),
       ...(tomado && sinDescuento ? { sinDescuento: true } : {}),
       ...(nota?.trim() ? { nota: nota.trim().slice(0, NOTA_MAX) } : {}),
+      ...(tomado && detalle.motivo ? { motivo: detalle.motivo } : {}),
+      ...(tomado && detalle.motivo === 'dolor' && Number.isInteger(detalle.intensidad)
+        ? { intensidad: Math.min(10, Math.max(0, detalle.intensidad!)) }
+        : {}),
     });
     if (estado === 'quitar') {
       if (dosis.toma) batch.delete(tomaRef);
@@ -504,6 +558,18 @@ export class MedicamentosService {
       salida['inventario'] = i === null || !Number.isFinite(i) ? null : entero(i, 0, L.inventario);
     }
     if (datos.notas !== undefined) salida['notas'] = datos.notas.trim().slice(0, L.notas);
+    // Indicación del médico para "según necesidad" (vacía o null = sin ese límite)
+    const LP = LIMITES_SEGUN_NECESIDAD;
+    if (datos.condicion !== undefined) salida['condicion'] = datos.condicion.trim().slice(0, LP.condicion);
+    if (datos.maxAlDia !== undefined) {
+      const n = datos.maxAlDia;
+      salida['maxAlDia'] = n === null || !Number.isFinite(n) ? null : entero(n, LP.maxAlDia.min, LP.maxAlDia.max);
+    }
+    if (datos.horasEntreTomas !== undefined) {
+      const n = datos.horasEntreTomas;
+      salida['horasEntreTomas'] =
+        n === null || !Number.isFinite(n) ? null : entero(n, LP.horasEntreTomas.min, LP.horasEntreTomas.max);
+    }
     return salida;
   }
 }

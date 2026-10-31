@@ -73,6 +73,7 @@ import {
 } from '../../core/utils/fechas';
 import { personaActual } from '../../core/utils/persona-actual';
 import { estadoSemaforo } from '../../core/utils/semaforo';
+import { textoHoy, textoIndicacion } from '../../core/utils/segun-necesidad';
 import { FabAsistente } from '../../shared/fab-asistente.component';
 import { EditarCitaService } from '../citas/editar-cita.service';
 import { MarcarTomaService } from '../medicamentos/marcar-toma.service';
@@ -204,6 +205,12 @@ export class HoyPage {
   private readonly tareas = toSignal(
     combineLatest([this.ctx.personaId$, toObservable(this.dia)]).pipe(
       switchMap(([id, dia]) => this.tareasSvc.agendaDelDia(id, dia)),
+    ),
+  );
+  /** Tomas de hoy de cada medicamento según necesidad (id → tomas): "hoy van 2 de 3" */
+  private readonly tomasHoyPrn = toSignal(
+    combineLatest([this.ctx.personaId$, toObservable(this.hoyInicio)]).pipe(
+      switchMap(([id, hoy]) => this.medsSvc.tomasHoySegunNecesidad(id, hoy)),
     ),
   );
   /** Última toma de cada medicamento según necesidad (id → toma) */
@@ -513,6 +520,17 @@ export class HoyPage {
   }
 
   /** Registra una toma "ahora" de un medicamento según necesidad. */
+  /** Indicación del médico de un medicamento según necesidad ("Si hay dolor · máximo 3 al día · cada 8 h"). */
+  indicacionPrn(m: Medicamento): string {
+    return textoIndicacion(m);
+  }
+
+  /** Cuántas van hoy y si ya se llegó al máximo indicado. */
+  usoHoyPrn(m: Medicamento): { texto: string; enMaximo: boolean } {
+    const dadas = (m.id ? (this.tomasHoyPrn()?.[m.id] ?? []) : []).filter((t) => t.tomado).length;
+    return { texto: textoHoy(dadas, m.maxAlDia), enMaximo: !!m.maxAlDia && dadas >= m.maxAlDia };
+  }
+
   async registrarAhora(m: Medicamento) {
     const personaId = this.ctx.personaId();
     if (!personaId || !this.puedeRegistrarTomas() || !m.id || this.marcando) return;

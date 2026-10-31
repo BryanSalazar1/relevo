@@ -633,6 +633,8 @@ export interface MedicamentoParaBanderas {
   nombre: string;
   adherencia: number | null;
   omisiones: Omisiones;
+  /** Según necesidad: veces que se pasó de la indicación del médico (core/utils/segun-necesidad.ts) */
+  excesos?: string[];
 }
 
 export function banderasHoja(datos: {
@@ -681,6 +683,7 @@ export function banderasHoja(datos: {
   for (const c of datos.cambios ?? []) (c.clase === 'mejoro' ? buena : media)(textoCambio(c));
 
   for (const m of datos.medicamentos) {
+    for (const e of m.excesos ?? []) media(e);
     const { omitidas, patron } = m.omisiones;
     if (m.adherencia !== null && m.adherencia < u.adherenciaMinima) {
       media(`${m.nombre}: adherencia ${m.adherencia} % (${omitidas} ${plural(omitidas, 'dosis omitida', 'dosis omitidas')}${patron ? `, ${patron}` : ''})`);

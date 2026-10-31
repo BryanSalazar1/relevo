@@ -155,7 +155,11 @@
           <ion-label class="ion-text-wrap">
             <h3>{{ m.nombre }} · {{ m.dosis }}@if (m.nuevo) {<ion-badge color="primary" class="nuevo">nuevo</ion-badge>}</h3>
             @if (m.segunNecesidad) {
-              <p>Según necesidad · {{ m.tomadas }} toma(s) en el periodo</p>
+              <p>Según necesidad{{ m.indicacion ? ' · ' + m.indicacion : '' }}</p>
+              <p>{{ m.uso }}</p>
+              @for (e of m.excesos; track e) {
+                <p class="exceso"><ion-text color="warning">{{ e }}</ion-text></p>
+              }
             } @else {
               <p>
                 {{ m.horarios.join(', ') || 'Sin horario' }} · {{ m.tomadas }}/{{ m.programadas }} tomas

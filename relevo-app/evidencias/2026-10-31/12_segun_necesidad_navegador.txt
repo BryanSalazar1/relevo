@@ -1,0 +1,43 @@
+Medicamentos según necesidad con indicación del médico (31/10/2026), en la app contra los emuladores
+con la semilla (Chromium 390x844). Ana es responsable, Marta enfermera y Luis el médico.
+
+  ✔ Plan: el Paracetamol de la semilla muestra su indicación al editarlo
+  ✔ Validación: un máximo de 0 no deja guardar
+      Hoy: Ibuprofeno 400 mg Si hay dolor · máximo 2 al día · cada 8 h Sin tomas registradas · Hoy van 0 de 2 Tomó ahora
+  ✔ Alta: Ibuprofeno según necesidad "si hay dolor, máximo 2 al día, cada 8 h"
+  ✔ Enfermera: primera toma, sin avisos; elige "Dolor" e intensidad 6
+      avisos: La última fue hace 1 min; la indicación es cada 8 h.
+  ✔ Segunda toma enseguida: avisa del intervalo y deja registrar "de todos modos"
+  ✔ Tercera: avisa que ya se llegó al máximo; cancelar no registra nada
+      Paracetamol (si hay dolor): el 29 oct se dieron 4, más del máximo de 3 al día
+  ✔ Reporte: la hoja resume el uso y marca lo que pasó de lo indicado
+  ✔ Seguimiento (médico): ve el uso y los excesos
+errores de consola: ninguno
+FALLOS: 0
+
+Regresión en la misma corrida:
+  === prueba_prn.mjs
+  errores de consola: ninguno
+  FALLOS: 0
+  === prueba_semaforo.mjs
+  errores de consola: ninguno
+  FALLOS: 0
+  === recorrido_agenda.mjs
+  errores de consola: ninguno
+  FALLOS: 0
+
+Casos cubiertos por pruebas unitarias (04_unitarias.txt, segun-necesidad.spec.ts):
+  - textoIndicacion resume lo que dijo el médico (y queda vacío sin indicación)
+  - dentro de lo indicado: sin avisos
+  - la cuarta del día se pasa del máximo: avisa sin impedir
+  - antes del intervalo aunque no llegue al máximo
+  - las tomas de ayer no cuentan para el máximo de hoy, pero sí para el intervalo
+  - las tomas marcadas como no tomadas no cuentan
+  - sin indicación de intervalo, avisa de un posible registro repetido (como antes)
+  - cuenta tomas, motivos, intensidad promedio, días sobre el máximo y tomas antes de tiempo
+  - sin indicación: solo cuenta el uso, sin excesos
+  - sin tomas en el periodo
+  - momentoToma usa la hora real y si no la programada
+
+La app avisa pero no impide: registra el motivo y la intensidad del dolor y resume para el médico
+las veces que se pasó del máximo o del intervalo. No decide la dosis ni sugiere medicamentos.

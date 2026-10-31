@@ -25,6 +25,7 @@ import {
   Toma,
 } from '../models';
 import { edad, etiquetaRango, sumarDias } from '../utils/fechas';
+import { resumenCondicional, textoIndicacion, textosExceso, textoUso } from '../utils/segun-necesidad';
 import {
   Bandera,
   FilaSigno,
@@ -69,6 +70,12 @@ export interface ResumenMedicamento {
   patronOmision: string | null;
   /** Se dio de alta dentro del periodo */
   nuevo: boolean;
+  /** Según necesidad: indicación del médico ("Si hay dolor · máximo 3 al día · cada 8 h") o '' */
+  indicacion: string;
+  /** Según necesidad: "5 tomas: 4 por dolor (intensidad promedio 6/10), 1 por fiebre" */
+  uso: string;
+  /** Según necesidad: veces que se pasó de lo indicado, para comentar con el médico */
+  excesos: string[];
 }
 
 /** Días hacia atrás en los que se buscan indicaciones médicas previas al periodo */
@@ -206,6 +213,7 @@ export class ReporteService {
           nombre: m.nombre,
           adherencia: m.adherencia,
           omisiones: { omitidas: m.omitidas, patron: m.patronOmision },
+          excesos: m.excesos,
         })),
         cambios,
         tendencia,
@@ -257,6 +265,7 @@ export class ReporteService {
     const tomadas = tomas.filter((t) => t.tomado).length;
     const segunNecesidad = m.segunNecesidad === true;
     const omisiones = segunNecesidad ? { omitidas: 0, patron: null } : patronOmisiones(tomas);
+    const condicional = segunNecesidad ? resumenCondicional(m, tomas) : null;
     return {
       nombre: m.nombre,
       dosis: m.dosis,
@@ -268,6 +277,9 @@ export class ReporteService {
       omitidas: omisiones.omitidas,
       patronOmision: omisiones.patron,
       nuevo: !!m.creadoEn && m.creadoEn.toDate().getTime() >= desde.getTime(),
+      indicacion: segunNecesidad ? textoIndicacion(m) : '',
+      uso: condicional ? textoUso(condicional) : '',
+      excesos: condicional ? textosExceso(m.nombre, m, condicional) : [],
     };
   }
 
@@ -411,11 +423,17 @@ export class ReporteService {
       ['Medicamento', 'Dosis y horario', 'Tomas del periodo', 'Omitidas'],
       r.medicamentos.map((m) => [
         `${m.nombre}${m.nuevo ? ' (nuevo en el periodo)' : ''}`,
-        `${m.dosis} · ${m.segunNecesidad ? 'según necesidad' : m.horarios.join(', ') || 'sin horario'}`,
+        `${m.dosis} · ${m.segunNecesidad ? `según necesidad${m.indicacion ? ` (${m.indicacion.toLowerCase()})` : ''}` : m.horarios.join(', ') || 'sin horario'}`,
         m.segunNecesidad
-          ? plural(m.tomadas, 'uso', 'usos')
+          ? m.uso
           : `${m.tomadas} de ${m.programadas}${m.adherencia !== null ? ` (${m.adherencia} %)` : ''}`,
-        m.segunNecesidad ? '—' : m.omitidas ? `${m.omitidas}${m.patronOmision ? ` · ${m.patronOmision}` : ''}` : '0',
+        m.segunNecesidad
+          ? m.excesos.length
+            ? `${m.excesos.length} sobre lo indicado`
+            : '—'
+          : m.omitidas
+            ? `${m.omitidas}${m.patronOmision ? ` · ${m.patronOmision}` : ''}`
+            : '0',
       ]),
       { 0: { cellWidth: 46, fontStyle: 'bold' }, 3: { cellWidth: 40 } },
     );

@@ -191,7 +191,7 @@ export class SeguimientoPage {
 
   /** Adherencia por debajo del 80 % o la misma dosis omitida casi siempre */
   revisar(m: Reporte['medicamentos'][number]): boolean {
-    return (m.adherencia !== null && m.adherencia < 80) || !!m.patronOmision;
+    return (m.adherencia !== null && m.adherencia < 80) || !!m.patronOmision || m.excesos.length > 0;
   }
 
   /** Abre el formulario de indicación (el mismo de la bitácora, acotado al médico) y recarga. */

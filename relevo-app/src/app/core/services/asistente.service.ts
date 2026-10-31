@@ -29,6 +29,7 @@ import {
   Toma,
 } from '../models';
 import { edad, etiquetaRango, sumarDias, textoDias } from '../utils/fechas';
+import { textoIndicacion } from '../utils/segun-necesidad';
 import { unidadesRestantes } from './medicamentos.service';
 
 export interface MensajeChat {
@@ -220,13 +221,14 @@ export class AsistenteService {
       const tomas = tomasPorMed[i];
       const omitidas = tomas.filter((t) => !t.tomado).length;
       lineas.push(
-        `- ${m.nombre} ${m.dosis}, ${m.segunNecesidad ? 'según necesidad (sin horario fijo)' : `horarios ${m.horarios?.join(', ') || 'sin horario'}`}, inventario ${unidadesRestantes(m) ?? '?'}` +
+        `- ${m.nombre} ${m.dosis}, ${m.segunNecesidad ? `según necesidad (sin horario fijo${textoIndicacion(m) ? `; indicación del médico: ${textoIndicacion(m)}` : ''})` : `horarios ${m.horarios?.join(', ') || 'sin horario'}`}, inventario ${unidadesRestantes(m) ?? '?'}` +
           `${m.activo === false ? ' (suspendido)' : ''}. Tomas registradas: ${tomas.length}, omitidas: ${omitidas}.`,
       );
       for (const t of tomas) {
         lineas.push(
           `   · ${f(t.horaProgramada)} ${t.tomado ? 'TOMADA' : 'NO TOMADA'}` +
-            `${t.tomado && t.horaReal ? ` a las ${formatDate(t.horaReal.toDate(), 'HH:mm', 'es')}` : ''} (registró ${nombreDe(t.registradoPor)})${t.nota ? ` · nota: ${t.nota}` : ''}`,
+            `${t.tomado && t.horaReal ? ` a las ${formatDate(t.horaReal.toDate(), 'HH:mm', 'es')}` : ''} (registró ${nombreDe(t.registradoPor)})` +
+            `${t.motivo ? ` · motivo: ${t.motivo}${typeof t.intensidad === 'number' ? ` (intensidad ${t.intensidad}/10)` : ''}` : ''}${t.nota ? ` · nota: ${t.nota}` : ''}`,
         );
       }
     });

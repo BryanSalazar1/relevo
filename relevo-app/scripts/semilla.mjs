@@ -150,6 +150,17 @@ async function main() {
   console.log('3) Medicamentos, signos vitales y bitácora (como Ana)');
   b = writeBatch(db);
   b.set(doc(personaRef, 'medicamentos', 'metformina'), { nombre: 'Metformina', dosis: '850 mg', horarios: ['08:00', '20:00'], inventario: 42, activo: true });
+  // Según necesidad con indicación del médico: "si hay dolor, máximo 3 al día, cada 8 h". Hace 2 días
+  // se dieron 4 (una más del máximo, y algunas con menos de 8 h): la hoja lo marca para el médico.
+  // Cada toma la firma quien la dio (las reglas no dejan firmar por otro): las de Marta van con su sesión.
+  b.set(doc(personaRef, 'medicamentos', 'paracetamol'), { nombre: 'Paracetamol', dosis: '500 mg', horarios: [], segunNecesidad: true, condicion: 'si hay dolor', maxAlDia: 3, horasEntreTomas: 8, inventario: 20, activo: true });
+  const prn = (dias, hora, min, motivo, intensidad, quien, nombre) => {
+    const ts = hace(dias, hora, min);
+    b.set(doc(personaRef, 'medicamentos/paracetamol/tomas', `${idDe(ts)}00`), { horaProgramada: ts, horaReal: ts, tomado: true, aDemanda: true, registradoPor: quien, registradoNombre: nombre, registradoEn: ts, motivo, ...(intensidad !== null ? { intensidad } : {}) });
+  };
+  prn(2, 13, 0, 'dolor', 6, ana, 'Ana García');
+  prn(2, 17, 30, 'fiebre', null, ana, 'Ana García');
+  prn(1, 10, 0, 'dolor', 4, ana, 'Ana García');
   b.set(doc(personaRef, 'medicamentos', 'losartan'), { nombre: 'Losartán', dosis: '50 mg', horarios: ['08:00'], inventario: 28, activo: true });
   b.set(doc(personaRef, 'medicamentos/metformina/tomas', idDe(hace(0, 8))), { horaProgramada: hace(0, 8), horaReal: hace(0, 8, 10), tomado: true, registradoPor: ana, registradoNombre: 'Ana García' });
   b.set(doc(personaRef, 'medicamentos/metformina/tomas', idDe(hace(1, 8))), { horaProgramada: hace(1, 8), horaReal: hace(1, 8, 5), tomado: true, registradoPor: ana, registradoNombre: 'Ana García' });
@@ -190,6 +201,10 @@ async function main() {
   console.log('4) Turno de Marta (cuidadora de turno)');
   await signInWithEmailAndPassword(auth, 'marta@relevo.test', PASSWORD);
   b = writeBatch(db);
+  // Paracetamol según necesidad que dio Marta
+  prn(4, 9, 0, 'dolor', 5, marta, 'Marta López');
+  prn(2, 7, 0, 'dolor', 7, marta, 'Marta López');
+  prn(2, 22, 0, 'dolor', 6, marta, 'Marta López');
   b.set(doc(personaRef, 'entradas_bitacora', 'e4'), { tipo: 'sintoma', texto: 'Se quejó de dolor en la rodilla derecha al caminar. Se aplicó compresa tibia.', autorUid: marta, autorNombre: 'Marta López', fecha: hace(1, 22, 15) });
   b.set(doc(personaRef, 'entradas_bitacora', 'e5'), { tipo: 'incidente', texto: 'Se resbaló en el baño; sin golpe. Revisar tapete antiderrapante.', autorUid: marta, autorNombre: 'Marta López', fecha: hace(2, 23, 5), caida: true, lesion: false });
   b.set(doc(personaRef, 'medicamentos/metformina/tomas', idDe(hace(2, 20))), { horaProgramada: hace(2, 20), horaReal: hace(2, 20, 5), tomado: true, registradoPor: marta, registradoNombre: 'Marta López' });

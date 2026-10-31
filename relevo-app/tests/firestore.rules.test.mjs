@@ -978,3 +978,24 @@ test('medicamentos: la fecha de cambio de tratamiento la guarda el responsable y
   await assertSucceeds(updateDoc(ref, { dosis: '100 mg', tratamientoCambiadoEn: serverTimestamp() }));
   await assertFails(updateDoc(ref, { dosis: '50 mg', tratamientoCambiadoEn: 'ayer' }));
 });
+
+test('según necesidad: indicación del médico en el medicamento y motivo de la toma, con valores válidos', async () => {
+  await anaCreaPersona();
+  await agregarLuisComo('cuidador_turno');
+  const med = doc(ana(), `personas_cuidadas/${PERSONA_ID}/medicamentos/prn`);
+  const base = { nombre: 'Paracetamol', dosis: '500 mg', horarios: [], segunNecesidad: true, inventario: 20, activo: true };
+  await assertSucceeds(setDoc(med, { ...base, condicion: 'si hay dolor', maxAlDia: 3, horasEntreTomas: 8 }));
+  await assertSucceeds(updateDoc(med, { maxAlDia: null, horasEntreTomas: null, condicion: '' }));
+  await assertFails(updateDoc(med, { maxAlDia: 0 }));
+  await assertFails(updateDoc(med, { maxAlDia: 30 }));
+  await assertFails(updateDoc(med, { horasEntreTomas: 2.5 }));
+  await assertFails(updateDoc(med, { condicion: 'x'.repeat(81) }));
+  // El cuidador de turno registra la toma con motivo e intensidad
+  const toma = (id) => doc(luis(), `personas_cuidadas/${PERSONA_ID}/medicamentos/prn/tomas/${id}`);
+  const datos = { tomado: true, horaProgramada: Timestamp.now(), registradoPor: 'luis', aDemanda: true };
+  await assertSucceeds(setDoc(toma('t1'), { ...datos, motivo: 'dolor', intensidad: 7 }));
+  await assertSucceeds(setDoc(toma('t2'), { ...datos, motivo: 'fiebre' }));
+  await assertFails(setDoc(toma('t3'), { ...datos, motivo: 'aburrimiento' }));
+  await assertFails(setDoc(toma('t4'), { ...datos, motivo: 'dolor', intensidad: 11 }));
+  await assertFails(setDoc(toma('t5'), { ...datos, motivo: 'dolor', intensidad: 5.5 }));
+});

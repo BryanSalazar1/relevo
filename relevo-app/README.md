@@ -413,6 +413,27 @@ decisión: en la web se avisa por correo.
 
 ## 10. Funcionalidades implementadas (10 de septiembre de 2026)
 
+### Medicamentos según necesidad con indicación del médico — 31/10/2026
+
+Para lo que el médico deja "si hay dolor" o "si hay fiebre" con un máximo al día y horas entre tomas.
+La app **recuerda la indicación y avisa, pero no impide ni decide la dosis**.
+
+- **Al darlo de alta o editarlo** (interruptor *Sin horario fijo*): *Cuándo darlo* (`condicion`, ≤ 80
+  caracteres), *Máximo al día* (`maxAlDia`, entero 1–24) y *Horas entre tomas* (`horasEntreTomas`, entero
+  1–72), los tres opcionales. El formulario muestra cómo se verá: "Si hay dolor · máximo 3 al día · cada 8 h".
+- **En Hoy**, debajo del nombre, la indicación y "Hoy van 2 de 3" (en ámbar al llegar al máximo).
+- **Tomó ahora** abre *Registrar toma* con la indicación, cuántas van hoy y la última toma. Si ya se llegó
+  al máximo ("Hoy ya van 3 de 3 permitidas. Consulta al médico antes de dar otra.") o no han pasado las
+  horas indicadas ("La última fue hace 6 h 30 min; la indicación es cada 8 h.") lo dice y el botón cambia a
+  **Registrar de todos modos**. Pide, opcional, el motivo (`motivo`: dolor, fiebre u otro) y, si es dolor,
+  la intensidad de 0 a 10 (`intensidad`).
+- **Hoja para la consulta, Reporte y Seguimiento**: el uso ("6 tomas: 5 por dolor (intensidad promedio
+  5.6/10), 1 por fiebre") y, como puntos para comentar, los días en que se pasó del máximo y las tomas antes
+  de tiempo. El asistente recibe la indicación y el motivo de cada toma.
+- Lógica en `core/utils/segun-necesidad.ts` (11 pruebas unitarias); las rules validan los campos nuevos
+  (`medicamentoValido`, `tomaValida`). La semilla incluye un Paracetamol "si hay dolor, máximo 3 al día, cada
+  8 h" con un día en que se dieron 4.
+
 ### Refuerzos en sistemas inteligentes y seguridad — 31/10/2026
 
 - **Cambios respecto a lo habitual, leídos con la zona clínica** (`cambiosPersonales`, `tendenciaPresion`
@@ -831,8 +852,8 @@ flotante de cada pantalla.
   horarios (válidos, sin repetir, ≥ 30 min entre sí, máximo 12), inicio (del año 2000 a un año desde
   hoy), duración (entero de 1 a 365), inventario (entero de 0 a 9999) y notas (≤ 300); además indica
   para cuántos días alcanza el inventario. Al confirmar una toma se avisa si la dosis está
-  adelantada más de 1 h, si hay otra toma según necesidad de hace menos de 1 h o si el inventario
-  está en 0. Las rules repiten los límites (`medicamentoValido`, `inventarioValido`), obligan a que
+  adelantada más de 1 h, si hay otra toma según necesidad de hace menos de 1 h (o antes de las horas
+  que indicó el médico) o si el inventario está en 0. Las rules repiten los límites (`medicamentoValido`, `inventarioValido`), obligan a que
   enfermero/a y familiar muevan el inventario de uno en uno (`ajusteDeToma`) y validan las tomas
   (`tomaValida`); suspender/reactivar y el ajuste de inventario no revalidan el resto del
   documento, para no bloquear medicamentos anteriores a estos límites.
@@ -1010,7 +1031,7 @@ flotante de cada pantalla.
   `NoDefaultCurrentDirectoryInExePath` cmd no encuentra el archivo aunque esté en la carpeta.
 
 ### Pruebas
-- `npm run test:rules` — 36 pruebas de Security Rules contra el emulador.
+- `npm run test:rules` — 37 pruebas de Security Rules contra el emulador.
 - `npm run test:functions` — 55 pruebas de la lógica de notificaciones y del asistente (mensajes, destinatarios,
   turnos de guardia, alertas, dosis vencidas, avisos previos, duración de tratamientos, días de la
   semana, zona horaria, inventario bajo y su aviso). Corren con Node solo, sin emulador ni Java.

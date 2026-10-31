@@ -362,6 +362,14 @@ export interface Medicamento {
    */
   tratamientoCambiadoEn?: Timestamp;
   /**
+   * Según necesidad: la indicación del médico tal como la dio. Cuándo darlo ("si hay dolor"),
+   * cuántas veces como máximo al día y cuántas horas dejar entre tomas. Todo opcional; la app la
+   * recuerda al dar la dosis y avisa (sin impedir) si se pasa.
+   */
+  condicion?: string;
+  maxAlDia?: number | null;
+  horasEntreTomas?: number | null;
+  /**
    * Última vez que el responsable guardó el formulario. Las Cloud Functions la usan para distinguir
    * una corrección del inventario a mano (rearma el aviso de inventario bajo) de deshacer una toma.
    */
@@ -369,6 +377,15 @@ export interface Medicamento {
 }
 
 /** personas_cuidadas/{id}/medicamentos/{id}/tomas/{id}  (id = yyyyMMdd-HHmm de la hora programada) */
+/** Por qué se dio una toma según necesidad. */
+export type MotivoToma = 'dolor' | 'fiebre' | 'otro';
+
+export const MOTIVOS_TOMA: { valor: MotivoToma; etiqueta: string }[] = [
+  { valor: 'dolor', etiqueta: 'Dolor' },
+  { valor: 'fiebre', etiqueta: 'Fiebre' },
+  { valor: 'otro', etiqueta: 'Otro' },
+];
+
 export interface Toma {
   id?: string;
   horaProgramada: Timestamp;
@@ -382,6 +399,10 @@ export interface Toma {
   sinDescuento?: boolean;
   /** Nota de quien registró: motivo ("dolor de cabeza"), observación, etc. */
   nota?: string;
+  /** Según necesidad: por qué se dio (opcional) */
+  motivo?: MotivoToma;
+  /** Según necesidad, si fue por dolor: qué tan fuerte, de 0 a 10 (opcional) */
+  intensidad?: number;
   /** Cuándo se registró; ordena la bitácora. Tomas antiguas no lo tienen (se usa horaReal u horaProgramada) */
   registradoEn?: Timestamp;
 }

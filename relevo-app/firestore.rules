@@ -183,7 +183,13 @@ service cloud.firestore {
         // Marca de la última edición desde el formulario (opcional; medicamentos antiguos no la tienen)
         && (!('editadoEn' in d) || d.editadoEn is timestamp)
         // Cuándo cambió el tratamiento (nombre, dosis u horarios): la hoja recalcula lo habitual desde ahí
-        && (!('tratamientoCambiadoEn' in d) || d.tratamientoCambiadoEn is timestamp);
+        && (!('tratamientoCambiadoEn' in d) || d.tratamientoCambiadoEn is timestamp)
+        // Según necesidad: indicación del médico (cuándo darlo, máximo al día, horas entre tomas).
+        // Mismos topes que LIMITES_SEGUN_NECESIDAD en la app
+        && (!('condicion' in d) || (d.condicion is string && d.condicion.size() <= 80))
+        && (!('maxAlDia' in d) || d.maxAlDia == null || (d.maxAlDia is int && d.maxAlDia >= 1 && d.maxAlDia <= 24))
+        && (!('horasEntreTomas' in d) || d.horasEntreTomas == null
+            || (d.horasEntreTomas is int && d.horasEntreTomas >= 1 && d.horasEntreTomas <= 72));
     }
 
     // Registrar o deshacer una toma mueve el inventario de uno en uno
@@ -215,7 +221,10 @@ service cloud.firestore {
     function tomaValida(d) {
       return d.tomado is bool
         && d.horaProgramada is timestamp
-        && (!('nota' in d) || (d.nota is string && d.nota.size() <= 200));
+        && (!('nota' in d) || (d.nota is string && d.nota.size() <= 200))
+        // Según necesidad: por qué se dio y, si fue dolor, qué tan fuerte (0 a 10)
+        && (!('motivo' in d) || d.motivo in ['dolor', 'fiebre', 'otro'])
+        && (!('intensidad' in d) || (d.intensidad is int && d.intensidad >= 0 && d.intensidad <= 10));
     }
 
     // Preferencias de avisos de un miembro (las elige cada quien en Notificaciones; mismos valores en la app)
