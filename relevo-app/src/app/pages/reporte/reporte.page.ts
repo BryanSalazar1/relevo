@@ -267,9 +267,9 @@ export class ReportePage {
       const blob = await generar(r);
       await loading.dismiss();
       const resultado = await this.reporteSvc.compartirPdf(blob, nombre(r));
-      await this.aviso(
-        resultado === 'descargado' ? 'PDF descargado.' : 'PDF listo para compartir.',
-      );
+      if (resultado !== 'cancelado') {
+        await this.aviso(resultado === 'descargado' ? 'PDF descargado.' : 'PDF listo para compartir.');
+      }
     } catch (e) {
       console.error(e);
       await loading.dismiss();

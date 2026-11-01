@@ -1,0 +1,26 @@
+Recorrido de Relevo en Android (01/11/2026): la app instalada como APK de la versión 1.0.0 en un
+EMULADOR de Android 15 (AVD Pixel 6, imagen google_apis x86_64, emulador 37.2.13), contra los emuladores de
+Firebase con la semilla. No es un teléfono físico: la prueba en un teléfono real se muestra en vivo en la defensa.
+Toques reales con adb; la cámara trasera del emulador recibe la imagen del QR de la invitación (imagefile).
+
+      Android 15 · sdk_gphone64_x86_64 · com.relevo.app 1.0.0
+  ✔ La app instalada abre en Android y Ana (responsable) inicia sesión
+  ✔ Hoy: tomas y rutina del día con botones para marcar
+      PDF en el teléfono: cache/Relevo_consulta_Carmen_Herna_ndez_20261026-20261102.pdf (18644 bytes)
+  ✔ Reporte: la hoja para la consulta se exporta en PDF y se abre el menú de compartir de Android
+  ✔ Equipo: la invitación con su QR (código, vencimiento y usos)
+  ✔ Cerrar sesión (borra la copia local)
+  ✔ Pedro (familiar nuevo) escanea el QR con la cámara del teléfono y se une al equipo
+  ✔ Cerrar sesión de Pedro
+      pestañas del médico: Seguimiento · Historial · Reporte · Equipo
+  ✔ Dr. Luis (médico): entra a Seguimiento; no tiene Hoy ni semáforo para registrar tomas
+FALLOS: 0
+
+Evidencia en android/: capturas 01-08 (de la misma corrida), 09 = PDF generado dentro del teléfono
+(copiado de cache/ con run-as), 10 = grabación de la pantalla del Android (adb screenrecord, comprimida).
+
+Hallazgo y corrección: en Android, cerrar el menú de compartir sin elegir app mostraba "No se pudo generar
+el PDF" aunque el PDF sí se generaba (Capacitor rechaza con "Share canceled"). Ahora se trata como cancelación
+(ReporteService.compartirPdf → cancelado) y no se muestra aviso; esta corrida lo comprueba.
+
+Cómo se reproduce: tests/evidencias/android/README.md

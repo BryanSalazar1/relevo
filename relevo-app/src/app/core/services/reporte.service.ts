@@ -702,8 +702,11 @@ export class ReporteService {
       : `${s.valor} ${s.unidad}`;
   }
 
-  /** Android: guarda en caché y abre la hoja de compartir. Web: comparte o descarga. */
-  async compartirPdf(blob: Blob, nombre: string): Promise<'compartido' | 'descargado'> {
+  /**
+   * Android: guarda en caché y abre la hoja de compartir. Web: comparte o descarga.
+   * 'cancelado': en Android se cerró la hoja de compartir sin elegir app (no es un error).
+   */
+  async compartirPdf(blob: Blob, nombre: string): Promise<'compartido' | 'descargado' | 'cancelado'> {
     if (Capacitor.isNativePlatform()) {
       const { Filesystem, Directory } = await import('@capacitor/filesystem');
       const { Share } = await import('@capacitor/share');
@@ -713,7 +716,12 @@ export class ReporteService {
         data: base64,
         directory: Directory.Cache,
       });
-      await Share.share({ title: nombre, files: [archivo.uri] });
+      try {
+        await Share.share({ title: nombre, files: [archivo.uri] });
+      } catch (error) {
+        if (/cancel/i.test((error as { message?: string } | null)?.message ?? '')) return 'cancelado';
+        throw error;
+      }
       return 'compartido';
     }
     const file = new File([blob], nombre, { type: 'application/pdf' });

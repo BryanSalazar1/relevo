@@ -230,7 +230,9 @@ export class SeguimientoPage {
       });
       await loading.dismiss();
       const resultado = await this.reporteSvc.compartirPdf(blob, this.reporteSvc.nombreArchivoHoja(r));
-      await this.aviso(resultado === 'descargado' ? 'PDF descargado.' : 'PDF listo para compartir.');
+      if (resultado !== 'cancelado') {
+        await this.aviso(resultado === 'descargado' ? 'PDF descargado.' : 'PDF listo para compartir.');
+      }
     } catch (e) {
       console.error(e);
       await loading.dismiss();

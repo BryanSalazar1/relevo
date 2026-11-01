@@ -19,6 +19,7 @@ Registros de ejecución citados en `Relevo_Proyecto_Modular.docx` (preevaluació
 | `2026-10-31/11_cambios_personales_navegador.txt` | Lecturas comparadas con lo habitual y la zona clínica en la app; reinicio por cambio de dosis; casos de las pruebas unitarias | Emuladores + semilla + `ng serve --port 4300` |
 | `2026-10-31/12_segun_necesidad_navegador.txt` | Medicamentos según necesidad: indicación del médico (cuándo, máximo al día, horas entre tomas), avisos sin impedir, motivo e intensidad del dolor y resumen de excesos en la hoja y en Seguimiento | Emuladores + semilla + `ng serve --port 4300` |
 | `2026-10-31/13_semaforo_compartido_navegador.txt` | Semáforo por enlace o QR sin iniciar sesión: opciones por rol, QR leído, mismo estado que la app, actualización tras registrar, cambio de enlace y token inventado | Emuladores (con Functions, sin secretos) + semilla + `ng serve --port 4300` |
+| `2026-11-01/14_android_emulador.txt` y `2026-11-01/android/` | La app instalada como APK en **Android 15 (emulador)**: inicio de sesión por rol, Hoy, hoja en PDF generada en el teléfono y menú de compartir, invitación con QR, **QR leído con la cámara** y unión al equipo, Seguimiento del médico; capturas, PDF y grabación de la pantalla. No es un teléfono físico | `tests/evidencias/android/README.md` |
 
 El recorrido completo por roles está en `tests/evidencias/recorrido-roles.mjs` (mismos requisitos que el de navegador).
 Las pruebas de reglas y de navegador corren contra los emuladores con la semilla (`npm run semilla`): no tocan datos reales.

@@ -1055,6 +1055,8 @@ flotante de cada pantalla.
 - `npm run test:functions` — 57 pruebas de la lógica de notificaciones, del asistente y del semáforo compartido (mensajes, destinatarios,
   turnos de guardia, alertas, dosis vencidas, avisos previos, duración de tratamientos, días de la
   semana, zona horaria, inventario bajo y su aviso). Corren con Node solo, sin emulador ni Java.
+- Recorrido en **Android 15 (emulador)** con el APK: roles, PDF desde el teléfono, QR leído con la cámara
+  (`tests/evidencias/android/README.md`; resultado en `evidencias/2026-11-01/`).
 - `npm run test:e2e` — recorrido completo en Chromium contra la app publicada: login, bitácora,
   invitación con QR, reporte + PDF, unirse con código y limpieza de lo creado.
 
