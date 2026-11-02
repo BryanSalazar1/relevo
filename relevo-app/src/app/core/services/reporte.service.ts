@@ -12,6 +12,7 @@ import {
   where,
 } from '@angular/fire/firestore';
 import { Capacitor } from '@capacitor/core';
+import { ActionSheetController } from '@ionic/angular';
 import {
   EntradaBitacora,
   Medicamento,
@@ -125,6 +126,7 @@ export class ReporteService {
   private readonly db = inject(Firestore);
   private readonly authSvc = inject(AuthService);
   private readonly bitacoraSvc = inject(BitacoraService);
+  private readonly actionSheetCtrl = inject(ActionSheetController);
 
   async generar(personaId: string, desde: Date, hasta: Date): Promise<Reporte> {
     const base = `personas_cuidadas/${personaId}`;
@@ -288,7 +290,11 @@ export class ReporteService {
   // ---------------------------------------------------------------------------
 
   nombreArchivo(r: Reporte): string {
-    const persona = r.persona.nombre.normalize('NFD').replace(/[^\w]+/g, '_');
+    // Sin acentos ("Hernández" → "Hernandez") y sin espacios ni signos
+    const persona = r.persona.nombre
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^\w]+/g, '_');
     return `Relevo_${persona}_${formatDate(r.desde, 'yyyyMMdd', 'es')}-${formatDate(
       r.hasta,
       'yyyyMMdd',
@@ -703,36 +709,77 @@ export class ReporteService {
   }
 
   /**
-   * Android: guarda en caché y abre la hoja de compartir. Web: comparte o descarga.
-   * 'cancelado': en Android se cerró la hoja de compartir sin elegir app (no es un error).
+   * Pregunta si descargar o compartir el PDF y lo hace. Si el dispositivo no puede compartir
+   * archivos (navegador de escritorio), lo descarga directo.
+   * 'cancelado': se cerró el menú o la hoja de compartir de Android sin elegir (no es un error).
    */
   async compartirPdf(blob: Blob, nombre: string): Promise<'compartido' | 'descargado' | 'cancelado'> {
-    if (Capacitor.isNativePlatform()) {
-      const { Filesystem, Directory } = await import('@capacitor/filesystem');
-      const { Share } = await import('@capacitor/share');
-      const base64 = await this.aBase64(blob);
-      const archivo = await Filesystem.writeFile({
-        path: nombre,
-        data: base64,
-        directory: Directory.Cache,
-      });
-      try {
-        await Share.share({ title: nombre, files: [archivo.uri] });
-      } catch (error) {
-        if (/cancel/i.test((error as { message?: string } | null)?.message ?? '')) return 'cancelado';
-        throw error;
-      }
-      return 'compartido';
-    }
+    const nativo = Capacitor.isNativePlatform();
     const file = new File([blob], nombre, { type: 'application/pdf' });
-    if (navigator.canShare?.({ files: [file] })) {
+    if (!nativo && !navigator.canShare?.({ files: [file] })) return this.descargarWeb(blob, nombre);
+
+    const sheet = await this.actionSheetCtrl.create({
+      header: 'Hoja en PDF',
+      buttons: [
+        { text: 'Descargar', icon: 'download-outline', data: 'descargar' },
+        { text: 'Compartir', icon: 'share-social-outline', data: 'compartir' },
+        { text: 'Cancelar', role: 'cancel' },
+      ],
+    });
+    await sheet.present();
+    const { data } = await sheet.onWillDismiss<'descargar' | 'compartir'>();
+    if (!data) return 'cancelado';
+
+    if (!nativo) {
+      if (data === 'descargar') return this.descargarWeb(blob, nombre);
       try {
         await navigator.share({ title: nombre, files: [file] });
         return 'compartido';
       } catch {
-        /* el usuario canceló: caemos a la descarga */
+        return 'cancelado';
       }
     }
+
+    const { Filesystem, Directory } = await import('@capacitor/filesystem');
+    const base64 = await this.aBase64(blob);
+    if (data === 'descargar') {
+      await this.guardarEnDocumentos(base64, nombre);
+      return 'descargado';
+    }
+    const { Share } = await import('@capacitor/share');
+    const archivo = await Filesystem.writeFile({
+      path: nombre,
+      data: base64,
+      directory: Directory.Cache,
+    });
+    try {
+      await Share.share({ title: nombre, files: [archivo.uri] });
+    } catch (error) {
+      if (/cancel/i.test((error as { message?: string } | null)?.message ?? '')) return 'cancelado';
+      throw error;
+    }
+    return 'compartido';
+  }
+
+  /** Dónde queda el PDF descargado, para el aviso. */
+  readonly carpetaDescargas = Capacitor.isNativePlatform() ? 'Documentos › Relevo' : 'Descargas';
+
+  /**
+   * Android: carpeta pública Documentos/Relevo, visible en la app Archivos. Si ya hay un archivo con
+   * ese nombre que la app no puede sobrescribir (p. ej. de una instalación anterior), agrega la hora.
+   */
+  private async guardarEnDocumentos(base64: string, nombre: string) {
+    const { Filesystem, Directory } = await import('@capacitor/filesystem');
+    const guardar = (n: string) =>
+      Filesystem.writeFile({ path: `Relevo/${n}`, data: base64, directory: Directory.Documents, recursive: true });
+    try {
+      await guardar(nombre);
+    } catch {
+      await guardar(nombre.replace(/\.pdf$/, `_${formatDate(new Date(), 'HHmmss', 'es')}.pdf`));
+    }
+  }
+
+  private descargarWeb(blob: Blob, nombre: string): 'descargado' {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

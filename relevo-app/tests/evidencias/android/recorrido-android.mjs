@@ -157,12 +157,34 @@ try {
     await esperar(1500);
     captura('a2_hoy');
   });
-  await paso('Reporte: la hoja para la consulta se exporta en PDF y se abre el menú de compartir de Android', async () => {
+  const exportar = async (opcion) => {
+    await tocar(page.locator('app-reporte ion-header').getByRole('button', { name: 'Exportar hoja para la consulta' }));
+    await page.waitForSelector('ion-action-sheet button:has-text("Descargar")', { timeout: 30000 });
+    await esperar(800);
+    if (opcion === 'Descargar') captura('a3_menu_pdf');
+    await tocar(page.locator('ion-action-sheet button', { hasText: opcion }), { despues: opcion === 'Descargar' ? 300 : 4000 });
+    // El aviso dura 2.5 s: se lee en cuanto aparece
+    if (opcion === 'Descargar') await page.waitForSelector('ion-toast', { timeout: 15000 });
+  };
+  await paso('Reporte: la hoja para la consulta se descarga en PDF en Documentos/Relevo del teléfono', async () => {
     await tocar(page.locator('ion-tab-button', { hasText: 'Reporte' }));
     await page.waitForSelector('app-reporte ion-card.hoja', { timeout: 30000 });
     await esperar(1500);
+    try { adb('shell', 'rm', '-rf', '/sdcard/Documents/Relevo'); } catch {}
+    await exportar('Descargar');
+    const aviso = (await page.locator('ion-toast').evaluateAll((ts) => ts.map((t) => t.message)).catch(() => [])).join(' ');
+    captura('a3_pdf_descargado');
+    const archivos = adb('shell', 'ls', '/sdcard/Documents/Relevo').split(/\s+/).filter((f) => f.endsWith('.pdf'));
+    espera(archivos.length === 1, `no quedó el PDF en Documentos/Relevo: ${archivos}`);
+    const bytes = adbBin('exec-out', 'cat', `/sdcard/Documents/Relevo/${archivos[0]}`);
+    espera(bytes.subarray(0, 5).toString() === '%PDF-', 'el archivo descargado no es un PDF');
+    espera(aviso.includes('Documentos'), `aviso inesperado: ${aviso}`);
+    nota(`PDF descargado: Documentos/Relevo/${archivos[0]} (${bytes.length} bytes) · aviso: «${aviso.trim()}»`);
+  });
+  await paso('Reporte: la misma hoja se comparte desde el menú de compartir de Android', async () => {
+    await page.locator('ion-toast').evaluateAll((ts) => ts.forEach((t) => t.dismiss?.())).catch(() => {});
     const antes = adb('shell', 'run-as', PAQUETE, 'ls', 'cache').split(/\s+/).filter((f) => f.endsWith('.pdf'));
-    await tocar(page.locator('app-reporte ion-header').getByRole('button', { name: 'Exportar hoja para la consulta' }), { despues: 4000 });
+    await exportar('Compartir');
     captura('a3_compartir_pdf');
     const pdfs = adb('shell', 'run-as', PAQUETE, 'ls', '-l', 'cache').split('\n').filter((l) => l.includes('.pdf'));
     const nuevo = pdfs.map((l) => l.trim().split(/\s+/).pop()).find((f) => !antes.includes(f)) ?? pdfs[0]?.trim().split(/\s+/).pop();
@@ -173,8 +195,24 @@ try {
     nota(`PDF en el teléfono: cache/${nuevo} (${bytes.length} bytes)`);
     adb('shell', 'input', 'keyevent', '4'); // cerrar el menú de compartir sin elegir app
     await esperar(2500);
-    const aviso = await page.locator('ion-toast').allInnerTexts().catch(() => []);
+    const aviso = await page.locator('ion-toast').evaluateAll((ts) => ts.map((t) => t.message)).catch(() => []);
     espera(!aviso.join(' ').includes('No se pudo'), `aviso de error al cerrar el menú: ${aviso}`);
+  });
+  await paso('Reporte: descargar otra vez reemplaza el archivo; Cancelar no hace nada', async () => {
+    await esperar(2000);
+    await exportar('Descargar');
+    const archivos = adb('shell', 'ls', '/sdcard/Documents/Relevo').split(/\s+/).filter((f) => f.endsWith('.pdf'));
+    espera(archivos.length === 1, `después de descargar dos veces hay: ${archivos}`);
+    espera(/^Relevo_consulta_Carmen_Hernandez_\d{8}-\d{8}\.pdf$/.test(archivos[0]), `nombre del archivo: ${archivos[0]}`);
+    nota(`Documentos/Relevo: ${archivos[0]}`);
+    await esperar(3000);
+    await tocar(page.locator('app-reporte ion-header').getByRole('button', { name: 'Exportar hoja para la consulta' }));
+    await page.waitForSelector('ion-action-sheet button:has-text("Cancelar")', { timeout: 30000 });
+    await esperar(800);
+    await tocar(page.locator('ion-action-sheet button', { hasText: 'Cancelar' }), { despues: 1500 });
+    const avisos = await page.locator('ion-toast').evaluateAll((ts) => ts.map((t) => t.message)).catch(() => []);
+    espera(avisos.length === 0, `Cancelar mostró: ${avisos}`);
+    espera((await page.locator('ion-action-sheet').count()) === 0, 'el menú sigue abierto');
   });
   await paso('Equipo: la invitación con su QR (código, vencimiento y usos)', async () => {
     await tocar(page.locator('ion-tab-button', { hasText: 'Equipo' }));
@@ -185,6 +223,33 @@ try {
     await esperar(1500);
     captura('a4_invitacion_qr');
     await tocar(page.locator('app-compartir-modal ion-header').getByRole('button', { name: 'Cerrar' }));
+  });
+  await paso('Equipo: turnos de Marta; "Todos los días, las 24 h" no pide horario y deja ver la cobertura', async () => {
+    await esperar(1000);
+    const fila = page.locator('app-equipo ion-item', { hasText: 'Marta' }).first();
+    await tocar(fila.locator('ion-button', { hasText: 'Turnos' }));
+    await page.waitForSelector('app-turnos-modal', { timeout: 15000 });
+    await esperar(1000);
+    const modal = page.locator('app-turnos-modal');
+    // Si ya tenía turnos, se quitan para empezar desde cero
+    while ((await modal.locator('ion-card.turno ion-button', { hasText: 'Quitar' }).count()) > 0) {
+      await tocar(modal.locator('ion-card.turno ion-button', { hasText: 'Quitar' }).first());
+    }
+    await tocar(modal.locator('ion-button', { hasText: 'Elegir días y horario' }));
+    espera((await modal.locator('ion-card.turno ion-input').count()) === 2, 'no muestra el horario');
+    captura('a5_turno_con_horario');
+    await tocar(modal.locator('button.atajo', { hasText: 'Todos los días' }));
+    await esperar(600);
+    espera((await modal.locator('ion-card.turno ion-input').count()) === 0, 'con todos los días sigue pidiendo horario');
+    const cobertura = (await modal.locator('.cobertura').innerText()).trim();
+    espera(cobertura === 'Siempre hay alguien de guardia.', `cobertura: ${cobertura}`);
+    captura('a6_turno_24h');
+    await tocar(modal.locator('ion-header ion-button', { hasText: 'Guardar' }));
+    await modal.waitFor({ state: 'detached', timeout: 15000 });
+    await esperar(1500);
+    const texto = (await fila.locator('p.turnos').innerText()).trim();
+    espera(texto === 'Todos los días, las 24 h', `Equipo muestra: ${texto}`);
+    nota(`Marta: ${texto} · ${cobertura}`);
   });
   await parar();
 
@@ -232,6 +297,19 @@ try {
     await page.waitForSelector('app-seguimiento ion-card', { timeout: 60000 });
     await esperar(4000);
     captura('l2_seguimiento');
+  });
+  await paso('Dr. Luis: descarga la hoja desde Seguimiento', async () => {
+    try { adb('shell', 'rm', '-rf', '/sdcard/Documents/Relevo'); } catch {}
+    await tocar(page.locator('app-seguimiento ion-button', { hasText: 'Hoja para la consulta (PDF)' }));
+    await page.waitForSelector('ion-action-sheet button:has-text("Descargar")', { timeout: 60000 });
+    await esperar(800);
+    await tocar(page.locator('ion-action-sheet button', { hasText: 'Descargar' }), { despues: 300 });
+    await page.waitForSelector('ion-toast', { timeout: 15000 });
+    const aviso = (await page.locator('ion-toast').evaluateAll((ts) => ts.map((t) => t.message))).join(' ');
+    espera(aviso.includes('Documentos'), `aviso: ${aviso}`);
+    const archivos = adb('shell', 'ls', '/sdcard/Documents/Relevo').split(/\s+/).filter((f) => f.endsWith('.pdf'));
+    espera(archivos.length === 1, `no quedó el PDF: ${archivos}`);
+    nota(`Médico: Documentos/Relevo/${archivos[0]} · «${aviso}»`);
   });
   await parar();
 } catch (e) {

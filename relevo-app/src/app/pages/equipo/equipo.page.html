@@ -155,6 +155,11 @@
     <ion-item lines="none">
       <ion-note class="ion-text-wrap ayuda-turnos">
         Los recordatorios de rutina llegan a quien está de guardia; los avisos del equipo, según lo que elija cada quien.
+        @if (cobertura(); as c) {
+          <span class="cobertura">{{ c }}</span>
+        } @else {
+          <span class="cobertura">Nadie tiene turnos: los recordatorios llegan a todos los que registran.</span>
+        }
       </ion-note>
     </ion-item>
   </ion-list>

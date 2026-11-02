@@ -64,12 +64,6 @@ export function textoDias(dias?: number[] | null): string {
   return `${cortos.slice(0, -1).join(', ')} y ${cortos[cortos.length - 1]}`;
 }
 
-/** "L, M, X, J y V 08:00–16:00 · S y D 09:00–13:00", o "Sin turnos" si no hay. */
-export function textoTurnos(turnos?: { dias: number[]; desde: string; hasta: string }[] | null): string {
-  if (!turnos?.length) return 'Sin turnos';
-  return turnos.map((t) => `${textoDias(t.dias)} ${t.desde}–${t.hasta}`).join(' · ');
-}
-
 /** true si la tarea aplica ese día de la semana (sin días definidos = todos). */
 export function tareaEnDia(dias: number[] | undefined | null, dia: Date): boolean {
   return !dias?.length || dias.includes(dia.getDay());

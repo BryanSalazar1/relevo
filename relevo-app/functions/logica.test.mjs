@@ -375,7 +375,7 @@ test('dosisVencidas y proximos respetan la duración del medicamento y los días
   );
 });
 
-test('enTurno: diurno, nocturno que cruza la medianoche y días', () => {
+test('enTurno: diurno, nocturno que cruza la medianoche, todo el día y días', () => {
   const martes0830 = partesEnZona(new Date('2026-09-15T14:30:00Z'), ZONA);
   const martes2330 = partesEnZona(new Date('2026-09-16T05:30:00Z'), ZONA);
   const miercoles0130 = partesEnZona(new Date('2026-09-16T07:30:00Z'), ZONA);
@@ -388,6 +388,11 @@ test('enTurno: diurno, nocturno que cruza la medianoche y días', () => {
   assert.equal(enTurno(nocturno, miercoles0130), true);
   assert.equal(enTurno(nocturno, martes0830), false);
   assert.equal(enTurno({ dias: [2], desde: 'x', hasta: '06:00' }, martes0830), false);
+  // Todo el día: la app lo guarda como 00:00–00:00 y cubre las 24 h de los días elegidos
+  const todoElDia = { dias: [2], desde: '00:00', hasta: '00:00' };
+  assert.equal(enTurno(todoElDia, martes0830), true);
+  assert.equal(enTurno(todoElDia, martes2330), true);
+  assert.equal(enTurno(todoElDia, miercoles0130), false);
 });
 
 test('deGuardia: sin turnos todos; con turnos solo los activos; nadie activo → responsable', () => {
