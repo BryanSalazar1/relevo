@@ -6,8 +6,9 @@ historial compartido y en tiempo real del cuidado de una persona. Ver `../Relevo
 | Capa | Tecnología |
 | --- | --- |
 | UI | Ionic 9 + Angular 20 (standalone, signals) |
-| Nativo | Capacitor 8 (Android / iOS) + PWA con Service Worker |
-| Backend | Firebase: Authentication, Firestore, Storage, Cloud Messaging |
+| Nativo | Capacitor 8 (Android; iOS sin publicar) + PWA con Service Worker |
+| Backend | Firebase: Authentication, Firestore, Cloud Functions (11), Cloud Messaging, Hosting, Storage |
+| IA | Gemini, llamado solo desde Cloud Functions (la clave no viaja al cliente) |
 | Integración | `@angular/fire` 20 (Firebase SDK 11) |
 
 ---
@@ -34,7 +35,7 @@ npm install                 # instala dependencias (usa .npmrc → legacy-peer-d
 ionic serve                 # desarrollo web en http://localhost:8100 (o npm start → :4200)
 ionic build                 # build de producción a la carpeta www/ (la que usa Capacitor)
 
-# Android (requiere Android Studio instalado)
+# Android (JDK 21 y el SDK de Android; Android Studio es opcional)
 npx cap add android         # solo la primera vez: crea la carpeta android/
 npx cap sync                # copia www/ y plugins al proyecto nativo (después de cada build)
 npm run cap:sync            # atajo: ng build + cap sync
@@ -411,7 +412,7 @@ decisión: en la web se avisa por correo.
 
 ---
 
-## 10. Funcionalidades implementadas (10 de septiembre de 2026)
+## 10. Funcionalidades implementadas (historial, lo más reciente primero)
 
 ### Semáforo compartido por enlace o QR — 31/10/2026
 
@@ -1040,7 +1041,8 @@ flotante de cada pantalla.
 - Compilar: `npm run android:apk` (= build web + `cap sync` + `gradlew assembleDebug`, sin Android
   Studio; la primera vez tarda ~13 min, después ~1 min) → `android/app/build/outputs/apk/debug/app-debug.apk`.
   También puedes abrir el proyecto en Android Studio con `npx cap open android`.
-- **APK regenerado el 15/09/2026** (11.6 MB): copia en `../Relevo-debug.apk`. Pásalo al teléfono
+- **APK de la versión 1.0.0** (versionCode 2, 10.7 MB, 01/11/2026): copia en `../Relevo-1.0.0-debug.apk`
+  (y `../Relevo-debug.apk`). Pásalo al teléfono
   (cable, WhatsApp, Drive…) y ábrelo; Android pedirá permitir *Instalar apps desconocidas*. Es una
   build de depuración: sirve para probar y para la demo, no para Play Store (eso requiere firma).
 - **Push activo desde el 15/09/2026**: la app Android `com.relevo.app` está registrada en Firebase y
@@ -1055,12 +1057,18 @@ flotante de cada pantalla.
 - `npm run test:functions` — 57 pruebas de la lógica de notificaciones, del asistente y del semáforo compartido (mensajes, destinatarios,
   turnos de guardia, alertas, dosis vencidas, avisos previos, duración de tratamientos, días de la
   semana, zona horaria, inventario bajo y su aviso). Corren con Node solo, sin emulador ni Java.
+- `npx ng test --watch=false --browsers=ChromeHeadless` — 88 pruebas unitarias de la app (Karma).
+- `node tests/evidencias/recorrido-roles.mjs` — recorrido de 19 pasos con los cuatro roles contra los
+  emuladores; `node tests/evidencias/prueba-asistente.mjs` — banco de preguntas al asistente con IA
+  contra la función publicada (cuenta de demostración en `RELEVO_DEMO_EMAIL` y `RELEVO_DEMO_PASSWORD`).
 - Recorrido en **Android 15 (emulador)** con el APK: roles, PDF desde el teléfono, QR leído con la cámara
   (`tests/evidencias/android/README.md`; resultado en `evidencias/2026-11-01/`).
 - `npm run test:e2e` — recorrido completo en Chromium contra la app publicada: login, bitácora,
   invitación con QR, reporte + PDF, unirse con código y limpieza de lo creado.
 
 ### Fuera de alcance por ahora
-Fotos y notas de voz (Storage requiere plan Blaze), captura de signos vitales desde la app, traspaso
-de turno, alertas inteligentes, SOS. Las notificaciones (§8) están
-programadas pero no desplegadas.
+Fotos y notas de voz, botón SOS, autenticación en dos pasos, publicación en iOS, lectura de
+baumanómetros por Bluetooth y exportación en FHIR. Falta un piloto con familias reales y una
+validación con profesionales de la salud (ver Limitaciones en `../Relevo_Proyecto_Modular.docx`).
+Los signos vitales, la entrega de turno, las banderas de la hoja y las notificaciones (§8) ya están
+implementados y publicados.
