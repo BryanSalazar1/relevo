@@ -41,7 +41,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { MiembrosService } from '../../core/services/miembros.service';
 import { NotificacionesService } from '../../core/services/notificaciones.service';
 import { PersonasService } from '../../core/services/personas.service';
-import { textoTurnos } from '../../core/utils/fechas';
+import { textoTurnos } from '../../core/utils/turnos';
 
 type Permiso = 'granted' | 'denied' | 'prompt' | 'prompt-with-rationale' | 'desconocido';
 

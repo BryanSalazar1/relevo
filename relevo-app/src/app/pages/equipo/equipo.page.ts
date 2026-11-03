@@ -42,7 +42,8 @@ import {
 } from '../../core/services/invitaciones.service';
 import { MiembrosService } from '../../core/services/miembros.service';
 import { PersonasService } from '../../core/services/personas.service';
-import { edad, textoTurnos } from '../../core/utils/fechas';
+import { edad } from '../../core/utils/fechas';
+import { resumenCobertura, textoTurnos, turnosQueCubren } from '../../core/utils/turnos';
 import { confirmar } from '../../core/utils/notas';
 import { personaActual } from '../../core/utils/persona-actual';
 import { CompartirModal } from './compartir.modal';
@@ -111,6 +112,8 @@ export class EquipoPage {
   );
   readonly esPrincipal = computed(() => this.rol() === 'cuidador_principal');
   readonly edad = computed(() => edad(this.persona()?.fechaNacimiento));
+  /** Horas de la semana sin nadie de guardia (null si nadie tiene turnos) */
+  readonly cobertura = computed(() => resumenCobertura(turnosQueCubren(this.miembros() ?? [])));
 
   /** Invitaciones activas (solo el responsable puede listarlas; las rules lo garantizan). */
   readonly invitaciones = toSignal(
@@ -363,7 +366,10 @@ export class EquipoPage {
   async editarTurnos(m: Miembro) {
     const personaId = this.ctx.personaId();
     if (!personaId) return;
-    const modal = await this.modalCtrl.create({ component: TurnosModal, componentProps: { miembro: m } });
+    const modal = await this.modalCtrl.create({
+      component: TurnosModal,
+      componentProps: { miembro: m, equipo: this.miembros() ?? [] },
+    });
     await modal.present();
     const { data, role } = await modal.onWillDismiss<DatosTurnos>();
     if (role !== 'guardar' || !data) return;

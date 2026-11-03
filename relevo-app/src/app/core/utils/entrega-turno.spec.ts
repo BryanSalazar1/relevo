@@ -74,6 +74,15 @@ describe('entrega de turno', () => {
       expect(finTurnoAnterior([nocturno], a('02:00'))).toEqual(a('06:00', -1));
     });
 
+    it('de guardia siempre (24 h) o con turnos seguidos: no hay un "turno anterior" a medianoche', () => {
+      const siempre: Turno = { dias: todos, desde: '00:00', hasta: '00:00' };
+      expect(finTurnoAnterior([siempre], a('14:00'))).toBeNull();
+      expect(inicioEntrega({ turnos: [siempre], ahora: a('14:00') })).toEqual(a('06:00'));
+      // Día 08–16 y tarde 16–22 seguidos son una sola guardia: el anterior acabó ayer a las 22:00
+      const tarde: Turno = { dias: todos, desde: '16:00', hasta: '22:00' };
+      expect(finTurnoAnterior([diurno, tarde], a('17:00'))).toEqual(a('22:00', -1));
+    });
+
     it('turno solo los lunes: si el anterior fue hace una semana, se acota a 3 días', () => {
       const lunes: Turno = { dias: [1], desde: '08:00', hasta: '16:00' };
       const ahora = a('07:00'); // lunes temprano: el anterior fue el lunes pasado

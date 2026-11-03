@@ -59,7 +59,16 @@ function tramosRecientes(turnos: Turno[], ahora: Date, dias = 8): Tramo[] {
       tramos.push({ inicio, fin });
     }
   }
-  return tramos.sort((a, b) => a.inicio.getTime() - b.inicio.getTime());
+  // Tramos seguidos o encimados son una sola guardia (p. ej. todos los días las 24 h, o un turno
+  // de día seguido de uno de noche): si no, su "turno anterior" terminaría a la medianoche de hoy
+  const unidos: Tramo[] = [];
+  for (const t of tramos.sort((a, b) => a.inicio.getTime() - b.inicio.getTime())) {
+    const ultimo = unidos[unidos.length - 1];
+    if (ultimo && t.inicio.getTime() <= ultimo.fin.getTime()) {
+      if (t.fin.getTime() > ultimo.fin.getTime()) ultimo.fin = t.fin;
+    } else unidos.push({ ...t });
+  }
+  return unidos;
 }
 
 /**

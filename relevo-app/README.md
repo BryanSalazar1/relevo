@@ -414,6 +414,23 @@ decisión: en la web se avisa por correo.
 
 ## 10. Funcionalidades implementadas (historial, lo más reciente primero)
 
+### Turnos de guardia y descarga del PDF — 02/11/2026
+- **Turnos** (Equipo → Turnos, solo el responsable; lógica en `core/utils/turnos.ts`, probada en
+  `turnos.spec.ts`): opción **Todo el día (24 h)** sin horario, que se guarda como `00:00–00:00` (el servidor,
+  `enTurno` en `functions/logica.js`, ya lo trataba como 24 h: no hubo que volver a publicar funciones).
+  Elegir los 7 días pasa a 24 h si aún no se escribió un horario. Atajos *Todos los días*, *Lunes a viernes*
+  y *Fin de semana*; cada turno dice qué le falta, su duración y si termina al día siguiente; los traslapes
+  del mismo miembro se señalan con el día. Abajo se ven las guardias del resto del equipo y **las horas sin
+  nadie de guardia** (en vivo mientras se edita; también en Equipo), cuando los recordatorios le llegan al
+  responsable.
+- **Entrega de turno**: los tramos seguidos se unen; quien está de guardia siempre ya no tiene un "turno
+  anterior" que termina a medianoche (se resumen las últimas 8 h o desde su última visita).
+- **PDF**: al exportar (Reporte y Seguimiento) se elige **Descargar** o **Compartir**. En Android, Descargar
+  guarda en `Documentos/Relevo` (app Archivos; Android ≤ 10 pide permiso de almacenamiento, declarado en el
+  manifiesto). En la web de computadora se descarga directo. El nombre del archivo ya no rompe los acentos.
+- Pruebas: `node tests/evidencias/turnos.mjs <salida>` (72 comprobaciones) y el recorrido de Android;
+  resultado en `evidencias/2026-11-02/`.
+
 ### Semáforo compartido por enlace o QR — 31/10/2026
 
 Para dejar el semáforo a la vista en una tableta o tele de la casa, o mandárselo a un familiar, sin que
@@ -1057,7 +1074,7 @@ flotante de cada pantalla.
 - `npm run test:functions` — 57 pruebas de la lógica de notificaciones, del asistente y del semáforo compartido (mensajes, destinatarios,
   turnos de guardia, alertas, dosis vencidas, avisos previos, duración de tratamientos, días de la
   semana, zona horaria, inventario bajo y su aviso). Corren con Node solo, sin emulador ni Java.
-- `npx ng test --watch=false --browsers=ChromeHeadless` — 88 pruebas unitarias de la app (Karma).
+- `npx ng test --watch=false --browsers=ChromeHeadless` — 95 pruebas unitarias de la app (Karma).
 - `node tests/evidencias/recorrido-roles.mjs` — recorrido de 19 pasos con los cuatro roles contra los
   emuladores; `node tests/evidencias/prueba-asistente.mjs` — banco de preguntas al asistente con IA
   contra la función publicada (cuenta de demostración en `RELEVO_DEMO_EMAIL` y `RELEVO_DEMO_PASSWORD`).

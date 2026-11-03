@@ -1,0 +1,74 @@
+✔ Equipo: Marta sin turnos
+✔ Equipo: aviso cuando nadie tiene turnos
+✔ El médico no tiene botón de turnos
+✔ Sin turnos: ofrece "Todos los días, las 24 h"
+✔ Sin turnos: ofrece "Elegir días y horario"
+✔ Lista las guardias del resto del equipo
+✔ 24 h: los 7 días marcados
+✔ 24 h: "Todo el día" activado
+✔ 24 h: no pide horario
+✔ 24 h: resumen
+✔ 24 h: la semana queda cubierta
+✔ 24 h: se puede guardar
+✔ Firestore: 24 h se guarda como 00:00–00:00 con los 7 días
+✔ Equipo: texto de Marta
+✔ Equipo: cobertura completa
+✔ Al reabrir, "Todo el día" sigue activado
+✔ Al reabrir, sin horario
+✔ Quitar el domingo
+✔ Quitar un día no apaga "Todo el día"
+✔ Resumen sin domingo
+✔ Cobertura: el domingo queda sin nadie
+✔ Apagar "Todo el día" muestra el horario
+✔ Horario propuesto: desde 08:00
+✔ Horario propuesto: hasta 16:00
+✔ Resumen con horario y duración
+✔ Nocturno: avisa que termina al día siguiente
+✔ Nocturno: se puede guardar
+✔ Misma hora de inicio y fin: explica qué hacer
+✔ Misma hora: no deja guardar
+✔ Sin hora de fin: lo pide
+✔ Sin hora: no deja guardar
+✔ Sin días marcados
+✔ Sin días: lo pide
+✔ Sin días: no deja guardar
+✔ Cancelar no cambia lo guardado
+✔ Nuevo turno: lunes a viernes
+✔ El atajo "Lunes a viernes" se ve activo
+✔ Nuevo turno: con horario
+✔ Atajo "Fin de semana"
+✔ Fin de semana: conserva el horario
+✔ Atajo "Todos los días"
+✔ Todos los días sin haber tocado las horas: ya no pide horario (24 h)
+✔ Volver a lunes a viernes conserva las 24 h
+✔ Marcar uno por uno los 7 días
+✔ Si ya eligió que no es todo el día, marcar los 7 días respeta su horario
+✔ Con horas ya escritas, "Todos los días" no las borra
+✔ Todos los días de 09:00 a 13:00
+✔ Marcar a mano los días hasta tener los 7 (sin tocar horas) pasa a 24 h
+✔ Agregar otro turno
+✔ Traslape: lo explica con el día
+✔ Traslape: no deja guardar
+✔ Cambiando los días ya no hay traslape
+✔ El nocturno del viernes choca con el sábado 05:00–09:00
+✔ Quitar un turno
+✔ Sin el turno que chocaba, se puede guardar
+✔ Dos turnos sin traslape: se puede guardar
+✔ Ve las guardias de Marta
+✔ Firestore: dos turnos de Sofía, días ordenados
+✔ Equipo: texto de Sofía
+✔ Cobertura en vivo con lo que se edita y los turnos de Sofía
+✔ Equipo: muestra las horas sin nadie de guardia
+✔ Equipo: la noche de Pedro cubre la madrugada siguiente
+✔ Sin turnos de nuevo: vuelven las dos opciones
+✔ Firestore: Pedro sin turnos
+✔ Equipo: Pedro sin turnos
+✔ Volver a activar "Todo el día" a mano
+✔ Quien no es responsable no ve el botón de turnos
+✔ Marta ve sus turnos en Equipo
+✔ Notificaciones: con turnos se puede activar "Solo durante mis turnos"
+✔ Notificaciones: muestra sus turnos
+   Hoy (Marta 24 h): desde hoy 08:44
+✔ Hoy: con guardia de 24 h la entrega no empieza a la medianoche
+✔ Sin errores en la consola
+FALLOS: 0

@@ -36,7 +36,7 @@ npm run emulators    # terminal 1: Firebase local (sin cuenta); luego `npm run s
 ionic serve          # terminal 2: web en http://localhost:8100 (ver FORZAR_EMULADORES en el README de la app)
 npm run test:rules   # 38 pruebas de las reglas de seguridad contra el emulador
 npm run test:functions   # 57 pruebas de la lógica del servidor
-npx ng test --watch=false --browsers=ChromeHeadless   # 88 pruebas unitarias de la app
+npx ng test --watch=false --browsers=ChromeHeadless   # 95 pruebas unitarias de la app
 npm run test:e2e     # recorrido completo contra la app PUBLICADA (correrlo solo después de un deploy)
 npm run android:apk  # APK de depuración (requiere JDK 21 y el SDK de Android)
 ```

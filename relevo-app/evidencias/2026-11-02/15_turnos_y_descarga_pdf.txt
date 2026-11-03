@@ -1,0 +1,35 @@
+Turnos de guardia y descarga del PDF (02/11/2026). Todo contra los emuladores de Firebase con la semilla
+(no toca datos reales), en una corrida limpia: emuladores recién iniciados, semilla y después cada prueba.
+
+RESULTADOS
+  Pruebas unitarias de la app ........ 95 de 95 (7 nuevas: core/utils/turnos.spec.ts y entrega-turno.spec.ts)
+  Lógica del servidor ................ 57 de 57 (1 omitida, igual que antes; enTurno ahora prueba también 24 h)
+  Reglas de seguridad ................ 38 de 38 (sin cambios en firestore.rules)
+  Recorrido por roles ................ 19 de 19 pasos            roles/
+  Turnos en el navegador ............. 72 de 72 comprobaciones   turnos/registro.txt
+  Android 15 (emulador, APK) ......... 12 de 12 pasos            android/registro.txt
+  Descarga del PDF en la web ......... 7 de 7 (computadora: descarga directa; teléfono: Descargar o Compartir)
+
+QUÉ CAMBIÓ EN LOS TURNOS (Equipo → Turnos, solo el responsable)
+  - "Todo el día (24 h)": no pide horario. Se guarda como 00:00–00:00, que el servidor ya trataba como 24 h,
+    así que no hubo que volver a publicar las Cloud Functions.
+  - Elegir los 7 días (con el atajo o uno por uno) pasa a 24 h si todavía no se escribió un horario;
+    si ya se escribió, lo respeta.
+  - Atajos: Todos los días, Lunes a viernes, Fin de semana. Los días elegidos se ven en color sólido.
+  - Cada turno dice qué le falta (sin días, sin hora, misma hora de inicio y fin) y no deja guardar.
+  - Duración y "termina al día siguiente" para los nocturnos; traslapes del mismo miembro con el día.
+  - Abajo, las guardias del resto del equipo y las horas de la semana sin nadie de guardia, en vivo
+    mientras se edita. Lo mismo aparece en Equipo. En esas horas los recordatorios le llegan al responsable.
+  - Entrega de turno: quien está de guardia siempre (o con turnos seguidos) ya no tiene un "turno anterior"
+    que termina a la medianoche; se resumen las últimas 8 horas o desde su última visita.
+
+QUÉ CAMBIÓ EN EL PDF (Reporte y Seguimiento)
+  - Al exportar se elige Descargar o Compartir. En Android, Descargar guarda en Documentos/Relevo (visible en
+    la app Archivos); descargar de nuevo reemplaza el archivo. En la web de computadora se descarga directo.
+  - El nombre del archivo ya no rompe los acentos: Relevo_consulta_Carmen_Hernandez_… (antes "Herna_ndez").
+
+CÓMO SE REPRODUCE
+  Emuladores + semilla + npx ng serve --port 4300 (FORZAR_EMULADORES = true):
+    node tests/evidencias/recorrido-roles.mjs http://localhost:4300 <salida>
+    node tests/evidencias/turnos.mjs <salida>          (FIRESTORE_PORT si el emulador no está en 8080)
+  Android: tests/evidencias/android/README.md

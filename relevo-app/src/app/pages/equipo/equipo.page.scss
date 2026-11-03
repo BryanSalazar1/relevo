@@ -67,6 +67,11 @@ ion-item .turnos {
 .ayuda-turnos {
   font-size: 0.8rem;
   padding: 4px 0 8px;
+  .cobertura {
+    display: block;
+    margin-top: 6px;
+    font-weight: 600;
+  }
 }
 
 ion-card-content .ficha-titulo {

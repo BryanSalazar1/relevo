@@ -4,15 +4,17 @@ Prueba la app **instalada como APK** en Android 15 contra los emuladores de Fire
 toca datos reales. Toques reales con `adb` (se ven en la grabación con "mostrar toques"); la página se
 lee con la API de Android de Playwright (depurador del WebView del APK de depuración).
 
-Resultado del 01/11/2026: `evidencias/2026-11-01/14_android_emulador.txt`.
+Resultados: `evidencias/2026-11-01/14_android_emulador.txt` y `evidencias/2026-11-02/android/registro.txt`.
 
 ## Qué recorre
 1. Ana (responsable) abre la app instalada, inicia sesión, ve **Hoy**.
-2. **Reporte → Exportar hoja**: el PDF se genera en el teléfono (se comprueba en `cache/` y se copia) y se
-   abre el menú de compartir de Android; cerrarlo sin elegir app no muestra error.
-3. **Equipo**: la invitación con su QR.
-4. Pedro (familiar sin personas) toca "Tengo un código o QR" → **Escanear**: la cámara lee el QR y se une.
-5. El Dr. Luis (médico) entra a **Seguimiento**; no tiene Hoy ni semáforo para registrar tomas.
+2. **Reporte → Exportar hoja → Descargar**: el PDF queda en `Documentos/Relevo` del teléfono (se lee con adb);
+   descargar otra vez lo reemplaza y **Cancelar** no hace nada.
+3. **Exportar hoja → Compartir**: el PDF se genera en `cache/` y se abre el menú de compartir de Android;
+   cerrarlo sin elegir app no muestra error.
+4. **Equipo**: la invitación con su QR, y los **turnos** de Marta: "Todos los días" ya no pide horario (24 h).
+5. Pedro (familiar sin personas) toca "Tengo un código o QR" → **Escanear**: la cámara lee el QR y se une.
+6. El Dr. Luis (médico) entra a **Seguimiento**; no tiene Hoy ni semáforo para registrar tomas, y descarga la hoja.
 
 ## Requisitos
 - Android SDK con `emulator`, `platform-tools` y `system-images;android-35;google_apis;x86_64`;
