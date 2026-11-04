@@ -240,8 +240,9 @@ UI de los emuladores: <http://localhost:4000> (ahí ves los usuarios y documento
 necesidad y uno terminado) con sus tomas, 6 tareas de rutina con registros y notas, 1 a 3 entradas
 de bitácora por día, glucosa y presión diarias, peso semanal, citas pasadas y próximas, y un equipo
 con turnos. Es idempotente (ids deterministas) y sus documentos llevan `semilla: true` para que las
-Cloud Functions no manden un aviso por cada uno. Cuentas (contraseña `Relevo.2026`; los correos son
-alias de la cuenta de la app, así que cualquier aviso llega a su bandeja):
+Cloud Functions no manden un aviso por cada uno. Cuentas (la contraseña no se guarda en el
+repositorio: se pasa en `RELEVO_DEMO_PASSWORD`; los correos son alias de la cuenta de la app, así
+que cualquier aviso llega a su bandeja):
 
 | Cuenta | Correo | Rol |
 |---|---|---|
@@ -414,6 +415,35 @@ decisión: en la web se avisa por correo.
 
 ## 10. Funcionalidades implementadas (historial, lo más reciente primero)
 
+### Roles por persona cuidada (multipaciente) — 04/11/2026
+- El rol ya no sale del tipo de cuenta: se tiene **por persona**. Marta (cuenta de enfermera) puede
+  ser enfermera de Carmen y responsable de su mamá; el Dr. Luis, médico de Carmen y familiar de otra
+  persona. Ver *Tipos de cuenta y roles por persona* (§10).
+- **Invitaciones con rol** (`Invitacion.rol`, `InvitacionesService.crear(persona, rol)`): en Equipo,
+  *¿A quién invitas?* con un código por rol; *Unirse* dice con qué rol entra. Las anteriores sin
+  rol siguen funcionando según el tipo de cuenta (`rolDeInvitacion`).
+- **Cualquier cuenta da de alta** a una persona (antes solo las de familiar) y queda como responsable.
+- **Cambiar rol** en Equipo: el responsable da cualquiera de los cuatro roles (las rules ya no
+  exigen que sea "compatible" con el tipo de cuenta).
+- **Inicio**: cada tarjeta dice tu rol con esa persona; tocarla te lleva a Seguimiento si ahí eres
+  médico o a Hoy si no; el semáforo sale solo donde registras. Las pestañas de cada persona salen de
+  tu rol con ella (`PersonaPage.esMedico` ya no mira el tipo de cuenta).
+- Rules: `rolDeInvitacion`, `rolInvitacionValido`, `rolValido`; se retiró `rolCompatible` y la
+  condición de tipo familiar para crear personas. Pruebas en `tests/firestore.rules.test.mjs`
+  (mismos 38 casos, actualizados) y `node tests/evidencias/multipaciente.mjs <salida>` (14 pasos).
+
+### Cuidadores en pausa y semilla con historial — 02/11/2026
+- **Pausar a un cuidador** (Equipo → ⋯ → *Pausar por un tiempo*, solo el responsable, solo enfermeros y
+  familiares): sigue en el equipo y puede ver todo, pero las rules no le dejan registrar (`miembroActivo` en
+  `firestore.rules`), no está de guardia ni recibe avisos (`deGuardia` y `quiereAviso` en `functions/logica.js`)
+  y no cuenta en la cobertura de turnos. Hoy le muestra un aviso con la fecha y el motivo. *Reactivar* lo
+  devuelve tal como estaba, sin invitarlo de nuevo. Campos `pausado`, `pausadoDesde` y `pausaMotivo` del miembro.
+- En *Desde tu último turno* los signos fuera de rango dicen quién los midió (como tomas, tareas y notas).
+- `RELEVO_DEMO_PASSWORD=… node scripts/semilla-demo.mjs [--real]`: Elena (80 años) con su familiar responsable, dos enfermeras con
+  turnos y su médico; 60 días de tomas, rutina, bitácora y signos. La presión es normal (~121/77) y sube los
+  últimos 9 días, cuando se omitió el Losartán: la hoja y Seguimiento lo marcan. Registros con `semilla: true`
+  (las funciones no avisan por ellos).
+
 ### Turnos de guardia y descarga del PDF — 02/11/2026
 - **Turnos** (Equipo → Turnos, solo el responsable; lógica en `core/utils/turnos.ts`, probada en
   `turnos.spec.ts`): opción **Todo el día (24 h)** sin horario, que se guarda como `00:00–00:00` (el servidor,
@@ -576,9 +606,9 @@ gráficas de tendencia de signos e invitación específica para médico.
 ### Permisos afinados y confirmación al quitar registros — 23/10/2026
 - **Perfiles privados**: `usuarios/{uid}` solo lo lee su dueño (antes cualquier cuenta con sesión
   podía leer el correo, los tokens y los equipos de todos, y listarlos). Las rules siguen
-  consultando el tipo de cuenta de otros con `get()`, que no pasa por los permisos de lectura, y la
-  app deduce el tipo de un miembro por su rol (`ROLES_COMPATIBLES`); `MiembrosService.tipoDe` se
-  retiró.
+  consultando el tipo de cuenta de otros con `get()`, que no pasa por los permisos de lectura;
+  `MiembrosService.tipoDe` se retiró. (Desde el 04/11/2026 el tipo solo se consulta para
+  invitaciones anteriores sin rol.)
 - **Invitaciones**: el canje debe sumar exactamente 1 a `usos` en el mismo batch (`canjeSumaUnUso`,
   con `getAfter`), y sumar usos sin crear el miembro en ese batch ya no se permite. Antes un cliente
   modificado podía entrar sin gastar usos o agotar el código de una familia ajena.
@@ -776,16 +806,18 @@ flotante de cada pantalla.
 - Rules más estrictas: inventario máximo 9999 (igual que la app), `entradaValida`, `tareaValida`,
   `registroValido`; el autor de una entrada no puede cambiar de autor al editarla.
 
-### Tipos de cuenta (al registrarse)
-- **Familiar**: es el único que puede **dar de alta** a una persona cuidada; queda como
-  **Responsable** de su bitácora (administra, invita, define medicamentos, hace responsable a otro
-  familiar). Un familiar invitado escribe en la bitácora, registra tomas y coordina citas.
-- **Enfermero/a**: se une con un código y entra como cuidador: registra bitácora, tomas y signos.
-- **Médico**: se une con un código; lee todo (bitácora, plan, reportes) y solo escribe
-  **indicaciones médicas** en la bitácora (13/10/2026).
-- El tipo se guarda en `usuarios/{uid}.tipo`, no se puede cambiar después, y las reglas lo usan para
-  decidir quién crea personas y con qué rol entra cada quien (`ROL_POR_TIPO`, `ROLES_COMPATIBLES`).
-  Cuentas anteriores a esta versión lo eligen una sola vez al entrar.
+### Tipos de cuenta y roles por persona
+- Al registrarse cada quien elige su **tipo de cuenta** (familiar, enfermero/a o médico): cómo usa
+  Relevo principalmente. Se guarda en `usuarios/{uid}.tipo` y no cambia, pero **no limita nada**
+  (desde el 04/11/2026).
+- Lo que cada quien puede hacer depende de su **rol con cada persona cuidada**, en
+  `personas_cuidadas/{id}/miembros/{uid}.rol`: **Responsable** (administra, invita, define el plan),
+  **Familiar** (bitácora, tomas, citas), **Enfermero/a** (bitácora, tomas, signos; turnos) y
+  **Médico** (lee todo y solo escribe indicaciones). Una enfermera puede ser responsable de su mamá y
+  enfermera de otro paciente; un médico, familiar de alguien de su casa.
+- **Cualquier cuenta** da de alta a una persona y queda como su responsable. Los demás entran con el
+  rol que trae la invitación, y el responsable puede cambiarlo después (*Equipo → ⋯ → Cambiar rol*).
+- Cuentas anteriores sin tipo lo eligen una sola vez al entrar.
 
 ### Logo — 15/09/2026
 - Corazón blanco con línea de pulso sobre el azul de la app (`#3880ff`). El SVG fuente es
@@ -989,16 +1021,19 @@ flotante de cada pantalla.
   dictarlo sin confusión) y botones **Compartir**, **Copiar código** y **Renovar**. Se genera solo la
   primera vez (vale 1 año y hasta 100 usos); *Renovar* crea uno nuevo e invalida el anterior. Tocar
   el QR lo abre en grande. El QR codifica `https://relevo-e5eaf.web.app/unirse/CODIGO`.
-- La invitación no lleva rol: **cada persona entra según su cuenta** (familiar → familiar,
-  enfermero/a → cuidador, médico → solo lectura). Los códigos temporales antiguos siguen en
-  "Otros códigos activos" hasta que venzan o se cancelen.
+- **La invitación lleva el rol** (desde el 04/11/2026): arriba del QR, *¿A quién invitas?*
+  (Familiar, Enfermero/a o Médico), y cada rol tiene su propio código permanente. Quien la canjea
+  entra con ese rol solo en esta persona, sin importar su tipo de cuenta. Las invitaciones anteriores,
+  sin rol, siguen funcionando: dan el rol que sugiere el tipo de cuenta (`ROL_POR_TIPO`, igual que
+  `rolPorTipo` en las rules). Todas aparecen en "Otros códigos activos" con el rol con que entra
+  cada una, hasta que venzan o se cancelen.
 - Para unirse: **Inicio → Unirme con código o QR**, escribir el código, **escanear** el QR con la
   cámara (navegador o app Android) o abrir el enlace (si no hay sesión, pide login y regresa).
-- En **Equipo**, el responsable toca a un miembro para *Hacer responsable* (solo familiares),
-  *Quitar como responsable* o *Quitar del equipo*.
+- En **Equipo**, el responsable toca a un miembro para *Cambiar rol* (a cualquiera de los cuatro;
+  a alguien en pausa no se le hace responsable), *Turnos*, *Pausar* o *Quitar del equipo*.
 - La seguridad no depende de un servidor: `invitaciones/{codigo}` + reglas con `getAfter()`
-  validan en el mismo batch que el rol coincida con el tipo de cuenta y que la invitación no esté
-  vencida/cancelada (pruebas 12–15 de `npm run test:rules`).
+  validan en el mismo batch que el rol sea el de la invitación (nunca responsable) y que la
+  invitación no esté vencida, cancelada ni agotada (`npm run test:rules`).
 
 ### Reporte para el médico (`/personas/:id/reporte`)
 - Periodo **semana** o **mes**, con flechas para moverse entre periodos.
@@ -1076,7 +1111,9 @@ flotante de cada pantalla.
   semana, zona horaria, inventario bajo y su aviso). Corren con Node solo, sin emulador ni Java.
 - `npx ng test --watch=false --browsers=ChromeHeadless` — 95 pruebas unitarias de la app (Karma).
 - `node tests/evidencias/recorrido-roles.mjs` — recorrido de 19 pasos con los cuatro roles contra los
-  emuladores; `node tests/evidencias/prueba-asistente.mjs` — banco de preguntas al asistente con IA
+  emuladores; `node tests/evidencias/multipaciente.mjs` — una persona con rol distinto en cada
+  persona cuidada (14 pasos); `node tests/evidencias/turnos.mjs` — turnos opción por opción
+  (72 comprobaciones); `node tests/evidencias/prueba-asistente.mjs` — banco de preguntas al asistente con IA
   contra la función publicada (cuenta de demostración en `RELEVO_DEMO_EMAIL` y `RELEVO_DEMO_PASSWORD`).
 - Recorrido en **Android 15 (emulador)** con el APK: roles, PDF desde el teléfono, QR leído con la cámara
   (`tests/evidencias/android/README.md`; resultado en `evidencias/2026-11-01/`).

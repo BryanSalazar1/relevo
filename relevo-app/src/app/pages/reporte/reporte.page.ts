@@ -100,7 +100,7 @@ export class ReportePage {
   /** Quienes escriben en la bitácora también dejan preguntas; el médico solo las lee */
   readonly puedeEditarPreguntas = computed(() => {
     const r = this.ctx.rol();
-    return !!r && PUEDE_ESCRIBIR_BITACORA.includes(r);
+    return !!r && !this.ctx.enPausa() && PUEDE_ESCRIBIR_BITACORA.includes(r);
   });
   /** Anexos de la hoja para la consulta (la primera página siempre va) */
   anexoSintomas = true;

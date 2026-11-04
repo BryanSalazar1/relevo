@@ -19,9 +19,11 @@ Cada persona cuidada tiene cinco pestañas: **Hoy** (tomas y tareas del día par
 tareas y signos vitales en una sola línea de tiempo), **Plan** (Medicinas · Rutina · Citas),
 **Equipo** (ficha médica, miembros, turnos, código de acceso) y **Reporte** (hoja para la consulta de
 una página con banderas, preguntas de la familia, medicamentos y signos resumidos; y el PDF completo). La **ficha de emergencia** se abre desde el inicio, Hoy y Equipo. Cada quien elige sus
-notificaciones en `/notificaciones`. Roles: el familiar responsable administra el plan; familiares
-y enfermeros registran; el médico entra a **Seguimiento** (banderas, adherencia, signos y preguntas
-de la familia), lee todo y escribe indicaciones médicas, pero no registra tomas.
+notificaciones en `/notificaciones`. Roles **por persona cuidada**: el responsable administra el plan;
+familiares y enfermeros registran; el médico entra a **Seguimiento** (banderas, adherencia, signos y
+preguntas de la familia), lee todo y escribe indicaciones médicas, pero no registra tomas. Una misma
+cuenta puede tener un rol distinto con cada persona (p. ej. enfermera de un paciente y responsable de
+su mamá): el rol lo da la invitación o el responsable, no el tipo de cuenta.
 
 También: medicamentos **según necesidad** con la indicación del médico (máximo al día e intervalo),
 lecturas comparadas con **lo habitual** de cada persona, y el **semáforo compartido** por enlace o QR

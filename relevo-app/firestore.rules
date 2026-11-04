@@ -5,11 +5,13 @@ rules_version = '2';
 // (sección 8 de la documentación). Un usuario solo ve/edita a las personas
 // en las que es miembro, y lo que puede hacer depende de su rol.
 //
-// Tipos de cuenta (usuarios/{uid}.tipo): familiar | enfermero | medico.
-//   - Solo un FAMILIAR da de alta personas cuidadas y queda como responsable (cuidador_principal).
-//   - Al unirse por invitación cada cuenta recibe el rol que le corresponde:
-//     familiar -> familiar, enfermero -> cuidador_turno, medico -> medico.
-//   - Un familiar puede ser ascendido a responsable por otro responsable.
+// El rol es POR PERSONA CUIDADA, no por tipo de cuenta (usuarios/{uid}.tipo es solo un dato del
+// perfil): una enfermera puede ser responsable de su mamá y enfermera de otro paciente.
+//   - Cualquier cuenta da de alta personas cuidadas y queda como su responsable (cuidador_principal).
+//   - Al unirse por invitación se recibe el rol que eligió el responsable al crearla (invitaciones.rol:
+//     familiar | cuidador_turno | medico). Las invitaciones anteriores sin rol dan el que sugiere el tipo
+//     de cuenta: familiar -> familiar, enfermero -> cuidador_turno, medico -> medico.
+//   - El responsable cambia el rol de cualquier miembro (también lo hace responsable).
 //
 // Invitaciones (compartir por código/QR): el responsable crea `invitaciones/{codigo}`; quien
 // conoce el código se agrega a sí mismo como miembro en un batch que estas reglas validan
@@ -31,8 +33,22 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/personas_cuidadas/$(personaId)/miembros/$(request.auth.uid)).data.rol;
     }
 
+    // Un miembro en pausa (lo decide el responsable) sigue leyendo como miembro, pero no escribe nada
+    function miembroActivo(personaId) {
+      return esMiembro(personaId)
+        && get(/databases/$(database)/documents/personas_cuidadas/$(personaId)/miembros/$(request.auth.uid)).data.get('pausado', false) != true;
+    }
+
     function tieneRol(personaId, roles) {
-      return esMiembro(personaId) && rol(personaId) in roles;
+      return miembroActivo(personaId) && rol(personaId) in roles;
+    }
+
+    // Pausa: solo enfermeros y familiares (nunca el responsable ni el médico), con fecha y motivo corto
+    function pausaValida(d) {
+      return (!('pausado' in d) || d.pausado is bool)
+        && (d.get('pausado', false) != true || d.rol in ['cuidador_turno', 'familiar'])
+        && (!('pausadoDesde' in d) || d.pausadoDesde is timestamp)
+        && (!('pausaMotivo' in d) || (d.pausaMotivo is string && d.pausaMotivo.size() <= 120));
     }
 
     // Si el responsable cambia el enlace del semáforo (enlaceSemaforo), el token nuevo debe quedar
@@ -49,16 +65,23 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/usuarios/$(uid)).data.tipo;
     }
 
-    // Rol que recibe cada tipo de cuenta al unirse por invitación
+    // Rol que sugiere cada tipo de cuenta: solo para invitaciones anteriores, que no traían rol
     function rolPorTipo(tipo) {
       return tipo == 'familiar' ? 'familiar' : (tipo == 'enfermero' ? 'cuidador_turno' : 'medico');
     }
 
-    // Roles que puede tener cada tipo de cuenta
-    function rolCompatible(tipo, rolNuevo) {
-      return (tipo == 'familiar' && rolNuevo in ['familiar', 'cuidador_principal'])
-        || (tipo == 'enfermero' && rolNuevo == 'cuidador_turno')
-        || (tipo == 'medico' && rolNuevo == 'medico');
+    function rolValido(r) {
+      return r in ['cuidador_principal', 'familiar', 'cuidador_turno', 'medico'];
+    }
+
+    // Una invitación da uno de estos roles (responsable no: ese lo da el responsable desde Equipo)
+    function rolInvitacionValido(d) {
+      return !('rol' in d) || d.rol in ['familiar', 'cuidador_turno', 'medico'];
+    }
+
+    // Rol con el que entra quien canjea esta invitación (el suyo o, si no trae, el de su tipo de cuenta)
+    function rolDeInvitacion(codigo) {
+      return 'rol' in invitacion(codigo) ? invitacion(codigo).rol : rolPorTipo(tipoUsuario(request.auth.uid));
     }
 
     // Estado de la persona DESPUÉS del batch actual (creación atómica persona + miembro, o canje)
@@ -96,7 +119,7 @@ service cloud.firestore {
       return miMiembroDespues(personaId).uid == request.auth.uid
         && invitacionValida(miMiembroDespues(personaId).invitacionCodigo, personaId)
         && canjeSumaUnUso(miMiembroDespues(personaId).invitacionCodigo)
-        && miMiembroDespues(personaId).rol == rolPorTipo(tipoUsuario(request.auth.uid));
+        && miMiembroDespues(personaId).rol == rolDeInvitacion(miMiembroDespues(personaId).invitacionCodigo);
     }
 
     // La actualización solo agrega mi uid al final de miembrosUids y no toca nada más
@@ -253,8 +276,8 @@ service cloud.firestore {
     // ---------- usuarios/{uid} ----------
     match /usuarios/{userId} {
       // Cada quien lee solo su propio perfil (el correo, los tokens y los equipos no son públicos).
-      // Las reglas consultan el tipo de cuenta de otros con get(), que no pasa por aquí, y la app
-      // deduce el tipo de un miembro por su rol (ROLES_COMPATIBLES).
+      // Las reglas solo consultan el tipo de cuenta (con get(), que no pasa por aquí) para invitaciones
+      // anteriores sin rol; los permisos dependen del rol en cada persona, no del tipo.
       allow get: if autenticado() && request.auth.uid == userId;
       allow list: if false;
       // Cada quien crea y edita solo su propio perfil; el tipo de cuenta es obligatorio y,
@@ -297,8 +320,10 @@ service cloud.firestore {
         && tieneRol(request.resource.data.personaId, ['cuidador_principal'])
         && request.resource.data.usos == 0
         && request.resource.data.usosMax > 0
-        && request.resource.data.expiraEn > request.time;
-      allow update: if tieneRol(resource.data.personaId, ['cuidador_principal'])
+        && request.resource.data.expiraEn > request.time
+        && rolInvitacionValido(request.resource.data);
+      allow update: if (tieneRol(resource.data.personaId, ['cuidador_principal'])
+          && rolInvitacionValido(request.resource.data))
         // ...o quien la canjea, que solo puede sumar 1 a usos y solo dentro del batch que lo
         // hace miembro (sumar usos sin unirse agotaría el código de otros)
         || (autenticado()
@@ -315,11 +340,10 @@ service cloud.firestore {
     match /personas_cuidadas/{personaId} {
       // Leer/listar: solo si mi uid está en miembrosUids (hace posible el query array-contains)
       allow read: if autenticado() && request.auth.uid in resource.data.miembrosUids;
-      // Crear: solo una cuenta de tipo familiar, y debe quedar como miembro
+      // Crear: cualquier cuenta (el rol es por persona), y debe quedar como miembro
       allow create: if autenticado()
         && request.auth.uid in request.resource.data.miembrosUids
-        && request.resource.data.creadoPor == request.auth.uid
-        && tipoUsuario(request.auth.uid) == 'familiar';
+        && request.resource.data.creadoPor == request.auth.uid;
       // Actualizar: el responsable, alguien que se une con una invitación válida, o un miembro que se va
       allow update: if (tieneRol(personaId, ['cuidador_principal']) && enlaceSemaforoValido(personaId))
         || (autenticado() && soloAgregaMiUid() && canjeValidoDespues(personaId))
@@ -331,26 +355,26 @@ service cloud.firestore {
         allow read: if esMiembro(personaId);
         // Un miembro nuevo puede traer sus avisos por defecto (AVISOS_POR_DEFECTO en la app), válidos
         allow create: if preferenciasValidas(request.resource.data) && (
-          // el responsable agrega a alguien con un rol acorde a su tipo de cuenta
+          // el responsable agrega a alguien con cualquier rol (el rol es por persona)
           (tieneRol(personaId, ['cuidador_principal'])
-            && rolCompatible(tipoUsuario(memberId), request.resource.data.rol))
+            && rolValido(request.resource.data.rol))
           || (memberId == request.auth.uid
               && request.resource.data.uid == request.auth.uid
               && estaraEnMiembrosUids(personaId)
               && (
-                // (a) un familiar crea la persona en este mismo batch y queda como responsable
+                // (a) quien crea la persona en este mismo batch queda como responsable
                 (!exists(/databases/$(database)/documents/personas_cuidadas/$(personaId))
-                  && request.resource.data.rol == 'cuidador_principal'
-                  && tipoUsuario(request.auth.uid) == 'familiar')
-                // (b) o canjea una invitación válida (gastando un uso) con el rol que corresponde a su cuenta
+                  && request.resource.data.rol == 'cuidador_principal')
+                // (b) o canjea una invitación válida (gastando un uso) con el rol de la invitación
                 || (invitacionValida(request.resource.data.invitacionCodigo, personaId)
                     && canjeSumaUnUso(request.resource.data.invitacionCodigo)
-                    && request.resource.data.rol == rolPorTipo(tipoUsuario(request.auth.uid)))
+                    && request.resource.data.rol == rolDeInvitacion(request.resource.data.invitacionCodigo))
               )));
-        // El responsable cambia roles (p. ej. hacer responsable a otro familiar), siempre acordes al tipo
+        // El responsable cambia el rol de cualquier miembro (también lo hace responsable)
         allow update: if (tieneRol(personaId, ['cuidador_principal'])
             && request.resource.data.uid == resource.data.uid
-            && rolCompatible(tipoUsuario(memberId), request.resource.data.rol))
+            && rolValido(request.resource.data.rol)
+            && pausaValida(request.resource.data))
           // ...o cada quien actualiza solo su propio nombre (al editar su perfil) y sus
           // preferencias de avisos (Notificaciones); los turnos y el rol siguen siendo del responsable
           || (memberId == request.auth.uid
@@ -374,12 +398,12 @@ service cloud.firestore {
           && tipoPermitido(personaId, request.resource.data);
         // El autor corrige lo suyo (sin cambiar de autor); el responsable, todo
         allow update: if (tieneRol(personaId, ['cuidador_principal'])
-            || (esMiembro(personaId) && resource.data.autorUid == request.auth.uid))
+            || (miembroActivo(personaId) && resource.data.autorUid == request.auth.uid))
           && request.resource.data.autorUid == resource.data.autorUid
           && entradaValida(request.resource.data)
           && tipoPermitido(personaId, request.resource.data);
         allow delete: if tieneRol(personaId, ['cuidador_principal'])
-          || (esMiembro(personaId) && resource.data.autorUid == request.auth.uid);
+          || (miembroActivo(personaId) && resource.data.autorUid == request.auth.uid);
       }
 
       // consulta/preguntas: las preguntas de la familia para el médico (hoja para la consulta).

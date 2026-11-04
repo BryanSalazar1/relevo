@@ -151,20 +151,21 @@ try {
 
   await cerrarSesion(page);
 
-  // ---------------------------------------------------------------- médico: no da de alta
+  // ---------------------------------------------------------------- médico: su rol con Carmen
   await login(page, { email: 'luis@relevo.test', password: 'relevo123' });
   await page.waitForSelector('text=Carmen Hernández', { timeout: 20_000 });
-  await page.waitForSelector('ion-badge:has-text("Médico")', { timeout: 10_000 });
-  if (await page.$('button[aria-label="Nueva persona"]')) {
-    throw new Error('Una cuenta de médico no debería poder dar de alta personas');
+  // El rol es por persona: en la tarjeta de Carmen dice "Médico" y no hay semáforo para registrar
+  await page.waitForSelector('ion-card.persona ion-badge.rol:has-text("Médico")', { timeout: 10_000 });
+  if (await page.$('ion-card.persona:has-text("Carmen") ion-button[title="Semáforo del día"]')) {
+    throw new Error('Como médico de Carmen no debería tener el semáforo para registrar');
   }
-  ok('cuenta de médico: ve la bitácora pero no tiene el botón de dar de alta');
+  ok('cuenta de médico: con Carmen su rol es médico y no tiene semáforo para registrar');
   await cerrarSesion(page);
 
   // ---------------------------------------------------------------- usuario nuevo (familiar)
   await registrar(page, NUEVO);
-  await page.waitForSelector('button[aria-label="Nueva persona"]', { timeout: 15_000 });
-  ok(`usuario nuevo registrado como familiar (${NUEVO.email}); sí ve el botón de dar de alta`);
+  await page.waitForSelector('text=Dar de alta a una persona', { timeout: 15_000 });
+  ok(`usuario nuevo registrado como familiar (${NUEVO.email}); ve la opción de dar de alta`);
 
   await page.goto(`${BASE}/unirse/${codigo.replace('-', '')}`);
   await page.waitForSelector('text=Invitación válida', { timeout: 20_000 });

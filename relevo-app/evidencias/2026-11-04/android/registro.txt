@@ -1,0 +1,20 @@
+      Android 15 · sdk_gphone64_x86_64 · com.relevo.app 1.0.0
+  ✔ La app instalada abre en Android y Ana (responsable) inicia sesión
+  ✔ Hoy: tomas y rutina del día con botones para marcar
+      PDF descargado: Documentos/Relevo/Relevo_consulta_Carmen_Hernandez_20261029-20261105.pdf (18642 bytes) · aviso: «PDF guardado en Documentos › Relevo.»
+  ✔ Reporte: la hoja para la consulta se descarga en PDF en Documentos/Relevo del teléfono
+      PDF en el teléfono: cache/Relevo_consulta_Carmen_Hernandez_20261029-20261105.pdf (18642 bytes)
+  ✔ Reporte: la misma hoja se comparte desde el menú de compartir de Android
+      Documentos/Relevo: Relevo_consulta_Carmen_Hernandez_20261029-20261105.pdf
+  ✔ Reporte: descargar otra vez reemplaza el archivo; Cancelar no hace nada
+  ✔ Equipo: la invitación con su QR (código, vencimiento y usos)
+      Marta: Todos los días, las 24 h · Siempre hay alguien de guardia.
+  ✔ Equipo: turnos de Marta; "Todos los días, las 24 h" no pide horario y deja ver la cobertura
+  ✔ Cerrar sesión (borra la copia local)
+  ✔ Pedro (familiar nuevo) escanea el QR con la cámara del teléfono y se une al equipo
+  ✔ Cerrar sesión de Pedro
+      pestañas del médico: Seguimiento · Historial · Reporte · Equipo
+  ✔ Dr. Luis (médico): entra a Seguimiento; no tiene Hoy ni semáforo para registrar tomas
+      Médico: Documentos/Relevo/Relevo_consulta_Carmen_Hernandez_20261006-20261105.pdf · «PDF guardado en Documentos › Relevo.»
+  ✔ Dr. Luis: descarga la hoja desde Seguimiento
+FALLOS: 0

@@ -1,4 +1,5 @@
 import { Component, computed, effect, inject, untracked } from '@angular/core';
+import { combineLatest, map, of, switchMap } from 'rxjs';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import {
@@ -19,8 +20,9 @@ import {
   ToastController,
 } from '@ionic/angular';
 
-import { PersonaCuidada, TIPO_USUARIO_ETIQUETA } from '../../core/models';
+import { PersonaCuidada, ROL_COLOR, ROL_ETIQUETA, Rol } from '../../core/models';
 import { AuthService } from '../../core/services/auth.service';
+import { MiembrosService } from '../../core/services/miembros.service';
 import { PersonasService } from '../../core/services/personas.service';
 import { edad } from '../../core/utils/fechas';
 import { pedirTipoCuenta } from '../../core/utils/tipo-cuenta';
@@ -65,6 +67,7 @@ export function tonoDe(nombre: string): number {
 export class HomePage {
   private readonly auth = inject(AuthService);
   private readonly personasSvc = inject(PersonasService);
+  private readonly miembrosSvc = inject(MiembrosService);
   private readonly router = inject(Router);
   private readonly opcionesSemaforo = inject(OpcionesSemaforoService);
   private readonly alertCtrl = inject(AlertController);
@@ -80,19 +83,47 @@ export class HomePage {
   readonly edad = edad;
   readonly inicialesDe = inicialesDe;
 
-  /** Solo las cuentas de familiar dan de alta personas cuidadas */
-  readonly esFamiliar = computed(() => this.perfil()?.tipo === 'familiar');
-  readonly esMedico = computed(() => this.perfil()?.tipo === 'medico');
-  readonly tipoEtiqueta = computed(() => {
-    const tipo = this.perfil()?.tipo;
-    return tipo ? TIPO_USUARIO_ETIQUETA[tipo] : '';
+  readonly ROL_ETIQUETA = ROL_ETIQUETA;
+  readonly ROL_COLOR = ROL_COLOR;
+
+  /**
+   * Mi rol con cada persona (el rol es por persona: una enfermera puede ser responsable de su mamá y
+   * enfermera de otro paciente). `undefined` mientras carga.
+   */
+  private readonly misRoles = toSignal(
+    this.personasSvc.misPersonas().pipe(
+      switchMap((lista) =>
+        lista.length
+          ? combineLatest(
+              lista.map((p) => this.miembrosSvc.miRol(p.id!).pipe(map((rol) => [p.id!, rol] as const))),
+            )
+          : of([] as (readonly [string, Rol | null])[]),
+      ),
+      map((pares) => Object.fromEntries(pares) as Record<string, Rol | null>),
+    ),
+  );
+
+  rolEn(p: PersonaCuidada): Rol | null {
+    return (p.id && this.misRoles()?.[p.id]) || null;
+  }
+
+  /** "Tus pacientes" si con todas eres médico; si no, "Personas que cuidas" */
+  readonly titulo = computed(() => {
+    const lista = this.personas() ?? [];
+    const roles = this.misRoles() ?? {};
+    const todasMedico = lista.length > 0 && lista.every((p) => p.id && roles[p.id] === 'medico');
+    return todasMedico ? 'Tus pacientes' : 'Personas que cuidas';
   });
 
   private readonly nombre = computed(
     () => this.usuario()?.displayName || this.perfil()?.nombre || this.usuario()?.email || '',
   );
-  /** Primer nombre para el saludo ("Hola, Rosa") */
-  readonly nombreCorto = computed(() => this.nombre().trim().split(/\s+/)[0] || 'de nuevo');
+  /** Primer nombre para el saludo ("Hola, Rosa"; con título, "Hola, Dr. Luis") */
+  readonly nombreCorto = computed(() => {
+    const [primera, segunda] = this.nombre().trim().split(/\s+/);
+    if (!primera) return 'de nuevo';
+    return /^(dr|dra|lic|ing|mtro|mtra|enf)\.?$/i.test(primera) && segunda ? `${primera} ${segunda}` : primera;
+  });
   readonly iniciales = computed(() => inicialesDe(this.nombre()));
 
   constructor() {
@@ -132,10 +163,11 @@ export class HomePage {
     return tonoDe(nombre);
   }
 
-  /** La familia entra a Hoy; el médico, a Seguimiento (PersonaPage lo manda ahí de todos modos). */
+  /** Quien cuida entra a Hoy; si con esta persona es médico, a Seguimiento (PersonaPage lo asegura). */
   abrir(p: PersonaCuidada) {
     if (!p.id) return;
-    void this.router.navigate(this.esMedico() ? ['/personas', p.id, 'seguimiento'] : ['/personas', p.id]);
+    const medico = this.rolEn(p) === 'medico';
+    void this.router.navigate(medico ? ['/personas', p.id, 'seguimiento'] : ['/personas', p.id]);
   }
 
   /** La ficha de emergencia (alergias, medicamentos, contactos), directo desde el inicio. */
@@ -197,11 +229,8 @@ export class HomePage {
     }
   }
 
+  /** Cualquier cuenta da de alta a una persona y queda como su responsable (el rol es por persona). */
   async nuevaPersona() {
-    if (!this.esFamiliar()) {
-      await this.mostrar('Solo una cuenta de familiar puede dar de alta a una persona.', 'danger');
-      return;
-    }
     const modal = await this.modalCtrl.create({ component: PersonaModal, componentProps: { persona: null } });
     await modal.present();
     const { data, role } = await modal.onWillDismiss<DatosPersona>();

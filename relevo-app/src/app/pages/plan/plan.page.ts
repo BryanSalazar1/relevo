@@ -121,7 +121,7 @@ export class PlanPage {
   /** El responsable edita medicinas y rutina; las citas también los familiares */
   readonly puedeAgregar = computed(() => {
     const r = this.ctx.rol();
-    if (!r) return false;
+    if (!r || this.ctx.enPausa()) return false;
     return this.seccion() === 'citas'
       ? PUEDE_EDITAR_CITAS.includes(r)
       : PUEDE_EDITAR_MEDICAMENTOS.includes(r);

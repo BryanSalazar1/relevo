@@ -25,7 +25,7 @@ import {
   ToastController,
 } from '@ionic/angular';
 import { firstValueFrom } from 'rxjs';
-import { Invitacion, ROL_ETIQUETA, TIPO_USUARIO_ETIQUETA } from '../../core/models';
+import { Invitacion, ROL_COLOR, ROL_ETIQUETA, TIPO_USUARIO_ETIQUETA, rolDeInvitacion } from '../../core/models';
 import { AuthService } from '../../core/services/auth.service';
 import {
   EstadoInvitacion,
@@ -80,14 +80,25 @@ export class UnirsePage implements OnInit {
     null,
   );
 
-  /** Rol con el que entraría esta cuenta (según su tipo) */
+  /** Rol con el que entraría a esta persona: el de la invitación (el rol es por persona) */
+  private readonly rolAlUnirme = computed(() => {
+    const inv = this.resultado()?.invitacion;
+    return inv ? rolDeInvitacion(inv, this.auth.tipoActual) : null;
+  });
   readonly rolEtiqueta = computed(() => {
-    const rol = this.auth.rolAlUnirse;
+    const rol = this.rolAlUnirme();
     return rol ? ROL_ETIQUETA[rol] : null;
   });
+  /** Mismo color por rol que en Equipo y en el inicio */
+  readonly rolColor = computed(() => {
+    const rol = this.rolAlUnirme();
+    return rol ? ROL_COLOR[rol] : 'primary';
+  });
+  /** Solo en invitaciones anteriores sin rol, que dan el rol según el tipo de cuenta */
   readonly tipoEtiqueta = computed(() => {
+    const inv = this.resultado()?.invitacion;
     const tipo = this.auth.tipoActual;
-    return tipo ? TIPO_USUARIO_ETIQUETA[tipo] : null;
+    return inv && !inv.rol && tipo ? TIPO_USUARIO_ETIQUETA[tipo] : null;
   });
 
   readonly motivos: Record<EstadoInvitacion, string> = {
@@ -148,8 +159,8 @@ export class UnirsePage implements OnInit {
     if (!inv) return;
     this.uniendo.set(true);
     try {
-      // Cuentas antiguas sin tipo: se define aquí una sola vez
-      if (!this.auth.tipoActual) {
+      // Invitación anterior sin rol y cuenta antigua sin tipo: el tipo se define aquí una sola vez
+      if (!inv.rol && !this.auth.tipoActual) {
         const tipo = await pedirTipoCuenta(this.alertCtrl);
         if (!tipo) return;
         await this.auth.definirTipo(tipo);
@@ -165,7 +176,7 @@ export class UnirsePage implements OnInit {
       await this.router.navigate(['/personas', inv.personaId], { replaceUrl: true });
     } catch (error) {
       console.error(error);
-      // Las rules rechazan una invitación vencida, cancelada, agotada o de otro tipo de cuenta;
+      // Las rules rechazan una invitación vencida, cancelada o agotada, o un rol distinto al suyo;
       // cualquier otro fallo suele ser la conexión
       const denegado = (error as { code?: string } | null)?.code === 'permission-denied';
       await this.aviso(

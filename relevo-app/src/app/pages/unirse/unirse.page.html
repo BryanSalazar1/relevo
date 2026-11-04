@@ -48,10 +48,11 @@
         <ion-card-content>
           <p>
             Te unirás como
-            <ion-badge color="primary">{{ rolEtiqueta() ?? 'según tu cuenta' }}</ion-badge>
+            <ion-badge [color]="rolColor()">{{ rolEtiqueta() ?? 'según tu cuenta' }}</ion-badge>
             @if (tipoEtiqueta(); as tipo) {
-              <ion-text color="medium"> (cuenta de {{ tipo.toLowerCase() }})</ion-text>
+              <ion-text color="medium"> (según tu cuenta de {{ tipo.toLowerCase() }})</ion-text>
             }
+            <ion-text color="medium"> con {{ inv.personaNombre }}. Con otras personas puedes tener otro rol.</ion-text>
           </p>
           <p><ion-text color="medium">Vence el {{ inv.expiraEn.toDate() | date: "d 'de' MMMM 'de' y" }}</ion-text></p>
           <ion-button expand="block" class="ion-margin-top" (click)="unirme()" [disabled]="uniendo()">

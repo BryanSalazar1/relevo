@@ -3,7 +3,6 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
 import { IonBadge, IonIcon, IonLabel, IonTabBar, IonTabButton, IonTabs, ToastController } from '@ionic/angular';
 import { filter, map, switchMap } from 'rxjs';
-import { AuthService } from '../../core/services/auth.service';
 import { PersonasService } from '../../core/services/personas.service';
 import { MedicamentosService, estadoInventario } from '../../core/services/medicamentos.service';
 import { personaActual } from '../../core/utils/persona-actual';
@@ -22,7 +21,9 @@ import { personaActual } from '../../core/utils/persona-actual';
   template: `
     <ion-tabs>
       <ion-tab-bar slot="bottom">
-        @if (esMedico()) {
+        @if (!rolListo()) {
+          <!-- Las pestañas dependen de mi rol con esta persona: se muestran cuando llega -->
+        } @else if (esMedico()) {
           <ion-tab-button tab="seguimiento">
             <ion-icon name="pulse-outline" />
             <ion-label>Seguimiento</ion-label>
@@ -75,7 +76,6 @@ import { personaActual } from '../../core/utils/persona-actual';
 })
 export class PersonaPage {
   private readonly medsSvc = inject(MedicamentosService);
-  private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastController);
   private readonly personasSvc = inject(PersonasService);
@@ -95,12 +95,11 @@ export class PersonaPage {
   );
 
   /**
-   * Una cuenta de tipo médico solo puede tener el rol médico (ROLES_COMPATIBLES), así que el tipo
-   * del perfil basta y evita que el médico vea un instante las pestañas de la familia.
+   * El rol es por persona (un médico puede ser familiar de otra persona): las pestañas salen del rol
+   * con ESTA persona y no se muestran hasta conocerlo, para no enseñar un instante las de otro rol.
    */
-  readonly esMedico = computed(
-    () => this.auth.tipoActual === 'medico' || this.ctx.rol() === 'medico',
-  );
+  readonly rolListo = computed(() => this.ctx.rol() !== undefined);
+  readonly esMedico = computed(() => this.ctx.rol() === 'medico');
 
   private async sinAcceso(personaId: string) {
     this.personasSvc.marcarSinAcceso(personaId);

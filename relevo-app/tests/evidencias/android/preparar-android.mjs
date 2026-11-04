@@ -55,6 +55,7 @@ await setDoc(doc(db, 'invitaciones', codigo), {
   codigo,
   personaId: 'persona-demo',
   personaNombre: 'Carmen Hernández',
+  rol: 'familiar',
   creadoPor: ana.uid,
   creadoEn: serverTimestamp(),
   expiraEn: Timestamp.fromDate(expira),

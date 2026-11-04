@@ -18,6 +18,7 @@ import {
   arrayUnion,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -146,7 +147,8 @@ test('persona: un familiar la crea en batch y queda como responsable', async () 
   assert.equal(snap.data().rol, 'cuidador_principal');
 });
 
-test('persona: enfermeros y médicos NO pueden dar de alta personas', async () => {
+test('persona: cualquier cuenta (también enfermero o médico) da de alta a una persona y queda como responsable', async () => {
+  // El rol es por persona: una enfermera da de alta a su mamá y es su responsable
   for (const [db, uid, tipo] of [
     [marta(), 'marta', 'enfermero'],
     [luis(), 'luis', 'medico'],
@@ -156,8 +158,16 @@ test('persona: enfermeros y médicos NO pueden dar de alta personas', async () =
     const b = writeBatch(db);
     b.set(personaRef, { nombre: 'X', miembrosUids: [uid], creadoPor: uid, creadoEn: serverTimestamp() });
     b.set(doc(personaRef, 'miembros', uid), { uid, rol: 'cuidador_principal', nombre: uid, agregadoEn: serverTimestamp() });
-    await assertFails(b.commit());
+    await assertSucceeds(b.commit());
   }
+  // ...pero al crearla solo puede quedar como responsable, no con otro rol
+  const db = pedro();
+  await perfil(db, 'pedro', 'familiar');
+  const ref = doc(db, 'personas_cuidadas', 'p-pedro');
+  const b = writeBatch(db);
+  b.set(ref, { nombre: 'X', miembrosUids: ['pedro'], creadoPor: 'pedro', creadoEn: serverTimestamp() });
+  b.set(doc(ref, 'miembros', 'pedro'), { uid: 'pedro', rol: 'medico', nombre: 'pedro', agregadoEn: serverTimestamp() });
+  await assertFails(b.commit());
 });
 
 test('persona: no se puede crear sin incluirse como miembro', async () => {
@@ -278,7 +288,7 @@ test('roles: solo el responsable define medicamentos y administra miembros', asy
   );
 });
 
-test('roles: el responsable puede hacer responsable a otro familiar, pero no a un enfermero o médico', async () => {
+test('roles: el responsable cambia el rol de cualquier miembro, sin importar su tipo de cuenta, solo a roles válidos', async () => {
   await anaCreaPersona();
   await perfil(pedro(), 'pedro', 'familiar');
   await perfil(marta(), 'marta', 'enfermero');
@@ -295,11 +305,18 @@ test('roles: el responsable puede hacer responsable a otro familiar, pero no a u
   await assertSucceeds(
     updateDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/miembros/pedro`), { rol: 'familiar' }),
   );
-  await assertFails(
+  // Marta tiene cuenta de enfermera, pero con esta persona puede ser familiar, responsable o enfermera
+  await assertSucceeds(
+    updateDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/miembros/marta`), { rol: 'familiar' }),
+  );
+  await assertSucceeds(
     updateDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/miembros/marta`), { rol: 'cuidador_principal' }),
   );
+  await assertSucceeds(
+    updateDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/miembros/marta`), { rol: 'cuidador_turno' }),
+  );
   await assertFails(
-    updateDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/miembros/marta`), { rol: 'medico' }),
+    updateDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/miembros/marta`), { rol: 'jefa' }),
   );
   // un familiar sin ser responsable no puede cambiar roles
   await assertFails(
@@ -494,8 +511,9 @@ function enDias(dias) {
 
 /** Ana (responsable) crea una invitación; mismo shape que InvitacionesService.crear(). */
 async function anaCreaInvitacion(extra = {}) {
-  await setDoc(doc(ana(), `invitaciones/${CODIGO}`), {
-    codigo: CODIGO,
+  const codigo = extra.codigo ?? CODIGO;
+  return setDoc(doc(ana(), `invitaciones/${codigo}`), {
+    codigo,
     personaId: PERSONA_ID,
     personaNombre: 'Mamá',
     creadoPor: 'ana',
@@ -553,22 +571,27 @@ test('invitaciones: solo el responsable las crea; se leen por código pero no se
   await assertFails(getDocs(collection(pedro(), 'invitaciones')));
 });
 
-test('invitaciones: cada tipo de cuenta entra con su rol (familiar, enfermero, médico)', async () => {
+test('invitaciones: se entra con el rol de la invitación, sea cual sea el tipo de cuenta; las anteriores sin rol, según el tipo', async () => {
   await anaCreaPersona();
-  await anaCreaInvitacion();
   await perfil(pedro(), 'pedro', 'familiar');
   await perfil(marta(), 'marta', 'enfermero');
   await perfil(luis(), 'luis', 'medico');
+  // Una invitación por rol (InvitacionesService.crear): Marta, con cuenta de enfermera, entra como
+  // familiar porque con esta persona es su hija; Luis entra como médico
+  await anaCreaInvitacion({ codigo: 'FAMILIAR', rol: 'familiar' });
+  await anaCreaInvitacion({ codigo: 'MEDICOOO', rol: 'medico' });
+  // Invitación de antes, sin rol: Pedro entra según su tipo de cuenta (familiar)
+  await anaCreaInvitacion();
 
   await assertFails(getDoc(doc(pedro(), `personas_cuidadas/${PERSONA_ID}`)));
   await assertSucceeds(batchUnirse(pedro(), 'pedro', CODIGO, 'familiar'));
-  await assertSucceeds(batchUnirse(marta(), 'marta', CODIGO, 'cuidador_turno'));
-  await assertSucceeds(batchUnirse(luis(), 'luis', CODIGO, 'medico'));
+  await assertSucceeds(batchUnirse(marta(), 'marta', 'FAMILIAR', 'familiar'));
+  await assertSucceeds(batchUnirse(luis(), 'luis', 'MEDICOOO', 'medico'));
 
   const persona = await getDoc(doc(pedro(), `personas_cuidadas/${PERSONA_ID}`));
   assert.deepEqual(persona.data().miembrosUids, ['ana', 'pedro', 'marta', 'luis']);
   const inv = await getDoc(doc(ana(), `invitaciones/${CODIGO}`));
-  assert.equal(inv.data().usos, 3);
+  assert.equal(inv.data().usos, 1);
 
   // Pedro (familiar) y Marta (enfermera) escriben en la bitácora; Luis (médico) no
   await assertSucceeds(
@@ -590,10 +613,20 @@ test('invitaciones: cada tipo de cuenta entra con su rol (familiar, enfermero, m
   );
 });
 
-test('invitaciones: no se puede reclamar un rol distinto al de la cuenta ni usar una vencida, cancelada, agotada o inexistente', async () => {
+test('invitaciones: no se puede reclamar un rol distinto al de la invitación ni usar una vencida, cancelada, agotada o inexistente', async () => {
   await anaCreaPersona();
   await perfil(pedro(), 'pedro', 'familiar');
   await perfil(luis(), 'luis', 'medico');
+
+  // Una invitación nunca da el rol de responsable, ni uno inventado
+  await assertFails(anaCreaInvitacion({ codigo: 'RESPONSA', rol: 'cuidador_principal' }));
+  await assertFails(anaCreaInvitacion({ codigo: 'INVENTAD', rol: 'jefe' }));
+  await anaCreaInvitacion({ codigo: 'ENFERMRA', rol: 'cuidador_turno' });
+  await assertFails(batchUnirse(pedro(), 'pedro', 'ENFERMRA', 'familiar'));
+  await assertFails(batchUnirse(luis(), 'luis', 'ENFERMRA', 'medico'));
+  await assertFails(batchUnirse(pedro(), 'pedro', 'ENFERMRA', 'cuidador_principal'));
+  // El responsable no puede convertir una invitación en una de responsable
+  await assertFails(updateDoc(doc(ana(), 'invitaciones/ENFERMRA'), { rol: 'cuidador_principal' }));
 
   await anaCreaInvitacion();
   await assertFails(batchUnirse(pedro(), 'pedro', CODIGO, 'cuidador_principal'));
@@ -918,12 +951,27 @@ test('aislamiento: el miembro de una persona no lee ni escribe nada de otra pers
   assert.deepEqual(mias.docs.map((d) => d.id), [PERSONA_ID]);
 });
 
-test('revocación: al quitar a un miembro pierde de inmediato la lectura y la escritura', async () => {
+test('revocación: en pausa solo lee y no se reactiva sola; al quitar a un miembro pierde de inmediato la lectura y la escritura', async () => {
   await anaCreaPersona();
   await agregarComo('marta', 'cuidador_turno');
   const p = `personas_cuidadas/${PERSONA_ID}`;
   await assertSucceeds(getDoc(doc(marta(), p)));
   await assertSucceeds(setDoc(doc(marta(), `${p}/entradas_bitacora/antes`), { tipo: 'nota', texto: 'ok', autorUid: 'marta' }));
+
+  // Pausa (MiembrosService.pausar): el responsable la pone; la enfermera sigue leyendo pero no registra
+  await perfil(marta(), 'marta', 'enfermero');
+  const pausa = { pausado: true, pausadoDesde: serverTimestamp(), pausaMotivo: 'De vacaciones hasta el 20' };
+  await assertSucceeds(updateDoc(doc(ana(), `${p}/miembros/marta`), pausa));
+  await assertSucceeds(getDoc(doc(marta(), `${p}/entradas_bitacora/antes`)));
+  await assertFails(setDoc(doc(marta(), `${p}/entradas_bitacora/en-pausa`), { tipo: 'nota', texto: 'x', autorUid: 'marta' }));
+  await assertFails(updateDoc(doc(marta(), `${p}/entradas_bitacora/antes`), { texto: 'editada en pausa' }));
+  await assertFails(updateDoc(doc(marta(), `${p}/miembros/marta`), { pausado: false }));
+  // Ni el responsable ni el médico se pausan; tampoco se hace responsable a alguien en pausa
+  await assertFails(updateDoc(doc(ana(), `${p}/miembros/ana`), { pausado: true }));
+  await assertFails(updateDoc(doc(ana(), `${p}/miembros/marta`), { pausaMotivo: 'x'.repeat(121) }));
+  // Reactivada (MiembrosService.reactivar) vuelve a registrar
+  await assertSucceeds(updateDoc(doc(ana(), `${p}/miembros/marta`), { pausado: deleteField(), pausadoDesde: deleteField(), pausaMotivo: deleteField() }));
+  await assertSucceeds(setDoc(doc(marta(), `${p}/entradas_bitacora/de-vuelta`), { tipo: 'nota', texto: 'ok', autorUid: 'marta' }));
   // Mismo batch que MiembrosService.quitar(): borra su miembro y lo saca de miembrosUids
   const dbAna = ana();
   const b = writeBatch(dbAna);

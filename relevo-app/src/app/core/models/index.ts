@@ -1,8 +1,10 @@
 import { Timestamp } from '@angular/fire/firestore';
 
 /**
- * Tipo de cuenta, elegido al registrarse. Define qué puede hacer el usuario en la app:
- * solo un familiar da de alta personas cuidadas; los demás se unen con un código.
+ * Tipo de cuenta, elegido al registrarse: cómo usa Relevo principalmente. Es un dato del perfil y no
+ * limita nada: el rol se tiene POR PERSONA CUIDADA (una enfermera puede ser responsable de su mamá y
+ * enfermera de otro paciente). Quien da de alta a una persona es su responsable; los demás entran con
+ * el rol que trae la invitación.
  */
 export type TipoUsuario = 'familiar' | 'enfermero' | 'medico';
 
@@ -17,13 +19,13 @@ export const TIPOS_USUARIO: { valor: TipoUsuario; etiqueta: string; icono: strin
     valor: 'enfermero',
     etiqueta: 'Enfermero/a',
     icono: 'medkit-outline',
-    descripcion: 'Te unes con un código y registras la bitácora en tus turnos.',
+    descripcion: 'Te unes con el código de cada familia y registras en tus turnos. También puedes dar de alta a un familiar tuyo.',
   },
   {
     valor: 'medico',
     etiqueta: 'Médico',
     icono: 'medical-outline',
-    descripcion: 'Te unes con un código, sigues al paciente y dejas indicaciones.',
+    descripcion: 'Te unes con el código de cada paciente, sigues su evolución y dejas indicaciones.',
   },
 ];
 
@@ -42,19 +44,19 @@ export const TIPO_USUARIO_ETIQUETA: Record<TipoUsuario, string> = {
 /** Roles dentro de cada persona cuidada (sección 4 de la documentación). */
 export type Rol = 'familiar' | 'cuidador_principal' | 'cuidador_turno' | 'medico';
 
-/** Rol con el que entra cada tipo de cuenta al unirse por invitación (igual en firestore.rules). */
+/**
+ * Rol que sugiere cada tipo de cuenta. Solo se usa para invitaciones creadas antes de que llevaran
+ * rol (`Invitacion.rol`), igual que `rolPorTipo` en firestore.rules.
+ */
 export const ROL_POR_TIPO: Record<TipoUsuario, Rol> = {
   familiar: 'familiar',
   enfermero: 'cuidador_turno',
   medico: 'medico',
 };
 
-/** Roles que puede tener cada tipo de cuenta (igual en firestore.rules). */
-export const ROLES_COMPATIBLES: Record<TipoUsuario, Rol[]> = {
-  familiar: ['familiar', 'cuidador_principal'],
-  enfermero: ['cuidador_turno'],
-  medico: ['medico'],
-};
+/** Roles con los que se puede invitar (responsable no: se da desde Equipo). Igual en firestore.rules. */
+export type RolInvitable = Exclude<Rol, 'cuidador_principal'>;
+export const ROLES_INVITABLES: RolInvitable[] = ['familiar', 'cuidador_turno', 'medico'];
 
 export const ROLES: { valor: Rol; etiqueta: string; descripcion: string }[] = [
   { valor: 'cuidador_principal', etiqueta: 'Responsable', descripcion: 'Familiar que administra la bitácora, los medicamentos y el equipo' },
@@ -178,7 +180,18 @@ export interface Miembro {
   soloEnTurno?: boolean;
   /** Código con el que se unió (si entró por invitación). Lo validan las rules. */
   invitacionCodigo?: string;
+  /**
+   * En pausa (solo enfermeros y familiares, lo decide el responsable): sigue en el equipo y puede ver,
+   * pero no registra nada ni recibe recordatorios o avisos, hasta que lo reactiven. Lo validan las rules.
+   */
+  pausado?: boolean;
+  pausadoDesde?: Timestamp;
+  /** Por qué, en pocas palabras ("de vacaciones hasta el 20"); opcional */
+  pausaMotivo?: string;
 }
+
+/** Roles que el responsable puede poner en pausa (mismos en firestore.rules) */
+export const ROLES_PAUSABLES: Rol[] = ['cuidador_turno', 'familiar'];
 
 /**
  * Qué avisos del equipo recibe un miembro (coincide con functions/logica.js y firestore.rules):
@@ -238,13 +251,15 @@ export const AVISOS_POR_DEFECTO: Record<Rol, ModoAvisos> = {
 
 /**
  * invitaciones/{codigo} — colección raíz para poder buscar por código.
- * La crea el responsable; quien la canjea se agrega a sí mismo como miembro con el rol
- * que corresponde a su tipo de cuenta (ROL_POR_TIPO, validado en firestore.rules).
+ * La crea el responsable eligiendo el rol (familiar, enfermero/a o médico); quien la canjea se agrega
+ * a sí mismo como miembro con ese rol, validado en firestore.rules. El rol es por persona cuidada.
  */
 export interface Invitacion {
   codigo: string;
   personaId: string;
   personaNombre: string;
+  /** Rol con el que entra quien la canjee; las anteriores no lo traen (entra según su tipo de cuenta) */
+  rol?: RolInvitable;
   creadoPor: string;
   creadoEn: Timestamp;
   expiraEn: Timestamp;
@@ -666,3 +681,12 @@ export const INFO_SIGNO_BITACORA: Omit<TipoEntradaInfo, 'valor'> = {
   icono: 'pulse-outline',
   color: 'danger',
 };
+
+/**
+ * Rol con el que entra quien canjea la invitación: el que eligió el responsable; en invitaciones
+ * anteriores (sin rol), el que sugiere su tipo de cuenta (igual que firestore.rules).
+ */
+export function rolDeInvitacion(inv: Pick<Invitacion, 'rol'>, tipo?: TipoUsuario | null): Rol | null {
+  if (inv.rol) return inv.rol;
+  return tipo ? ROL_POR_TIPO[tipo] : null;
+}

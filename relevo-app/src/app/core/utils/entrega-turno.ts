@@ -257,6 +257,7 @@ export function novedadesEntrega({ desde, ahora, filas, entradas, signos, miUid 
       tipo: 'signo',
       hora,
       texto: `${textoSigno(s)} (habitual ${rango})`,
+      quien: s.autorNombre,
       icono: 'pulse-outline',
       color: 'warning',
     });

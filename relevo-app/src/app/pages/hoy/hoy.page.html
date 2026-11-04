@@ -32,6 +32,20 @@
   @if (cargando()) {
     <div class="ion-text-center ion-padding"><ion-spinner name="crescent" /></div>
   } @else {
+    @if (enPausa()) {
+      <ion-card class="en-pausa">
+        <div class="cuerpo">
+          <p class="titulo">Estás en pausa en este equipo</p>
+          <p>
+            {{ membresia()?.pausadoDesde ? 'Desde el ' + (membresia()!.pausadoDesde!.toDate() | date: "d 'de' MMMM") + '. ' : '' }}Puedes ver
+            todo, pero no registrar, y no te llegan recordatorios ni avisos. El responsable te reactiva cuando vuelvas.
+          </p>
+          @if (membresia()?.pausaMotivo) {
+            <p class="motivo">Motivo: {{ membresia()!.pausaMotivo }}</p>
+          }
+        </div>
+      </ion-card>
+    }
     @if (esHoy() && entrega(); as novedades) {
       <ion-card class="entrega">
         <div class="cabecera">

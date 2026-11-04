@@ -1,0 +1,15 @@
+✔ Marta (cuenta de enfermera): con Carmen su rol es Enfermero/a
+✔ Marta da de alta a su mamá (antes solo podía una cuenta de familiar)
+✔ Con su mamá es Responsable: ve Hoy y Plan, y puede agregar medicamentos
+✔ En su mamá, Equipo la muestra como Responsable y le deja invitar por rol
+✔ Inicio de Marta: dos personas, con rol distinto en cada una
+✔ Con Carmen sigue siendo enfermera: no edita el plan ni comparte el código
+✔ El Dr. Luis (cuenta de médico) abre la invitación: entra como Familiar
+✔ Con la mamá de Marta, Luis ve las pestañas de la familia (Hoy, Plan) y puede registrar
+✔ Inicio de Luis: Carmen como Médico, la mamá de Marta como Familiar
+✔ Luis toca a Carmen: va a Seguimiento sin Hoy (su rol ahí es médico)
+✔ Luis toca a la mamá de Marta: va a Hoy
+✔ Marta le cambia el rol a Luis con su mamá (Familiar → Enfermero/a); con Carmen no cambia
+✔ Ana (responsable de Carmen) también cambia roles a cualquier miembro: Marta a Familiar y de vuelta
+✔ sin errores en la consola
+FALLOS: 0
