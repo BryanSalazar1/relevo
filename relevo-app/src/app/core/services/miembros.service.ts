@@ -4,8 +4,10 @@ import {
   arrayRemove,
   collection,
   collectionData,
+  deleteField,
   doc,
   docData,
+  serverTimestamp,
   updateDoc,
   writeBatch,
 } from '@angular/fire/firestore';
@@ -49,7 +51,7 @@ export class MiembrosService {
     );
   }
 
-  /** Cambia el rol de un miembro (solo el responsable; las rules validan que sea compatible). */
+  /** Cambia el rol de un miembro con esta persona (solo el responsable; las rules validan el rol). */
   async cambiarRol(personaId: string, uid: string, rol: Rol): Promise<void> {
     await updateDoc(doc(this.db, `personas_cuidadas/${personaId}/miembros/${uid}`), { rol });
   }
@@ -81,6 +83,28 @@ export class MiembrosService {
       avisos: prefs.avisos,
       recordatorios: prefs.recordatorios,
       soloEnTurno: prefs.soloEnTurno,
+    });
+  }
+
+  /**
+   * Pone en pausa a un enfermero o familiar (solo el responsable): sigue en el equipo y ve todo, pero
+   * las rules no le dejan registrar y el servidor no le manda recordatorios ni avisos.
+   */
+  async pausar(personaId: string, uid: string, motivo: string): Promise<void> {
+    const texto = motivo.trim().slice(0, 120);
+    await updateDoc(doc(this.db, `personas_cuidadas/${personaId}/miembros/${uid}`), {
+      pausado: true,
+      pausadoDesde: serverTimestamp(),
+      pausaMotivo: texto ? texto : deleteField(),
+    });
+  }
+
+  /** Lo reactiva: vuelve a registrar y a recibir avisos como antes. */
+  async reactivar(personaId: string, uid: string): Promise<void> {
+    await updateDoc(doc(this.db, `personas_cuidadas/${personaId}/miembros/${uid}`), {
+      pausado: deleteField(),
+      pausadoDesde: deleteField(),
+      pausaMotivo: deleteField(),
     });
   }
 

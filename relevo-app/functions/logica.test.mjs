@@ -967,6 +967,7 @@ test('modoAvisos y quiereAviso: modos, versión anterior (alertas) y "solo en tu
   assert.equal(modoAvisos({ avisos: 'raro' }), 'todos');
 
   assert.equal(quiereAviso({ avisos: 'ninguno' }, { importante: true }), false);
+  assert.equal(quiereAviso({ avisos: 'todos', pausado: true }, { importante: true }), false);
   assert.equal(quiereAviso({ avisos: 'importantes' }, { importante: false }), false);
   assert.equal(quiereAviso({ avisos: 'importantes' }, { importante: true }), true);
   assert.equal(quiereAviso({ avisos: 'todos' }, { importante: false }), true);
@@ -1011,7 +1012,7 @@ test('entradaImportante: incidentes, síntomas e indicaciones médicas sí; nota
   assert.equal(entradaImportante(undefined), false);
 });
 
-test('deGuardia: quien apagó los recordatorios no los recibe, ni como respaldo', () => {
+test('deGuardia: quien apagó los recordatorios o está en pausa no los recibe, ni como respaldo', () => {
   const turnos = [{ dias: [1, 2, 3, 4, 5], desde: '08:00', hasta: '16:00' }];
   const martes0830 = partesEnZona(new Date('2026-09-15T14:30:00Z'), ZONA);
   const martes2330 = partesEnZona(new Date('2026-09-16T05:30:00Z'), ZONA);
@@ -1025,6 +1026,9 @@ test('deGuardia: quien apagó los recordatorios no los recibe, ni como respaldo'
   assert.deepEqual(deGuardia(miembros, martes2330), []);
   // Sin turnos en el equipo, todos los que registran... salvo quien los apagó
   assert.deepEqual(deGuardia([{ uid: 'a', rol: 'familiar' }, { uid: 'b', rol: 'familiar', recordatorios: false }], martes0830), ['a']);
+  // En pausa: aunque sea su turno no está de guardia; el responsable queda de respaldo
+  const conPausa = [{ uid: 'resp', rol: 'cuidador_principal' }, { uid: 'enf', rol: 'cuidador_turno', turnos, pausado: true }];
+  assert.deepEqual(deGuardia(conPausa, martes0830), ['resp']);
 });
 
 test('citasProximas: citas por llegar dentro de su anticipación (1 h si no dicen); 0 = sin aviso; los turnos no', () => {

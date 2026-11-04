@@ -58,6 +58,16 @@
           <ion-card-title>Comparte el QR para unir al equipo</ion-card-title>
         </ion-card-header>
         <ion-card-content>
+          <p class="invitar-como">¿A quién invitas?</p>
+          <ion-segment
+            class="rol-invitar"
+            [value]="rolInvitar()"
+            (ionChange)="cambiarRolInvitar($any($event).detail.value)"
+          >
+            @for (r of rolesInvitables; track r) {
+              <ion-segment-button [value]="r">{{ ROL_ETIQUETA[r] }}</ion-segment-button>
+            }
+          </ion-segment>
           @if (invitacionActual(); as inv) {
             <button type="button" class="qr-wrap" (click)="mostrarInvitacion(inv)" aria-label="Ver QR en grande">
               @if (qr(); as src) {
@@ -69,8 +79,9 @@
             <div class="codigo grande">{{ formatearCodigo(inv.codigo) }}</div>
             <p class="ion-text-center ayuda">
               <ion-text color="medium">
-                Quien lo escanee o escriba el código entra con el rol de su cuenta: familiar,
-                enfermero/a o médico. Vence el {{ inv.expiraEn.toDate() | date: 'd MMM y' }} ·
+                Quien lo escanee o escriba el código entra como
+                <strong>{{ ROL_ETIQUETA[rolInvitar()].toLowerCase() }}</strong> con {{ p.nombre }}; con otras
+                personas puede tener otro rol. Vence el {{ inv.expiraEn.toDate() | date: 'd MMM y' }} ·
                 {{ inv.usos }}/{{ inv.usosMax }} usos.
               </ion-text>
             </p>
@@ -121,7 +132,17 @@
                 <ion-note>(tú)</ion-note>
               }
             </h2>
-            <p><ion-badge [color]="ROL_COLOR[m.rol]">{{ ROL_ETIQUETA[m.rol] }}</ion-badge></p>
+            <p>
+              <ion-badge [color]="ROL_COLOR[m.rol]">{{ ROL_ETIQUETA[m.rol] }}</ion-badge>
+              @if (m.pausado) {
+                <ion-badge color="warning" class="pausa">En pausa</ion-badge>
+              }
+            </p>
+            @if (m.pausado) {
+              <p class="pausa-detalle">
+                {{ m.pausadoDesde ? 'Desde el ' + (m.pausadoDesde.toDate() | date: "d 'de' MMMM") : 'En pausa' }}{{ m.pausaMotivo ? ' · ' + m.pausaMotivo : '' }}
+              </p>
+            }
             @if (m.rol !== 'medico') {
               <p class="turnos">
                 <ion-icon name="time-outline" />
@@ -174,7 +195,7 @@
           <ion-icon slot="start" name="qr-code-outline" color="primary" />
           <ion-label>
             <h2 class="codigo">{{ formatearCodigo(inv.codigo) }}</h2>
-            <p>Vence {{ inv.expiraEn.toDate() | date: 'd MMM' }} · {{ inv.usos }}/{{ inv.usosMax }} usos</p>
+            <p>{{ entraComo(inv) }} · vence {{ inv.expiraEn.toDate() | date: 'd MMM' }} · {{ inv.usos }}/{{ inv.usosMax }} usos</p>
           </ion-label>
           <ion-button slot="end" fill="clear" color="medium" (click)="revocar(inv); $event.stopPropagation()" aria-label="Cancelar invitación">
             <ion-icon slot="icon-only" name="ban-outline" />
@@ -184,7 +205,7 @@
     </ion-list>
   } @else if (!esPrincipal() && rol()) {
     <div class="ion-padding ion-text-center">
-      <ion-text color="medium"><p>Solo el familiar responsable puede compartir el código de acceso.</p></ion-text>
+      <ion-text color="medium"><p>Solo el responsable de esta persona puede compartir el código de acceso.</p></ion-text>
     </div>
   }
 

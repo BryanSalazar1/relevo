@@ -176,6 +176,7 @@ export class HoyPage {
   private readonly ctx = personaActual();
   readonly persona = this.ctx.persona;
   readonly rol = this.ctx.rol;
+  readonly enPausa = this.ctx.enPausa;
 
   /** Día que se muestra (por defecto hoy) */
   readonly dia = signal<Date>(inicioDeDia(new Date()));
@@ -233,7 +234,7 @@ export class HoyPage {
   private readonly entradaEn = signal(new Date());
   /** Última visita anterior a esta (localStorage); null la primera vez o sin almacenamiento */
   private readonly visitaAnterior = signal<Date | null>(null);
-  private readonly membresia = toSignal(
+  readonly membresia = toSignal(
     this.ctx.personaId$.pipe(switchMap((id) => this.miembrosSvc.miMembresia(id))),
   );
   /** Desde cuándo se resume: fin del turno anterior, últimas 8 h o la última visita */
@@ -337,16 +338,16 @@ export class HoyPage {
   /** Responsable y familiares agendan y editan citas */
   readonly puedeEditarCitas = computed(() => {
     const r = this.rol();
-    return !!r && PUEDE_EDITAR_CITAS.includes(r);
+    return !!r && !this.enPausa() && PUEDE_EDITAR_CITAS.includes(r);
   });
 
   readonly puedeRegistrarTomas = computed(() => {
     const r = this.rol();
-    return !!r && PUEDE_REGISTRAR_TOMAS.includes(r);
+    return !!r && !this.enPausa() && PUEDE_REGISTRAR_TOMAS.includes(r);
   });
   readonly puedeRegistrarTareas = computed(() => {
     const r = this.rol();
-    return !!r && PUEDE_REGISTRAR_TAREAS.includes(r);
+    return !!r && !this.enPausa() && PUEDE_REGISTRAR_TAREAS.includes(r);
   });
   /** El responsable: resurte y edita el plan */
   readonly puedeEditar = computed(() => {

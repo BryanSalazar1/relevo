@@ -214,11 +214,11 @@ export function enTurno(turno, ahora) {
  * Quién recibe los recordatorios de rutina (tomas pendientes, avisos previos) en este momento:
  * los que están de guardia. Si nadie del equipo definió turnos, todos los que registran (como
  * antes). Si hay turnos pero nadie está de guardia, el responsable. Quien apagó
- * "recordatorios de mi guardia" en Notificaciones (recordatorios: false) no cuenta.
+ * "recordatorios de mi guardia" en Notificaciones (recordatorios: false) o está en pausa no cuenta.
  */
 export function deGuardia(miembros, ahora) {
   const registran = miembros.filter(
-    (m) => m.uid && ROLES_REGISTRAN_TOMAS.includes(m.rol) && m.recordatorios !== false,
+    (m) => m.uid && ROLES_REGISTRAN_TOMAS.includes(m.rol) && m.recordatorios !== false && m.pausado !== true,
   );
   const conTurnos = registran.filter((m) => Array.isArray(m.turnos) && m.turnos.length > 0);
   if (!conTurnos.length) return registran.map((m) => m.uid);
@@ -252,6 +252,8 @@ export function entradaImportante(entrada) {
  *   - soloEnTurno: solo mientras alguno de sus turnos cubre `ahora` (sin turnos definidos no aplica).
  */
 export function quiereAviso(m, { importante = true, ahora } = {}) {
+  // En pausa (lo decidió el responsable): no le llega nada del equipo hasta que lo reactiven
+  if (m?.pausado === true) return false;
   const modo = modoAvisos(m);
   if (modo === 'ninguno') return false;
   if (modo === 'importantes' && !importante) return false;

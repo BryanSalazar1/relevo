@@ -93,16 +93,13 @@ export class PersonasService {
   }
 
   /**
-   * Da de alta a una persona cuidada (datos básicos y, si se capturó, su ficha médica). Solo lo
-   * permiten las rules a cuentas de tipo familiar, que quedan como responsables
+   * Da de alta a una persona cuidada (datos básicos y, si se capturó, su ficha médica). Cualquier
+   * cuenta puede hacerlo (el rol es por persona): quien la da de alta queda como su responsable
    * (cuidador_principal). Persona + miembro + perfil van en un batch para que queden consistentes.
    */
   async crearPersona(datos: Pick<PersonaCuidada, 'nombre'> & Partial<PersonaCuidada>): Promise<string> {
     const uid = this.authSvc.uid;
     if (!uid) throw new Error('No hay sesión iniciada');
-    if (this.authSvc.tipoActual !== 'familiar') {
-      throw new Error('Solo una cuenta de familiar puede dar de alta a una persona cuidada');
-    }
 
     const personaRef = doc(collection(this.db, 'personas_cuidadas'));
     const batch = writeBatch(this.db);

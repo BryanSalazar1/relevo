@@ -87,8 +87,9 @@ import { PersonasService } from '../../core/services/personas.service';
         <ion-badge slot="end" color="primary">{{ tipoEtiqueta }}</ion-badge>
       </ion-item>
       <ion-note color="medium">
-        El correo y el tipo de cuenta no se pueden cambiar. El nombre se actualiza en todos los
-        equipos de los que formas parte.
+        El correo y el tipo de cuenta no se pueden cambiar. Tu rol con cada persona lo define su
+        responsable (puedes ser familiar de una y enfermero/a de otra). El nombre se actualiza en todos
+        los equipos de los que formas parte.
       </ion-note>
 
       <ion-list inset class="seguridad">

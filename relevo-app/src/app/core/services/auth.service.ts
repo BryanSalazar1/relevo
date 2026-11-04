@@ -30,7 +30,7 @@ import {
   where,
 } from '@angular/fire/firestore';
 import { Observable, catchError, of, switchMap } from 'rxjs';
-import { CONTRASENA_MIN, ROL_POR_TIPO, Rol, TipoUsuario, Usuario } from '../models';
+import { CONTRASENA_MIN, TipoUsuario, Usuario } from '../models';
 import { NotificacionesService } from './notificaciones.service';
 
 @Injectable({ providedIn: 'root' })
@@ -71,11 +71,6 @@ export class AuthService {
     return this.perfil()?.tipo;
   }
 
-  /** Rol con el que esta cuenta entra a una bitácora por invitación. */
-  get rolAlUnirse(): Rol | undefined {
-    const tipo = this.tipoActual;
-    return tipo ? ROL_POR_TIPO[tipo] : undefined;
-  }
 
   /** Crea la cuenta en Auth y su perfil en `usuarios/{uid}` con el tipo elegido. */
   async registrar(nombre: string, email: string, password: string, tipo: TipoUsuario): Promise<User> {

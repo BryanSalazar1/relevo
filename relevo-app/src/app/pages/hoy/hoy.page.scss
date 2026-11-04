@@ -300,3 +300,19 @@ h2 ion-note {
   color: var(--ion-color-warning-shade);
   font-weight: 700;
 }
+
+ion-card.en-pausa {
+  border-left: 4px solid var(--ion-color-warning);
+  .cuerpo {
+    padding: 14px 16px;
+  }
+  .titulo {
+    font-weight: 700;
+    color: var(--ion-color-warning-shade);
+    margin-bottom: 4px;
+  }
+  .motivo {
+    margin-top: 4px;
+    font-style: italic;
+  }
+}

@@ -13,7 +13,7 @@ import {
   ModalController,
   ToastController,
 } from '@ionic/angular';
-import { Invitacion, ROL_ETIQUETA } from '../../core/models';
+import { Invitacion, ROL_COLOR, ROL_ETIQUETA } from '../../core/models';
 import {
   InvitacionesService,
   formatearCodigo,
@@ -38,9 +38,11 @@ import {
     <ion-content class="ion-padding ion-text-center">
       <p>Para unirse a la bitácora de <strong>{{ invitacion.personaNombre }}</strong></p>
       <p class="tipos">
-        <ion-badge color="tertiary">Familiar</ion-badge>
-        <ion-badge color="success">Enfermero/a</ion-badge>
-        <ion-badge color="medium">Médico</ion-badge>
+        @if (invitacion.rol) {
+          Entra como <ion-badge [color]="ROL_COLOR[invitacion.rol]">{{ ROL_ETIQUETA[invitacion.rol] }}</ion-badge>
+        } @else {
+          Entra según su tipo de cuenta
+        }
       </p>
 
       @if (qr(); as src) {
@@ -70,7 +72,8 @@ import {
       <ion-text color="medium">
         <p class="ayuda">
           Quien reciba el código puede escribirlo en <em>Unirme con código</em>, escanear el QR desde la
-          app o con la cámara del teléfono. Entrará con el rol de su cuenta: familiar, enfermero/a o médico.
+          app o con la cámara del teléfono. Entrará con el rol de esta invitación solo en esta persona;
+          con otras personas puede tener otro rol.
         </p>
       </ion-text>
     </ion-content>
@@ -119,6 +122,7 @@ export class CompartirModal implements OnInit {
   invitacion!: Invitacion;
 
   readonly ROL_ETIQUETA = ROL_ETIQUETA;
+  readonly ROL_COLOR = ROL_COLOR;
   readonly qr = signal<string | null>(null);
 
   get codigo(): string {

@@ -93,3 +93,23 @@ ion-card-content .acciones-persona {
   gap: 4px;
   margin-top: 8px;
 }
+
+ion-badge.pausa {
+  margin-left: 6px;
+}
+.pausa-detalle {
+  font-size: 0.8rem;
+  color: var(--ion-color-warning-shade);
+}
+
+.invitar-como {
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+ion-segment.rol-invitar {
+  margin-bottom: 12px;
+  ion-segment-button {
+    font-size: 0.8rem;
+    min-width: 0;
+  }
+}

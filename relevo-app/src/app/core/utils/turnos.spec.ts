@@ -77,14 +77,15 @@ describe('turnos', () => {
     );
   });
 
-  it('solo cuentan quienes reciben recordatorios: el médico y quien los apagó no cubren', () => {
-    const m = (rol: Miembro['rol'], turnos: Turno[], recordatorios?: boolean) =>
-      ({ rol, turnos, recordatorios }) as Pick<Miembro, 'rol' | 'turnos' | 'recordatorios'>;
+  it('solo cuentan quienes reciben recordatorios: el médico, quien los apagó y quien está en pausa no cubren', () => {
+    const m = (rol: Miembro['rol'], turnos: Turno[], recordatorios?: boolean, pausado?: boolean) =>
+      ({ rol, turnos, recordatorios, pausado }) as Pick<Miembro, 'rol' | 'turnos' | 'recordatorios' | 'pausado'>;
     const lista = turnosQueCubren([
       m('medico', [siempre]),
       m('cuidador_turno', [manana], false),
       m('familiar', [noche]),
       m('cuidador_principal', []),
+      m('cuidador_turno', [siempre], true, true),
     ]);
     expect(lista).toEqual([[noche], []]);
   });

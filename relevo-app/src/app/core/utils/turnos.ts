@@ -143,11 +143,13 @@ export function textoHuecos(huecos: Hueco[][]): string {
 
 /**
  * Turnos de quienes reciben los recordatorios de la guardia (como deGuardia en functions/logica.js):
- * los que registran tomas y no apagaron sus recordatorios. El médico no hace guardias.
+ * los que registran tomas, no apagaron sus recordatorios y no están en pausa. El médico no hace guardias.
  */
-export function turnosQueCubren(miembros: Pick<Miembro, 'rol' | 'turnos' | 'recordatorios'>[]): Turno[][] {
+export function turnosQueCubren(
+  miembros: Pick<Miembro, 'rol' | 'turnos' | 'recordatorios' | 'pausado'>[],
+): Turno[][] {
   return miembros
-    .filter((m) => PUEDE_REGISTRAR_TOMAS.includes(m.rol) && m.recordatorios !== false)
+    .filter((m) => PUEDE_REGISTRAR_TOMAS.includes(m.rol) && m.recordatorios !== false && m.pausado !== true)
     .map((m) => m.turnos ?? []);
 }
 

@@ -21,6 +21,8 @@ import {
   IonList,
   IonListHeader,
   IonNote,
+  IonSegment,
+  IonSegmentButton,
   IonSkeletonText,
   IonSpinner,
   IonText,
@@ -32,7 +34,17 @@ import {
 } from '@ionic/angular';
 import { Router, RouterLink } from '@angular/router';
 import { combineLatest, of, switchMap } from 'rxjs';
-import { Invitacion, Miembro, ROL_COLOR, ROL_ETIQUETA } from '../../core/models';
+import {
+  Invitacion,
+  Miembro,
+  ROL_COLOR,
+  ROL_ETIQUETA,
+  ROLES,
+  ROLES_INVITABLES,
+  ROLES_PAUSABLES,
+  Rol,
+  RolInvitable,
+} from '../../core/models';
 import { AuthService } from '../../core/services/auth.service';
 import {
   DIAS_CODIGO_PERMANENTE,
@@ -78,6 +90,8 @@ import { FabAsistente } from '../../shared/fab-asistente.component';
     IonButton,
     IonIcon,
     IonNote,
+    IonSegment,
+    IonSegmentButton,
     IonSkeletonText,
     IonSpinner,
     IonText,
@@ -124,19 +138,37 @@ export class EquipoPage {
     ),
   );
 
-  /** El código que se muestra como QR permanente: la invitación activa más reciente. */
-  readonly invitacionActual = computed(() => this.invitaciones()?.[0] ?? null);
-  /** Otras invitaciones activas (p. ej. temporales creadas antes), por si se quieren cancelar. */
-  readonly otrasInvitaciones = computed(() => this.invitaciones()?.slice(1) ?? []);
+  /** A quién se invita con el QR: el rol es por persona y lo decide aquí el responsable */
+  readonly rolInvitar = signal<RolInvitable>('familiar');
+  readonly rolesInvitables = ROLES_INVITABLES;
+  readonly ROLES = ROLES;
+  /** El código que se muestra como QR permanente: la invitación activa más reciente de ese rol. */
+  readonly invitacionActual = computed(
+    () => this.invitaciones()?.find((i) => i.rol === this.rolInvitar()) ?? null,
+  );
+  /** Otras invitaciones activas (de otros roles o anteriores sin rol), por si se quieren cancelar. */
+  readonly otrasInvitaciones = computed(() =>
+    (this.invitaciones() ?? []).filter((i) => i.codigo !== this.invitacionActual()?.codigo),
+  );
+
+  /** "Entra como enfermero/a" (o según su tipo de cuenta, en invitaciones anteriores sin rol) */
+  entraComo(inv: Invitacion): string {
+    return inv.rol ? `Entra como ${ROL_ETIQUETA[inv.rol].toLowerCase()}` : 'Entra según su tipo de cuenta';
+  }
+
+  cambiarRolInvitar(valor: unknown) {
+    if (ROLES_INVITABLES.includes(valor as RolInvitable)) this.rolInvitar.set(valor as RolInvitable);
+  }
   readonly qr = signal<string | null>(null);
 
   constructor() {
-    // Si el responsable no tiene ningún código activo, se genera uno de larga duración
+    // Si el responsable no tiene un código activo para el rol elegido, se genera uno de larga duración
     effect(() => {
       const lista = this.invitaciones();
       const persona = this.persona();
-      if (this.esPrincipal() && persona && lista && lista.length === 0) {
-        untracked(() => void this.crearCodigoPermanente());
+      const rol = this.rolInvitar();
+      if (this.esPrincipal() && persona && lista && !lista.some((i) => i.rol === rol)) {
+        untracked(() => void this.crearCodigoPermanente(rol));
       }
     });
     // Imagen del QR para el código actual
@@ -160,10 +192,10 @@ export class EquipoPage {
   readonly errorCodigo = signal(false);
 
   reintentarCodigo() {
-    void this.crearCodigoPermanente();
+    void this.crearCodigoPermanente(this.rolInvitar());
   }
 
-  private async crearCodigoPermanente() {
+  private async crearCodigoPermanente(rol: RolInvitable) {
     const persona = this.persona();
     if (!persona?.id || this.creandoCodigo) return;
     this.creandoCodigo = true;
@@ -172,8 +204,8 @@ export class EquipoPage {
       // La lista en tiempo real puede llegar vacía desde la caché local antes que del servidor;
       // se confirma con el servidor para no duplicar códigos.
       const existentes = await this.invitacionesSvc.activasEnServidor(persona.id);
-      if (existentes.length > 0) return;
-      await this.invitacionesSvc.crear(persona, DIAS_CODIGO_PERMANENTE, USOS_CODIGO_PERMANENTE);
+      if (existentes.some((i) => i.rol === rol)) return;
+      await this.invitacionesSvc.crear(persona, rol, DIAS_CODIGO_PERMANENTE, USOS_CODIGO_PERMANENTE);
     } catch (error) {
       console.error(error);
       this.errorCodigo.set(true);
@@ -215,7 +247,12 @@ export class EquipoPage {
     if (!persona) return;
     try {
       this.creandoCodigo = true;
-      await this.invitacionesSvc.crear(persona, DIAS_CODIGO_PERMANENTE, USOS_CODIGO_PERMANENTE);
+      await this.invitacionesSvc.crear(
+        persona,
+        inv.rol ?? this.rolInvitar(),
+        DIAS_CODIGO_PERMANENTE,
+        USOS_CODIGO_PERMANENTE,
+      );
       await this.invitacionesSvc.desactivar(inv.codigo);
       await this.aviso('Código renovado.', 'success');
     } catch (error) {
@@ -283,7 +320,7 @@ export class EquipoPage {
     return this.esPrincipal() && (m.uid !== this.uid || this.hayOtroResponsable());
   }
 
-  /** Opciones sobre un miembro (solo el responsable): hacer/quitar responsable, quitar del equipo. */
+  /** Opciones sobre un miembro (solo el responsable): cambiar su rol, turnos, pausa, quitarlo. */
   async opcionesMiembro(m: Miembro) {
     if (!this.tieneOpciones(m)) return;
     const buttons: { text: string; icon?: string; role?: string; handler?: () => void }[] = [];
@@ -303,28 +340,32 @@ export class EquipoPage {
       await propio.present();
       return;
     }
-    // El tipo de cuenta se deduce del rol (ROLES_COMPATIBLES): solo una cuenta de familiar puede
-    // ser familiar o responsable. Los perfiles de otros ya no se leen desde la app.
-    const esFamiliar = m.rol === 'familiar' || m.rol === 'cuidador_principal';
-
-    if (esFamiliar) {
-      if (m.rol === 'cuidador_principal') {
-        buttons.push({
-          text: 'Quitar como responsable',
-          icon: 'person-circle-outline',
-          handler: () => {
-            void this.cambiarRol(m, 'familiar');
-          },
-        });
-      } else {
-        buttons.push({
-          text: 'Hacer responsable',
-          icon: 'key-outline',
-          handler: () => {
-            void this.cambiarRol(m, 'cuidador_principal');
-          },
-        });
-      }
+    // El rol es por persona cuidada: el responsable le da a cualquiera el rol que tiene aquí
+    buttons.push({
+      text: 'Cambiar rol',
+      icon: 'swap-horizontal-outline',
+      handler: () => {
+        void this.elegirRol(m);
+      },
+    });
+    if (ROLES_PAUSABLES.includes(m.rol)) {
+      buttons.push(
+        m.pausado
+          ? {
+              text: 'Reactivar',
+              icon: 'play-circle-outline',
+              handler: () => {
+                void this.reactivar(m);
+              },
+            }
+          : {
+              text: 'Pausar por un tiempo',
+              icon: 'pause-circle-outline',
+              handler: () => {
+                void this.pausar(m);
+              },
+            },
+      );
     }
     buttons.push(
       {
@@ -343,6 +384,47 @@ export class EquipoPage {
       buttons,
     });
     await sheet.present();
+  }
+
+  /**
+   * Pausa a un enfermero o familiar que no podrá venir un tiempo: sigue en el equipo y ve todo, pero no
+   * registra ni recibe recordatorios o avisos. Se reactiva cuando vuelva, sin invitarlo de nuevo.
+   */
+  private async pausar(m: Miembro) {
+    const personaId = this.ctx.personaId();
+    if (!personaId) return;
+    const alerta = await this.alertCtrl.create({
+      header: `¿Pausar a ${m.nombre}?`,
+      message:
+        'Mientras esté en pausa puede ver la información, pero no registrar nada, y no le llegan recordatorios ni avisos. Puedes reactivarlo cuando quieras.',
+      inputs: [{ name: 'motivo', type: 'text', placeholder: 'Motivo (opcional): de vacaciones hasta el 20', attributes: { maxlength: 120 } }],
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        { text: 'Pausar', role: 'confirm' },
+      ],
+    });
+    await alerta.present();
+    const { role, data } = await alerta.onDidDismiss<{ values: { motivo?: string } }>();
+    if (role !== 'confirm') return;
+    try {
+      await this.miembrosSvc.pausar(personaId, m.uid, data?.values?.motivo ?? '');
+      await this.aviso(`${m.nombre} quedó en pausa.`, 'success');
+    } catch (error) {
+      console.error(error);
+      await this.aviso('No se pudo poner en pausa.', 'danger');
+    }
+  }
+
+  private async reactivar(m: Miembro) {
+    const personaId = this.ctx.personaId();
+    if (!personaId) return;
+    try {
+      await this.miembrosSvc.reactivar(personaId, m.uid);
+      await this.aviso(`${m.nombre} está activo otra vez.`, 'success');
+    } catch (error) {
+      console.error(error);
+      await this.aviso('No se pudo reactivar.', 'danger');
+    }
   }
 
   /** El responsable edita la ficha médica (tipo de sangre, alergias, condiciones, médico, contactos…). */
@@ -392,6 +474,35 @@ export class EquipoPage {
       confirmar: 'Dejar el rol',
     });
     if (ok) await this.cambiarRol(m, 'familiar');
+  }
+
+  /** Elegir el rol nuevo de un miembro; a alguien en pausa no se le hace responsable (las rules tampoco). */
+  private async elegirRol(m: Miembro) {
+    const opciones = ROLES.filter((r) => r.valor !== m.rol && !(m.pausado && r.valor === 'cuidador_principal'));
+    const sheet = await this.actionSheetCtrl.create({
+      header: `Rol de ${m.nombre} con ${this.persona()?.nombre ?? 'esta persona'}`,
+      subHeader: `Ahora: ${ROL_ETIQUETA[m.rol]}. Su rol con otras personas no cambia.`,
+      buttons: [
+        ...opciones.map((r) => ({
+          text: r.etiqueta,
+          handler: () => {
+            void this.confirmarRol(m, r.valor);
+          },
+        })),
+        { text: 'Cancelar', role: 'cancel' },
+      ],
+    });
+    await sheet.present();
+  }
+
+  private async confirmarRol(m: Miembro, rol: Rol) {
+    const descripcion = ROLES.find((r) => r.valor === rol)?.descripcion ?? '';
+    const ok = await confirmar(this.alertCtrl, {
+      header: `¿${m.nombre} será ${ROL_ETIQUETA[rol].toLowerCase()}?`,
+      message: `${descripcion}.`,
+      confirmar: 'Cambiar rol',
+    });
+    if (ok) await this.cambiarRol(m, rol);
   }
 
   private async cambiarRol(m: Miembro, rol: Miembro['rol']) {

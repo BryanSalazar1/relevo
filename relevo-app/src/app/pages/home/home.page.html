@@ -21,36 +21,27 @@
   <section class="saludo">
     <p class="hola">
       Hola, <strong>{{ nombreCorto() }}</strong>
-      @if (tipoEtiqueta(); as tipo) {
-        <ion-badge color="primary">{{ tipo }}</ion-badge>
-      }
     </p>
-    <h1>{{ esFamiliar() ? 'Personas que cuidas' : esMedico() ? 'Tus pacientes' : 'Personas a tu cuidado' }}</h1>
+    <h1>{{ titulo() }}</h1>
   </section>
 
   @if (personas(); as lista) {
     @if (lista.length === 0) {
       <ion-card class="vacio">
         <div class="icono"><ion-icon name="heart-outline" /></div>
-        @if (esFamiliar()) {
-          <h2>Aún no cuidas a nadie</h2>
-          <p>Da de alta a tu familiar para empezar su bitácora, o únete con el código de alguien que ya la lleva.</p>
-          <ion-button expand="block" (click)="nuevaPersona()">
-            <ion-icon slot="start" name="add" />
-            Dar de alta a mi familiar
-          </ion-button>
-          <ion-button expand="block" fill="outline" routerLink="/unirse">
-            <ion-icon slot="start" name="qr-code-outline" />
-            Tengo un código o QR
-          </ion-button>
-        } @else {
-          <h2>Aún no formas parte de ninguna bitácora</h2>
-          <p>Pide a la familia el código o el QR de invitación y entra con él.</p>
-          <ion-button expand="block" routerLink="/unirse">
-            <ion-icon slot="start" name="qr-code-outline" />
-            Unirme con código o QR
-          </ion-button>
-        }
+        <h2>Aún no cuidas a nadie</h2>
+        <p>
+          Únete con el código o QR que te dio la familia, o da de alta a una persona para llevar su bitácora.
+          Con cada persona tienes tu propio rol.
+        </p>
+        <ion-button expand="block" routerLink="/unirse">
+          <ion-icon slot="start" name="qr-code-outline" />
+          Tengo un código o QR
+        </ion-button>
+        <ion-button expand="block" fill="outline" (click)="nuevaPersona()">
+          <ion-icon slot="start" name="add" />
+          Dar de alta a una persona
+        </ion-button>
       </ion-card>
     } @else {
       <div class="tarjetas">
@@ -63,6 +54,9 @@
               <div class="texto">
                 <h2>{{ p.nombre }}</h2>
                 <p class="meta">
+                  @if (rolEn(p); as rol) {
+                    <ion-badge class="rol" [color]="ROL_COLOR[rol]">{{ ROL_ETIQUETA[rol] }}</ion-badge>
+                  }
                   @if (edad(p.fechaNacimiento); as anios) {
                     <span class="chip">{{ anios }} años</span>
                   }
@@ -84,7 +78,7 @@
               >
                 <ion-icon slot="icon-only" name="id-card-outline" />
               </ion-button>
-              @if (!esMedico()) {
+              @if (rolEn(p) && rolEn(p) !== 'medico') {
                 <ion-button
                   fill="clear"
                   class="boton-redondo semaforo"
@@ -118,7 +112,7 @@
     </div>
   }
 
-  @if (esFamiliar()) {
+  @if (personas()?.length) {
     <ion-fab slot="fixed" vertical="bottom" horizontal="end">
       <ion-button class="fab-extendido" shape="round" (click)="nuevaPersona()" aria-label="Nueva persona">
         <ion-icon slot="start" name="add" />

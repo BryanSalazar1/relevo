@@ -18,7 +18,14 @@ import {
 } from '@angular/fire/firestore';
 import { Observable, catchError, map, of } from 'rxjs';
 import { appUrl } from '../../../environments/firebase.config';
-import { AVISOS_POR_DEFECTO, Invitacion, PersonaCuidada } from '../models';
+import {
+  AVISOS_POR_DEFECTO,
+  Invitacion,
+  PersonaCuidada,
+  ROL_ETIQUETA,
+  RolInvitable,
+  rolDeInvitacion,
+} from '../models';
 import { AuthService } from './auth.service';
 
 /** Sin 0/O/1/I para que el código se pueda dictar por teléfono sin confusiones. */
@@ -65,8 +72,9 @@ export class InvitacionesService {
 
   /** Texto listo para WhatsApp/correo con el código y el enlace. */
   textoInvitacion(inv: Invitacion): string {
+    const como = inv.rol ? ` como ${ROL_ETIQUETA[inv.rol].toLowerCase()}` : '';
     return (
-      `Te invito a la bitácora de cuidado de ${inv.personaNombre} en Relevo.\n` +
+      `Te invito a la bitácora de cuidado de ${inv.personaNombre} en Relevo${como}.\n` +
       `Código: ${formatearCodigo(inv.codigo)}\n${this.enlace(inv.codigo)}`
     );
   }
@@ -104,10 +112,15 @@ export class InvitacionesService {
   }
 
   /**
-   * Crea una invitación (solo el responsable, según las rules). No lleva rol: cada persona
-   * entra con el rol que corresponde a su tipo de cuenta.
+   * Crea una invitación (solo el responsable, según las rules) para entrar con `rol` a esta persona:
+   * el rol es por persona cuidada, no por tipo de cuenta.
    */
-  async crear(persona: PersonaCuidada, diasValidez = 7, usosMax = 10): Promise<Invitacion> {
+  async crear(
+    persona: PersonaCuidada,
+    rol: RolInvitable,
+    diasValidez = 7,
+    usosMax = 10,
+  ): Promise<Invitacion> {
     const uid = this.authSvc.uid;
     if (!uid || !persona.id) throw new Error('Datos incompletos');
     const codigo = this.generarCodigo();
@@ -117,6 +130,7 @@ export class InvitacionesService {
       codigo,
       personaId: persona.id,
       personaNombre: persona.nombre,
+      rol,
       creadoPor: uid,
       creadoEn: serverTimestamp(),
       expiraEn: Timestamp.fromDate(expira),
@@ -182,13 +196,13 @@ export class InvitacionesService {
 
   /**
    * Canjea la invitación: en un solo batch incrementa usos, crea mi documento de miembro
-   * con el rol que corresponde a mi tipo de cuenta y me agrega a miembrosUids.
-   * Las rules verifican todo (incluido que el rol coincida con mi tipo).
+   * con el rol de la invitación y me agrega a miembrosUids.
+   * Las rules verifican todo (incluido que el rol sea el de la invitación).
    */
   async canjear(inv: Invitacion): Promise<string> {
     const uid = this.authSvc.uid;
     if (!uid) throw new Error('No hay sesión iniciada');
-    const rol = this.authSvc.rolAlUnirse;
+    const rol = rolDeInvitacion(inv, this.authSvc.tipoActual);
     if (!rol) throw new Error('Tu cuenta no tiene tipo definido');
 
     const personaRef = doc(this.db, 'personas_cuidadas', inv.personaId);

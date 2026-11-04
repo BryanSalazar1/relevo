@@ -58,7 +58,7 @@ export class CitasPlan {
 
   readonly puedeEditar = computed(() => {
     const r = this.ctx.rol();
-    return !!r && PUEDE_EDITAR_CITAS.includes(r);
+    return !!r && !this.ctx.enPausa() && PUEDE_EDITAR_CITAS.includes(r);
   });
 
   info(tipo: TipoEvento) {

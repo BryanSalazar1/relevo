@@ -1,0 +1,37 @@
+Roles por persona cuidada (multipaciente) — 04/11/2026. Todo contra los emuladores de Firebase con la
+semilla (no toca datos reales), en una corrida limpia: emuladores recién iniciados y cada prueba en orden.
+
+QUÉ CAMBIÓ
+  El rol ya no sale del tipo de cuenta: se tiene POR PERSONA CUIDADA. Una cuenta de enfermera puede ser
+  enfermera de un paciente y responsable de su mamá; un médico, familiar de alguien de su casa.
+  - La invitación lleva el rol (familiar, enfermero/a o médico; nunca responsable). En Equipo: "¿A quién
+    invitas?", con un código por rol. Unirse dice con qué rol se entra. Las invitaciones anteriores sin rol
+    siguen funcionando según el tipo de cuenta.
+  - Cualquier cuenta da de alta a una persona y queda como su responsable (antes solo las de familiar).
+  - El responsable cambia el rol de cualquier miembro (Equipo → ⋯ → Cambiar rol); a alguien en pausa no se
+    le hace responsable.
+  - Inicio: cada tarjeta dice tu rol con esa persona; te lleva a Seguimiento si ahí eres médico, si no a Hoy;
+    el semáforo sale solo donde registras. Las pestañas de cada persona salen de tu rol con ella.
+  - Reglas (firestore.rules): rolDeInvitacion, rolInvitacionValido, rolValido; se retiró rolCompatible y la
+    condición de tipo familiar para crear personas. Ninguna Cloud Function dependía del tipo de cuenta.
+
+RESULTADOS
+  Reglas de seguridad ................ 38 de 38 (mismos casos, actualizados al modelo nuevo)
+  Lógica del servidor ................ 57 de 57 (1 omitida, igual que antes)
+  Pruebas unitarias de la app ........ 95 de 95
+  Roles por persona (navegador) ...... 14 de 14 pasos       multipaciente/registro.txt
+  Recorrido por roles ................ 19 de 19 pasos       roles/ (la cuenta nueva de enfermera entra con
+                                                            la invitación de Enfermero/a)
+  Turnos ............................. 72 de 72 comprobaciones
+  Sincronización / revocación ........ mediana 355 ms / 519 ms; copia local borrada al cerrar sesión (1 → 0)
+  Semáforo, según necesidad y
+  semáforo compartido ................ sin fallas
+  Android 15 (emulador, APK) ......... 12 de 12 pasos       android/registro.txt (Pedro entra como Familiar
+                                                            con el QR)
+  Errores en la consola del navegador: ninguno en todas las pruebas.
+
+CÓMO SE REPRODUCE
+  Emuladores + semilla + npx ng serve --port 4300 (FORZAR_EMULADORES = true):
+    node tests/evidencias/multipaciente.mjs <salida>
+    node tests/evidencias/recorrido-roles.mjs http://localhost:4300 <salida>
+  Android: tests/evidencias/android/README.md

@@ -173,9 +173,12 @@ try {
     await cerrarCapas(page);
     const luis = page.locator('app-equipo ion-item', { hasText: 'Luis' }).first();
     espera((await luis.locator('ion-button:has-text("Turnos")').count()) === 0, 'el médico tiene botón de turnos');
-    // El código de invitación
-    await page.waitForSelector('app-equipo .codigo, app-equipo h2.codigo, app-equipo [class*="codigo"]', { timeout: 20000 });
-    codigo = ((await page.locator('app-equipo').innerText()).match(/\b([A-Z0-9]{4})-([A-Z0-9]{4})\b/) || []).slice(1).join('');
+    // El código de invitación para una enfermera (el rol va en la invitación, no en la cuenta)
+    await page.locator('app-equipo ion-segment.rol-invitar ion-segment-button', { hasText: 'Enfermero' }).click();
+    await page.waitForTimeout(2500);
+    await page.waitForSelector('app-equipo .codigo.grande', { timeout: 20000 });
+    codigo = ((await page.locator('app-equipo .codigo.grande').innerText()).match(/([A-Z0-9]{4})-([A-Z0-9]{4})/) || []).slice(1).join('');
+    espera(/como\s+enfermero/i.test(await page.locator('app-equipo ion-card.acceso').innerText()), 'el QR no dice que entra como enfermero/a');
     console.log('     código:', codigo);
     await foto(page, 'a06_equipo');
   });
@@ -313,6 +316,7 @@ try {
     espera(codigo.length === 8, 'no hay código');
     await page.goto(`${BASE}/unirse/${codigo}`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('ion-button:has-text("Unirme")', { timeout: 30000 });
+    espera(/Enfermero/.test(await page.locator('app-unirse ion-card').innerText()), 'Unirse no dice que entra como enfermero/a');
     await page.click('ion-button:has-text("Unirme")');
     await page.waitForURL(/\/personas\/persona-demo\/hoy/, { timeout: 30000 });
     await page.waitForSelector('app-hoy ion-list.agenda ion-item', { timeout: 30000 });
