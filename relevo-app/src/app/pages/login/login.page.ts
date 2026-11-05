@@ -118,6 +118,15 @@ export class LoginPage {
     guardarPerfiles(lista);
   }
 
+  constructor() {
+    // Después de cambiar el correo con el código: se entra con el correo nuevo
+    const correo = this.route.snapshot.queryParamMap.get('correo');
+    if (correo) {
+      this.email = correo;
+      void this.avisar(`Tu correo ahora es ${correo}. Entra con él y tu misma contraseña.`, 'success');
+    }
+  }
+
   alternarModo() {
     this.modo.update((m) => (m === 'login' ? 'registro' : 'login'));
     if (this.elegido()) this.otraCuenta();

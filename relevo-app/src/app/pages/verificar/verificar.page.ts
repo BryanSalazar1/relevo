@@ -2,6 +2,7 @@ import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angula
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
+  AlertController,
   IonButton,
   IonContent,
   IonHeader,
@@ -43,7 +44,7 @@ function errorFuncion(error: unknown): { mensaje: string; esperaSeg?: number } {
         <h1>Verifica tu correo</h1>
         <p class="explica">
           @if (enviado()) {
-            Te enviamos un código de 6 dígitos a <strong>{{ email() }}</strong>. Escríbelo aquí; vence en
+            Te enviamos un código de 6 dígitos a <strong>{{ destino() || email() }}</strong>. Escríbelo aquí; vence en
             {{ vigencia() }} minutos. Si no lo ves, revisa la carpeta de spam.
           } @else {
             Para proteger los datos de cuidado, confirmamos que el correo <strong>{{ email() }}</strong> es tuyo.
@@ -82,10 +83,13 @@ function errorFuncion(error: unknown): { mensaje: string; esperaSeg?: number } {
           }
         </ion-button>
         <ion-text color="medium">
-          <p class="otra">¿No es tu correo o te equivocaste al escribirlo?</p>
+          <p class="otra">¿Ese no es tu correo o quieres usar otro?</p>
         </ion-text>
+        <ion-button expand="block" fill="outline" size="small" [disabled]="ocupado()" (click)="cambiarCorreo()" data-prueba="cambiar-correo">
+          Cambiar mi correo
+        </ion-button>
         <ion-button expand="block" fill="clear" color="medium" size="small" (click)="salir()">
-          Cerrar sesión y usar otro correo
+          Cerrar sesión
         </ion-button>
       </div>
     </ion-content>
@@ -120,6 +124,8 @@ function errorFuncion(error: unknown): { mensaje: string; esperaSeg?: number } {
       margin-bottom: 12px;
       --padding-start: 16px;
       font-size: 1.5rem;
+    }
+    ion-input.codigo ::ng-deep input {
       letter-spacing: 0.4em;
       text-align: center;
     }
@@ -134,6 +140,11 @@ export class VerificarPage implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly toast = inject(ToastController);
+  private readonly alertas = inject(AlertController);
+  /** Correo al que se mandó el último código (el de la cuenta, o el nuevo si lo está cambiando) */
+  readonly destino = signal('');
+  /** Correo nuevo pedido con "Cambiar mi correo": los reenvíos van a ese */
+  private correoNuevo: string | undefined;
 
   readonly email = computed(() => this.auth.user()?.email ?? 'tu correo');
   readonly enviado = signal(false);
@@ -169,7 +180,8 @@ export class VerificarPage implements OnInit {
     if (this.ocupado()) return;
     this.enviando.set(true);
     try {
-      const r = await this.auth.enviarCodigo();
+      const r = await this.auth.enviarCodigo(this.correoNuevo);
+      if (r.email) this.destino.set(r.email);
       if (r.verificado) {
         await this.continuar();
         return;
@@ -201,7 +213,12 @@ export class VerificarPage implements OnInit {
     }
     this.verificando.set(true);
     try {
-      await this.auth.verificarCodigo(codigo);
+      const { correoNuevo } = await this.auth.verificarCodigo(codigo);
+      if (correoNuevo) {
+        // Firebase cierra la sesión al cambiar el correo: se vuelve a entrar con el nuevo
+        await this.auth.cerrarSesion(`/login?correo=${encodeURIComponent(correoNuevo)}`);
+        return;
+      }
       await this.avisar('¡Listo! Tu correo quedó verificado.', 'success');
       await this.continuar();
     } catch (error) {
@@ -215,6 +232,34 @@ export class VerificarPage implements OnInit {
   private async continuar() {
     const volver = this.route.snapshot.queryParamMap.get('volver');
     await this.router.navigateByUrl(volver && volver.startsWith('/') ? volver : '/home', { replaceUrl: true });
+  }
+
+  /** La cuenta se queda con el correo nuevo cuando se escribe el código que llega ahí */
+  async cambiarCorreo() {
+    const alerta = await this.alertas.create({
+      header: 'Cambiar mi correo',
+      message: 'Te mandaremos el código al correo nuevo. Al escribirlo, tu cuenta quedará con ese correo.',
+      inputs: [{ name: 'email', type: 'email', placeholder: 'tucorreo@gmail.com', attributes: { autocomplete: 'email' } }],
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        { text: 'Enviar código', role: 'confirm' },
+      ],
+    });
+    await alerta.present();
+    const { role, data } = await alerta.onDidDismiss();
+    if (role !== 'confirm') return;
+    const email = String(data?.values?.email ?? '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+      await this.avisar('Escribe un correo válido.');
+      return;
+    }
+    const anterior = this.correoNuevo;
+    this.correoNuevo = email;
+    this.espera.set(0);
+    this.codigo = '';
+    await this.enviar();
+    // Si no se pudo mandar (correo de otra cuenta, etc.), se queda como estaba
+    if (this.destino() !== email) this.correoNuevo = anterior;
   }
 
   async salir() {

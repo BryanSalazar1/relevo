@@ -128,24 +128,37 @@ export class AuthService {
     return true;
   }
 
-  /** Pide un código de 6 dígitos al correo de la sesión (Cloud Function enviarCodigoCorreo). */
-  async enviarCodigo(): Promise<{ verificado?: boolean; email?: string; vigenciaMin?: number; reenvioSeg?: number }> {
-    const llamar = httpsCallable<void, { verificado?: boolean; email?: string; vigenciaMin?: number; reenvioSeg?: number }>(
-      this.fns,
-      'enviarCodigoCorreo',
-    );
-    return (await llamar()).data;
+  /**
+   * Pide un código de 6 dígitos (Cloud Function enviarCodigoCorreo) al correo de la sesión o, si se
+   * pasa `email`, a ese correo nuevo: al escribir el código, la cuenta se queda con él (cambiar correo).
+   */
+  async enviarCodigo(
+    email?: string,
+  ): Promise<{ verificado?: boolean; email?: string; vigenciaMin?: number; reenvioSeg?: number }> {
+    const llamar = httpsCallable<
+      { email?: string },
+      { verificado?: boolean; email?: string; vigenciaMin?: number; reenvioSeg?: number }
+    >(this.fns, 'enviarCodigoCorreo');
+    return (await llamar(email ? { email } : {})).data;
   }
 
-  /** Revisa el código; si es correcto la cuenta queda verificada y se renueva el token. */
-  async verificarCodigo(codigo: string): Promise<void> {
-    const llamar = httpsCallable<{ codigo: string }, { verificado: boolean }>(this.fns, 'verificarCodigoCorreo');
-    await llamar({ codigo });
+  /**
+   * Revisa el código; si es correcto la cuenta queda verificada y se renueva el token. Si con el código
+   * se cambió el correo, Firebase cierra las sesiones abiertas: devuelve el correo nuevo para entrar con él.
+   */
+  async verificarCodigo(codigo: string): Promise<{ correoNuevo?: string }> {
+    const llamar = httpsCallable<{ codigo: string }, { verificado: boolean; email?: string }>(
+      this.fns,
+      'verificarCodigoCorreo',
+    );
+    const { data } = await llamar({ codigo });
+    if (data.email) return { correoNuevo: data.email };
     const user = this.auth.currentUser;
     if (user) {
       await reload(user);
       await user.getIdToken(true);
     }
+    return {};
   }
 
   /** Correo con enlace para crear una contraseña nueva (Firebase responde igual exista o no la cuenta). */
@@ -219,10 +232,10 @@ export class AuthService {
    * Da de baja este teléfono de las notificaciones (requiere sesión), cierra la sesión y borra la
    * copia local de Firestore (modo sin conexión), para que nada de la bitácora quede en el equipo.
    */
-  async cerrarSesion(): Promise<void> {
-    await this.notificaciones.quitarDispositivo();
+  async cerrarSesion(destino = '/login'): Promise<void> {
+    await this.notificaciones.quitarDispositivo().catch(() => undefined);
     await signOut(this.auth);
-    await this.borrarCopiaLocal();
+    await this.borrarCopiaLocal(destino);
   }
 
   /**
@@ -231,14 +244,14 @@ export class AuthService {
    * Relevo abierta el navegador no deja borrarla; la sesión igual queda cerrada y las reglas impiden
    * leer del servidor.
    */
-  private async borrarCopiaLocal(): Promise<void> {
+  private async borrarCopiaLocal(destino = '/login'): Promise<void> {
     try {
       await terminate(this.db);
       await clearIndexedDbPersistence(this.db);
     } catch (error) {
       console.warn('No se pudo borrar la copia local de Firestore', error);
     }
-    window.location.replace('/login');
+    window.location.replace(destino);
   }
 
   /** Traduce los códigos de error de Firebase Auth a mensajes para el usuario. */
