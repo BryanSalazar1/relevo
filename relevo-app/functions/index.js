@@ -1004,8 +1004,23 @@ export const enviarCodigoCorreo = onCall({ cors: true, ...opciones }, async (req
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Inicia sesión para verificar tu correo.');
   const usuario = await getAuth().getUser(uid);
-  if (usuario.emailVerified) return { verificado: true };
-  if (!usuario.email) throw new HttpsError('failed-precondition', 'Tu cuenta no tiene correo.');
+  // Cambiar el correo de la cuenta: el código va al correo NUEVO y, al acertarlo, la cuenta queda con
+  // ese correo y verificada (así se prueba que es de quien lo escribe)
+  const pedido = typeof req.data?.email === 'string' ? req.data.email.trim().toLowerCase() : '';
+  const cambiarA = pedido && pedido !== (usuario.email ?? '').toLowerCase() ? pedido : null;
+  if (cambiarA) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(cambiarA) || cambiarA.length > 120) {
+      throw new HttpsError('invalid-argument', 'Escribe un correo válido.');
+    }
+    const otro = await getAuth()
+      .getUserByEmail(cambiarA)
+      .catch(() => null);
+    if (otro && otro.uid !== uid) throw new HttpsError('already-exists', 'Ya existe otra cuenta con ese correo.');
+  } else if (usuario.emailVerified) {
+    return { verificado: true };
+  }
+  const destino = cambiarA ?? usuario.email;
+  if (!destino) throw new HttpsError('failed-precondition', 'Tu cuenta no tiene correo.');
 
   const ref = db().doc(`verificaciones_correo/${uid}`);
   const snap = await ref.get();
@@ -1013,7 +1028,8 @@ export const enviarCodigoCorreo = onCall({ cors: true, ...opciones }, async (req
   const ahora = Date.now();
   const permiso = puedeEnviarCodigo(
     previo && {
-      enviadoEn: milisDe(previo.enviadoEn),
+      // A un correo distinto se puede mandar de inmediato (el límite diario sí cuenta)
+      enviadoEn: previo.email === destino ? milisDe(previo.enviadoEn) : null,
       envios: previo.envios,
       primerEnvio: milisDe(previo.primerEnvio),
     },
@@ -1041,7 +1057,8 @@ export const enviarCodigoCorreo = onCall({ cors: true, ...opciones }, async (req
     enviadoEn: Timestamp.fromMillis(ahora),
     envios: permiso.envios,
     primerEnvio: Timestamp.fromMillis(permiso.primerEnvio),
-    email: usuario.email,
+    email: destino,
+    ...(cambiarA ? { cambiarA } : {}),
     ...(enEmulador() ? { codigoEmulador: codigo } : {}),
   });
 
@@ -1050,7 +1067,7 @@ export const enviarCodigoCorreo = onCall({ cors: true, ...opciones }, async (req
     try {
       await obtenerTransporte().sendMail({
         from: `"Relevo" <${CORREO_USUARIO.value()}>`,
-        to: usuario.email,
+        to: destino,
         subject: correo.asunto,
         text: correo.texto,
         html: correo.html,
@@ -1064,7 +1081,7 @@ export const enviarCodigoCorreo = onCall({ cors: true, ...opciones }, async (req
   } else {
     logger.info('Código de verificación (solo emulador, correo no configurado)', { uid, codigo });
   }
-  return { enviado: true, email: usuario.email, vigenciaMin: CODIGO_CORREO.vigenciaMin, reenvioSeg: CODIGO_CORREO.reenvioSeg };
+  return { enviado: true, email: destino, vigenciaMin: CODIGO_CORREO.vigenciaMin, reenvioSeg: CODIGO_CORREO.reenvioSeg };
 });
 
 /** Revisa el código escrito; si es correcto marca el correo como verificado en Auth. */
@@ -1073,13 +1090,12 @@ export const verificarCodigoCorreo = onCall({ cors: true }, async (req) => {
   if (!uid) throw new HttpsError('unauthenticated', 'Inicia sesión para verificar tu correo.');
   const codigo = limpiarCodigo(req.data?.codigo);
   if (!codigo) throw new HttpsError('invalid-argument', 'Escribe los 6 dígitos del código.');
-  const usuario = await getAuth().getUser(uid);
-  if (usuario.emailVerified) return { verificado: true };
-
   const ref = db().doc(`verificaciones_correo/${uid}`);
+  let cambiarA = null;
   const revision = await db().runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     const d = snap.exists ? snap.data() : null;
+    cambiarA = typeof d?.cambiarA === 'string' ? d.cambiarA : null;
     const r = revisarCodigo(
       d && { hash: d.hash, intentos: d.intentos, expiraEn: milisDe(d.expiraEn) },
       hashCodigo(uid, codigo),
@@ -1089,11 +1105,26 @@ export const verificarCodigoCorreo = onCall({ cors: true }, async (req) => {
     else if (snap.exists && r.intentos !== d.intentos) tx.update(ref, { intentos: r.intentos });
     return r;
   });
+  const usuario = await getAuth().getUser(uid);
+  if (usuario.emailVerified && !cambiarA && revision.resultado !== 'ok') return { verificado: true };
   if (revision.resultado !== 'ok') {
     throw new HttpsError('failed-precondition', mensajeCodigo(revision), {
       resultado: revision.resultado,
       restantes: revision.restantes,
     });
+  }
+  if (cambiarA) {
+    try {
+      await getAuth().updateUser(uid, { email: cambiarA, emailVerified: true });
+    } catch (error) {
+      if (error?.code === 'auth/email-already-exists') {
+        throw new HttpsError('already-exists', 'Ya existe otra cuenta con ese correo.');
+      }
+      throw error;
+    }
+    await db().doc(`usuarios/${uid}`).set({ email: cambiarA }, { merge: true });
+    logger.info('Correo cambiado y verificado', { uid });
+    return { verificado: true, email: cambiarA };
   }
   await getAuth().updateUser(uid, { emailVerified: true });
   logger.info('Correo verificado', { uid });
