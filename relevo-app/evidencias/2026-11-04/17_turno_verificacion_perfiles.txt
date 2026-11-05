@@ -1,0 +1,23 @@
+Correo verificado, registro por turno y perfiles guardados — 04/11/2026. Todo contra los emuladores de
+Firebase (Firestore, Auth y Functions) con la semilla, en una corrida limpia; no toca datos reales.
+
+QUÉ CAMBIÓ
+  - Al registrarse llega un código de 6 dígitos al correo; sin verificarlo no se entra (pantalla
+    /verificar-correo; rules exigen email_verified). Vence en 10 min, 5 intentos, reenvío cada minuto.
+  - Solo registra quien está en turno: el enfermero/a en su turno y 30 min después; el familiar con
+    permiso del responsable; el responsable siempre. Lo exigen las rules (franjas de 15 min).
+  - 30 min antes del fin del turno: "Tu turno está próximo a acabar", nota para quien sigue (sale en
+    su Entrega de turno) y recordatorio de cerrar sesión.
+  - Perfiles guardados en la entrada (nombre y correo, nunca la contraseña).
+  - Semilla de demostración: Carlos (familiar) y turnos que cubren las 24 h de los 7 días.
+
+RESULTADOS
+  Reglas de seguridad ................ 42 de 42
+  Lógica del servidor ................ 62 de 62 (1 omitida, igual que antes)
+  Pruebas unitarias de la app ........ 119 de 119
+  Recorrido por roles ................ 19 de 19 (la cuenta nueva verifica su correo con el código)
+  Turnos ............................. 72 de 72
+  Registro por turno y perfiles ...... 13 de 13   turno-registro/registro.txt
+  Roles por persona .................. 14 de 14 (el familiar registra cuando el responsable lo permite)
+  Semilla de demostración ............ cobertura: "Siempre hay alguien de guardia"
+  Errores en la consola del navegador: ninguno.

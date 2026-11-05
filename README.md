@@ -23,7 +23,11 @@ notificaciones en `/notificaciones`. Roles **por persona cuidada**: el responsab
 familiares y enfermeros registran; el médico entra a **Seguimiento** (banderas, adherencia, signos y
 preguntas de la familia), lee todo y escribe indicaciones médicas, pero no registra tomas. Una misma
 cuenta puede tener un rol distinto con cada persona (p. ej. enfermera de un paciente y responsable de
-su mamá): el rol lo da la invitación o el responsable, no el tipo de cuenta.
+su mamá): el rol lo da la invitación o el responsable, no el tipo de cuenta. **Registra quien está
+en turno**: el enfermero/a solo durante su turno (y 30 min después), con aviso 30 min antes del fin
+para dejar una nota a quien sigue y cerrar sesión; el familiar, solo si el responsable se lo permite.
+Al registrarse se verifica el correo con un **código de 6 dígitos**, y la entrada ofrece los
+**perfiles guardados** del dispositivo (solo nombre y correo, nunca la contraseña).
 
 También: medicamentos **según necesidad** con la indicación del médico (máximo al día e intervalo),
 lecturas comparadas con **lo habitual** de cada persona, y el **semáforo compartido** por enlace o QR
@@ -36,9 +40,9 @@ cd relevo-app
 npm install
 npm run emulators    # terminal 1: Firebase local (sin cuenta); luego `npm run semilla` para datos de prueba
 ionic serve          # terminal 2: web en http://localhost:8100 (ver FORZAR_EMULADORES en el README de la app)
-npm run test:rules   # 38 pruebas de las reglas de seguridad contra el emulador
-npm run test:functions   # 57 pruebas de la lógica del servidor
-npx ng test --watch=false --browsers=ChromeHeadless   # 95 pruebas unitarias de la app
+npm run test:rules   # 42 pruebas de las reglas de seguridad contra el emulador
+npm run test:functions   # 62 pruebas de la lógica del servidor
+npx ng test --watch=false --browsers=ChromeHeadless   # 119 pruebas unitarias de la app
 npm run test:e2e     # recorrido completo contra la app PUBLICADA (correrlo solo después de un deploy)
 npm run android:apk  # APK de depuración (requiere JDK 21 y el SDK de Android)
 ```
