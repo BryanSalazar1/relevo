@@ -121,6 +121,21 @@ export class EquipoPage {
   readonly formatearCodigo = formatearCodigo;
   readonly textoTurnos = textoTurnos;
 
+  /** Quién registra: el enfermero/a solo en su turno (sin turnos, nada); el familiar, con permiso */
+  textoRegistro(m: Miembro): { texto: string; alerta: boolean } | null {
+    if (m.rol === 'cuidador_turno') {
+      return m.turnos?.length
+        ? { texto: 'Registra solo en su turno (y 30 min después)', alerta: false }
+        : { texto: 'Sin turnos: no puede registrar', alerta: true };
+    }
+    if (m.rol === 'familiar') {
+      return m.puedeRegistrar
+        ? { texto: 'Puede registrar', alerta: false }
+        : { texto: 'Solo ve; registrar requiere tu permiso', alerta: false };
+    }
+    return null;
+  }
+
   readonly miembros = toSignal(
     this.ctx.personaId$.pipe(switchMap((id) => this.miembrosSvc.miembros(id))),
   );
@@ -348,6 +363,15 @@ export class EquipoPage {
         void this.elegirRol(m);
       },
     });
+    if (m.rol === 'familiar') {
+      buttons.push({
+        text: m.puedeRegistrar ? 'Quitar permiso de registrar' : 'Permitir registrar',
+        icon: m.puedeRegistrar ? 'lock-closed-outline' : 'create-outline',
+        handler: () => {
+          void this.permitirRegistrar(m, !m.puedeRegistrar);
+        },
+      });
+    }
     if (ROLES_PAUSABLES.includes(m.rol)) {
       buttons.push(
         m.pausado
@@ -412,6 +436,22 @@ export class EquipoPage {
     } catch (error) {
       console.error(error);
       await this.aviso('No se pudo poner en pausa.', 'danger');
+    }
+  }
+
+  /** Familiar: registrar (tomas, tareas, bitácora y signos) solo con permiso del responsable */
+  private async permitirRegistrar(m: Miembro, permitir: boolean) {
+    const personaId = this.ctx.personaId();
+    if (!personaId) return;
+    try {
+      await this.miembrosSvc.permitirRegistrar(personaId, m.uid, permitir);
+      await this.aviso(
+        permitir ? `${m.nombre} ya puede registrar.` : `${m.nombre} ya no puede registrar; sigue viendo todo.`,
+        'success',
+      );
+    } catch (error) {
+      console.error(error);
+      await this.aviso('No se pudo cambiar el permiso.', 'danger');
     }
   }
 
@@ -509,7 +549,7 @@ export class EquipoPage {
     const personaId = this.ctx.personaId();
     if (!personaId) return;
     try {
-      await this.miembrosSvc.cambiarRol(personaId, m.uid, rol);
+      await this.miembrosSvc.cambiarRol(personaId, m.uid, rol, m.turnos);
       await this.aviso(`${m.nombre} ahora es ${ROL_ETIQUETA[rol].toLowerCase()}.`, 'success');
     } catch (error) {
       console.error(error);

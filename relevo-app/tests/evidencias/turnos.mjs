@@ -6,7 +6,7 @@ import { chromium } from 'playwright';
 import { writeFileSync } from 'node:fs';
 
 const OUT = process.argv[2];
-const BASE = 'http://localhost:4300';
+const BASE = process.env.RELEVO_BASE || 'http://localhost:4300';
 const FS = `http://localhost:${process.env.FIRESTORE_PORT ?? 8080}/v1/projects/demo-relevo/databases/(default)/documents/personas_cuidadas/persona-demo/miembros`;
 // Ids de cada miembro (cambian con cada semilla)
 const UID = {};

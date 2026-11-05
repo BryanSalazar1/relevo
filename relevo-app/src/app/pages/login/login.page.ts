@@ -21,6 +21,14 @@ import {
 } from '@ionic/angular';
 import { CONTRASENA_MIN, TIPOS_USUARIO, TipoUsuario } from '../../core/models';
 import { AuthService } from '../../core/services/auth.service';
+import {
+  PerfilGuardado,
+  cargarPerfiles,
+  guardarPerfiles,
+  inicialesPerfil,
+  olvidarPerfil,
+  recordarPerfil,
+} from '../../core/utils/perfiles-guardados';
 
 type Modo = 'login' | 'registro';
 
@@ -67,9 +75,52 @@ export class LoginPage {
   password = '';
   /** Al registrarse hay que aceptar el aviso de privacidad (/privacidad) */
   aceptaPrivacidad = false;
+  /** Recordar nombre y correo en este dispositivo (nunca la contraseña) */
+  recordar = true;
+
+  /** Perfiles guardados en este dispositivo (teléfono de la familia): se elige y se pone la contraseña */
+  readonly perfiles = signal<PerfilGuardado[]>(cargarPerfiles());
+  /** Perfil elegido: el correo ya va puesto, solo falta la contraseña */
+  readonly elegido = signal<PerfilGuardado | null>(null);
+  readonly inicialesPerfil = inicialesPerfil;
+
+  elegirPerfil(p: PerfilGuardado) {
+    this.modo.set('login');
+    this.elegido.set(p);
+    this.email = p.email;
+    this.password = '';
+  }
+
+  /** Volver a la lista de perfiles o escribir otro correo */
+  otraCuenta() {
+    this.elegido.set(null);
+    this.email = '';
+    this.password = '';
+  }
+
+  olvidar(p: PerfilGuardado, evento?: Event) {
+    evento?.stopPropagation();
+    const lista = olvidarPerfil(this.perfiles(), p.email);
+    this.perfiles.set(lista);
+    guardarPerfiles(lista);
+    if (this.elegido()?.email === p.email) this.otraCuenta();
+  }
+
+  private recordarSesion() {
+    if (!this.recordar) return;
+    const nombre = this.auth.nombreActual;
+    const lista = recordarPerfil(this.perfiles(), {
+      email: this.email.trim(),
+      nombre: nombre && nombre !== this.email.trim() ? nombre : this.elegido()?.nombre ?? this.nombre.trim(),
+      usadoEn: Date.now(),
+    });
+    this.perfiles.set(lista);
+    guardarPerfiles(lista);
+  }
 
   alternarModo() {
     this.modo.update((m) => (m === 'login' ? 'registro' : 'login'));
+    if (this.elegido()) this.otraCuenta();
   }
 
   cambiarTipo(valor: unknown) {
@@ -128,6 +179,7 @@ export class LoginPage {
       } else {
         await this.auth.iniciarSesion(this.email.trim(), this.password);
       }
+      this.recordarSesion();
       // Si venía de un enlace (p. ej. /unirse/CODIGO), regresa ahí
       const volver = this.route.snapshot.queryParamMap.get('volver');
       await this.router.navigateByUrl(volver && volver.startsWith('/') ? volver : '/home', {

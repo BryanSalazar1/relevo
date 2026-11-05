@@ -1,5 +1,5 @@
 // Semilla de demostración con 60 días de historial: una persona cuidada (Elena, 80 años), su familiar
-// responsable, dos enfermeras con turnos y su médico. La presión es normal durante semanas y sube en
+// responsable, dos enfermeras y un familiar con turnos que cubren las 24 h de los 7 días, y su médico. La presión es normal durante semanas y sube en
 // los últimos 10 días (cuando se omitió varias veces el Losartán): la hoja para la consulta lo marca.
 //
 //   RELEVO_DEMO_PASSWORD=... node scripts/semilla-demo.mjs          -> EMULADORES (npm run emulators)
@@ -7,6 +7,8 @@
 // La contraseña de las cuentas va solo en la variable de entorno: nunca en el repositorio.
 //
 // Escribe con el SDK cliente pasando por las Security Rules: cada dato lo firma quien estaba de guardia.
+// Las cuentas deben tener el correo verificado: en los emuladores se marca solo; con --real la semilla
+// pide en la terminal el código de 6 dígitos que llega a cada correo.
 // Los registros llevan `semilla: true` para que las Cloud Functions no manden un aviso por cada uno.
 // Es idempotente: ids deterministas y datos con azar de semilla fija.
 
@@ -29,6 +31,7 @@ import {
   setDoc,
   writeBatch,
 } from 'firebase/firestore';
+import { TODA_LA_SEMANA, asegurarVerificada, franjasDeTurnos } from './semilla-utils.mjs';
 
 const REAL = process.argv.includes('--real');
 const PASSWORD = process.env.RELEVO_DEMO_PASSWORD;
@@ -36,23 +39,37 @@ if (!PASSWORD || PASSWORD.length < 8) {
   console.error('Falta RELEVO_DEMO_PASSWORD (al menos 8 caracteres): la contraseña de las cuentas de demostración.');
   process.exit(1);
 }
-const PERSONA_ID = 'persona-elena';
+// Otro id que el de la semilla anterior (persona-elena, de las cuentas con "+"): la nueva Rosa no puede reescribirla
+const PERSONA_ID = process.env.PERSONA_ID ?? 'elena-demo';
 const DIAS = 60;
 /** Desde hace cuántos días la presión está alta */
 const SUBIDA = 9;
 
-// Alias del correo de la app: cualquier aviso llega a relevo740@gmail.com sin rebotar
+// Cuentas de Gmail de las demostraciones (sin "+": cada una recibe sus avisos y su código de verificación)
 const USUARIOS = [
-  { clave: 'rosa', email: 'relevo740+rosa@gmail.com', nombre: 'Rosa Martínez', tipo: 'familiar', rol: 'cuidador_principal' },
-  { clave: 'marta', email: 'relevo740+marta@gmail.com', nombre: 'Marta Ruiz', tipo: 'enfermero', rol: 'cuidador_turno' },
-  { clave: 'laura', email: 'relevo740+laura@gmail.com', nombre: 'Laura Gómez', tipo: 'enfermero', rol: 'cuidador_turno' },
-  { clave: 'doctor', email: 'relevo740+doctor@gmail.com', nombre: 'Dr. Javier Soto', tipo: 'medico', rol: 'medico' },
+  { clave: 'rosa', email: 'relevo740rosa@gmail.com', nombre: 'Rosa Martínez', tipo: 'familiar', rol: 'cuidador_principal' },
+  { clave: 'marta', email: 'relevo740marta@gmail.com', nombre: 'Marta Ruiz', tipo: 'enfermero', rol: 'cuidador_turno' },
+  { clave: 'laura', email: 'relevo740laura@gmail.com', nombre: 'Laura Gómez', tipo: 'enfermero', rol: 'cuidador_turno' },
+  { clave: 'carlos', email: 'relevo740carlos@gmail.com', nombre: 'Carlos Martínez', tipo: 'familiar', rol: 'familiar' },
+  { clave: 'doctor', email: 'relevo740doctor@gmail.com', nombre: 'Dr. Javier Soto', tipo: 'medico', rol: 'medico' },
 ];
+/**
+ * Turnos que cubren las 24 h de los 7 días (Equipo → cobertura: "Siempre hay alguien de guardia"):
+ *   L-V: Marta 07-15, Laura 15-23, Carlos 23-07 · Sábado: Marta 07-19 · Domingo: Laura 07-19 ·
+ *   Sábado y domingo en la noche: Carlos 19-07. Carlos es familiar con permiso de registrar.
+ */
 const TURNOS = {
-  marta: [{ dias: [1, 2, 3, 4, 5], desde: '07:00', hasta: '15:00' }],
+  marta: [
+    { dias: [1, 2, 3, 4, 5], desde: '07:00', hasta: '15:00' },
+    { dias: [6], desde: '07:00', hasta: '19:00' },
+  ],
   laura: [
     { dias: [1, 2, 3, 4, 5], desde: '15:00', hasta: '23:00' },
-    { dias: [0, 6], desde: '09:00', hasta: '21:00' },
+    { dias: [0], desde: '07:00', hasta: '19:00' },
+  ],
+  carlos: [
+    { dias: [1, 2, 3, 4, 5], desde: '23:00', hasta: '07:00' },
+    { dias: [0, 6], desde: '19:00', hasta: '07:00' },
   ],
 };
 
@@ -101,14 +118,23 @@ const ts = (d) => Timestamp.fromDate(d);
 const idDe = (d) => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
 const claveDia = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-/** Quién está de guardia: Marta L-V 07-15, Laura L-V 15-23 y fines de semana 09-21, si no, Rosa */
+/** Quién está de guardia según TURNOS (siempre hay alguien; Rosa solo si no cuadrara) */
 function guardia(d) {
   const dia = d.getDay();
+  const ayer = (dia + 6) % 7;
   const min = d.getHours() * 60 + d.getMinutes();
-  const enHoras = (desde, hasta) => min >= desde * 60 && min < hasta * 60;
-  if (dia >= 1 && dia <= 5 && enHoras(7, 15)) return 'marta';
-  if (dia >= 1 && dia <= 5 && enHoras(15, 23)) return 'laura';
-  if ((dia === 0 || dia === 6) && enHoras(9, 21)) return 'laura';
+  const m = (hhmm) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3));
+  for (const [clave, turnos] of Object.entries(TURNOS)) {
+    for (const t of turnos) {
+      const desde = m(t.desde);
+      const hasta = m(t.hasta);
+      if (desde < hasta) {
+        if (t.dias.includes(dia) && min >= desde && min < hasta) return clave;
+      } else if ((t.dias.includes(dia) && min >= desde) || (t.dias.includes(ayer) && min < hasta)) {
+        return clave;
+      }
+    }
+  }
   return 'rosa';
 }
 
@@ -117,14 +143,17 @@ const nombre = (clave) => USUARIOS.find((u) => u.clave === clave).nombre;
 
 async function entrarComo(clave) {
   const u = USUARIOS.find((x) => x.clave === clave);
+  let user;
   try {
-    return (await signInWithEmailAndPassword(auth, u.email, PASSWORD)).user;
+    user = (await signInWithEmailAndPassword(auth, u.email, PASSWORD)).user;
   } catch {
     const cred = await createUserWithEmailAndPassword(auth, u.email, PASSWORD);
     await updateProfile(cred.user, { displayName: u.nombre });
     console.log(`  + cuenta creada: ${u.email}`);
-    return cred.user;
+    user = cred.user;
   }
+  await asegurarVerificada(app, user, { real: REAL, projectId: 'demo-relevo' });
+  return user;
 }
 
 /** Escribe [ref, datos] en lotes con la sesión actual (LOTE: las reglas limitan lecturas por lote) */
@@ -209,15 +238,20 @@ async function main() {
   b.set(doc(db, 'usuarios', uids.rosa), { personas: arrayUnion(PERSONA_ID) }, { merge: true });
   await b.commit();
   b = writeBatch(db);
-  for (const clave of ['marta', 'laura', 'doctor']) {
+  // Mientras se escribe el historial, las enfermeras quedan "de turno" toda la semana (cada dato lo
+  // firma quien estaba de guardia ese día); al final se dejan sus franjas reales
+  for (const clave of ['marta', 'laura', 'carlos', 'doctor']) {
     const u = USUARIOS.find((x) => x.clave === clave);
     b.set(doc(persona, 'miembros', uids[clave]), {
-      uid: uids[clave], rol: u.rol, nombre: u.nombre, agregadoEn: serverTimestamp(), ...(TURNOS[clave] ? { turnos: TURNOS[clave] } : {}),
+      uid: uids[clave], rol: u.rol, nombre: u.nombre, agregadoEn: serverTimestamp(),
+      ...(TURNOS[clave] ? { turnos: TURNOS[clave] } : {}),
+      ...(u.rol === 'cuidador_turno' ? { franjas: TODA_LA_SEMANA } : {}),
+      ...(u.rol === 'familiar' ? { puedeRegistrar: true } : {}),
     });
   }
-  b.update(persona, { miembrosUids: arrayUnion(uids.marta, uids.laura, uids.doctor) });
+  b.update(persona, { miembrosUids: arrayUnion(uids.marta, uids.laura, uids.carlos, uids.doctor) });
   await b.commit();
-  for (const clave of ['marta', 'laura', 'doctor']) {
+  for (const clave of ['marta', 'laura', 'carlos', 'doctor']) {
     await entrarComo(clave);
     await setDoc(doc(db, 'usuarios', uids[clave]), { personas: arrayUnion(PERSONA_ID) }, { merge: true });
   }
@@ -252,7 +286,7 @@ async function main() {
   await escribir(deRosa);
 
   console.log(`4) ${DIAS} días de historial, cada dato firmado por quien estaba de guardia`);
-  const porAutor = { rosa: [], marta: [], laura: [] };
+  const porAutor = { rosa: [], marta: [], laura: [], carlos: [] };
   const firma = (quien, cuando) => ({ registradoPor: uids[quien], registradoNombre: nombre(quien), registradoEn: ts(cuando) });
   const autor = (quien) => ({ autorUid: uids[quien], autorNombre: nombre(quien) });
   // Mañanas en que se omitió el Losartán, ya con la presión alta (el resto del tiempo, casi siempre se dio)
@@ -365,11 +399,20 @@ async function main() {
     }]);
   }
 
-  for (const clave of ['rosa', 'marta', 'laura']) {
+  for (const clave of ['rosa', 'marta', 'laura', 'carlos']) {
+    if (!porAutor[clave].length) continue;
     await entrarComo(clave);
     await escribir(porAutor[clave]);
     console.log(`  · ${nombre(clave)}: ${porAutor[clave].length} registros`);
   }
+
+  console.log('   Turnos reales de las enfermeras (registran solo en su turno + 30 min)');
+  await entrarComo('rosa');
+  b = writeBatch(db);
+  for (const clave of ['marta', 'laura']) {
+    b.update(doc(persona, 'miembros', uids[clave]), { franjas: franjasDeTurnos(TURNOS[clave]) });
+  }
+  await b.commit();
 
   console.log('5) Indicaciones del médico');
   await entrarComo('doctor');

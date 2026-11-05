@@ -49,12 +49,21 @@ beforeEach(async () => {
   await env.clearFirestore();
 });
 
-// Contextos de usuario
-const ana = () => env.authenticatedContext('ana', { email: 'ana@test.com' }).firestore();
-const luis = () => env.authenticatedContext('luis', { email: 'luis@test.com' }).firestore();
-const marta = () => env.authenticatedContext('marta', { email: 'marta@test.com' }).firestore();
-const pedro = () => env.authenticatedContext('pedro', { email: 'pedro@test.com' }).firestore();
+// Contextos de usuario (con el correo ya verificado por código, como toda cuenta que usa la app)
+const verificada = (uid) => ({ email: `${uid}@test.com`, email_verified: true });
+const ana = () => env.authenticatedContext('ana', verificada('ana')).firestore();
+const luis = () => env.authenticatedContext('luis', verificada('luis')).firestore();
+const marta = () => env.authenticatedContext('marta', verificada('marta')).firestore();
+const pedro = () => env.authenticatedContext('pedro', verificada('pedro')).firestore();
 const anon = () => env.unauthenticatedContext().firestore();
+
+/** Franja de 15 min de la semana ahora mismo, en hora del centro de México (como franjaActual en las rules). */
+function franjaAhora(desfaseMin = 0) {
+  const t = new Date(Date.now() - 6 * 3_600_000 + desfaseMin * 60_000);
+  return t.getUTCDay() * 96 + t.getUTCHours() * 4 + Math.floor(t.getUTCMinutes() / 15);
+}
+/** Toda la semana (un enfermero/a de las 24 h), para las pruebas que no tratan de turnos. */
+const TODA_LA_SEMANA = Array.from({ length: 672 }, (_, i) => i);
 
 /** Crea el perfil de un usuario (como él mismo), igual que AuthService.registrar(). */
 async function perfil(db, uid, tipo) {
@@ -95,8 +104,14 @@ async function anaCreaPersona(extraMiembro = {}) {
   return batch.commit();
 }
 
-/** Agrega a `uid` a la persona con el rol indicado, saltándose las reglas. */
-async function agregarComo(uid, rol) {
+/**
+ * Agrega a `uid` a la persona con el rol indicado, saltándose las reglas. Por defecto el enfermero/a
+ * está de turno toda la semana y el familiar tiene permiso de registrar (las pruebas de turnos y
+ * permisos pasan `extra` para cambiarlo).
+ */
+async function agregarComo(uid, rol, extra = {}) {
+  const porDefecto =
+    rol === 'cuidador_turno' ? { franjas: TODA_LA_SEMANA } : rol === 'familiar' ? { puedeRegistrar: true } : {};
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
     await setDoc(doc(db, `personas_cuidadas/${PERSONA_ID}/miembros/${uid}`), {
@@ -104,6 +119,8 @@ async function agregarComo(uid, rol) {
       rol,
       nombre: uid.charAt(0).toUpperCase() + uid.slice(1),
       agregadoEn: serverTimestamp(),
+      ...porDefecto,
+      ...extra,
     });
     await updateDoc(doc(db, `personas_cuidadas/${PERSONA_ID}`), { miembrosUids: arrayUnion(uid) });
   });
@@ -593,7 +610,8 @@ test('invitaciones: se entra con el rol de la invitación, sea cual sea el tipo 
   const inv = await getDoc(doc(ana(), `invitaciones/${CODIGO}`));
   assert.equal(inv.data().usos, 1);
 
-  // Pedro (familiar) y Marta (enfermera) escriben en la bitácora; Luis (médico) no
+  // Pedro y Marta entraron como familiares: coordinan citas, pero registran en la bitácora solo
+  // cuando el responsable se los permite (04/11/2026); Luis (médico) nunca
   await assertSucceeds(
     setDoc(doc(pedro(), `personas_cuidadas/${PERSONA_ID}/eventos_calendario/c1`), {
       tipo: 'cita',
@@ -602,10 +620,16 @@ test('invitaciones: se entra con el rol de la invitación, sea cual sea el tipo 
       fin: Timestamp.fromDate(new Date('2026-10-20T11:00:00')),
     }),
   );
-  await assertSucceeds(
+  await assertFails(
     setDoc(doc(pedro(), `personas_cuidadas/${PERSONA_ID}/entradas_bitacora/e9`), { tipo: 'nota', texto: 'x', autorUid: 'pedro' }),
   );
   await assertSucceeds(
+    updateDoc(doc(ana(), `personas_cuidadas/${PERSONA_ID}/miembros/pedro`), { puedeRegistrar: true }),
+  );
+  await assertSucceeds(
+    setDoc(doc(pedro(), `personas_cuidadas/${PERSONA_ID}/entradas_bitacora/e9`), { tipo: 'nota', texto: 'x', autorUid: 'pedro' }),
+  );
+  await assertFails(
     setDoc(doc(marta(), `personas_cuidadas/${PERSONA_ID}/entradas_bitacora/e8`), { tipo: 'nota', texto: 'x', autorUid: 'marta' }),
   );
   await assertFails(
@@ -1097,4 +1121,113 @@ test('semáforo compartido: solo el responsable crea o cambia el enlace; nadie l
   });
   // Editar otros datos de la persona sigue funcionando igual
   await assertSucceeds(updateDoc(persona(ana()), { descripcion: 'Le gusta caminar' }));
+});
+
+// ---------------------------------------------------------------------------
+// Correo verificado y registro por turno (04/11/2026)
+// ---------------------------------------------------------------------------
+
+test('correo: sin verificar solo maneja su perfil; no crea personas ni lee equipos', async () => {
+  await anaCreaPersona();
+  const ahoraSeg = Math.floor(Date.now() / 1000);
+  const sinVerificar = env
+    .authenticatedContext('nuevo', { email: 'nuevo@test.com', email_verified: false, auth_time: ahoraSeg })
+    .firestore();
+  // El perfil sí (se crea al registrarse, antes de escribir el código)
+  await assertSucceeds(perfil(sinVerificar, 'nuevo', 'familiar'));
+  await assertSucceeds(getDoc(doc(sinVerificar, 'usuarios/nuevo')));
+  // Lo demás no
+  const b = writeBatch(sinVerificar);
+  b.set(doc(sinVerificar, 'personas_cuidadas/otra'), { nombre: 'X', miembrosUids: ['nuevo'], creadoPor: 'nuevo' });
+  b.set(doc(sinVerificar, 'personas_cuidadas/otra/miembros/nuevo'), { uid: 'nuevo', rol: 'cuidador_principal', nombre: 'N' });
+  await assertFails(b.commit());
+  await agregarComo('nuevo', 'familiar');
+  await assertFails(getDoc(doc(sinVerificar, `personas_cuidadas/${PERSONA_ID}`)));
+  await assertFails(getDoc(doc(sinVerificar, 'invitaciones/ABCDEFGH')));
+  // Las sesiones abiertas antes de la verificación por código (auth_time viejo) siguen funcionando
+  const sesionVieja = env.authenticatedContext('nuevo', { email: 'nuevo@test.com', auth_time: 1_700_000_000 }).firestore();
+  await assertSucceeds(getDoc(doc(sesionVieja, `personas_cuidadas/${PERSONA_ID}`)));
+  // Nadie lee ni escribe los códigos (solo las Cloud Functions)
+  await assertFails(getDoc(doc(ana(), 'verificaciones_correo/ana')));
+  await assertFails(setDoc(doc(ana(), 'verificaciones_correo/ana'), { hash: 'x', intentos: 0 }));
+});
+
+/** Una entrada de bitácora firmada por `uid` (tipo nota por defecto). */
+const entradaDe = (uid, tipo = 'nota') => ({
+  tipo,
+  texto: 'Todo tranquilo',
+  autorUid: uid,
+  autorNombre: uid,
+  fecha: Timestamp.now(),
+  fotos: [],
+});
+
+test('turno: el enfermero registra solo en sus franjas (turno + 30 min); fuera de ellas o sin turnos, solo lee', async () => {
+  await anaCreaPersona();
+  await env.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), `personas_cuidadas/${PERSONA_ID}/medicamentos/m1`), {
+      nombre: 'Losartán', dosis: '50 mg', horarios: ['08:00'], activo: true, inventario: 10,
+    }),
+  );
+  const toma = () => ({ tomado: true, horaProgramada: Timestamp.now(), registradoPor: 'marta', registradoNombre: 'Marta' });
+  const bit = (db) => collection(db, `personas_cuidadas/${PERSONA_ID}/entradas_bitacora`);
+  const tomaRef = (db, id) => doc(db, `personas_cuidadas/${PERSONA_ID}/medicamentos/m1/tomas/${id}`);
+  const signo = (db) => doc(collection(db, `personas_cuidadas/${PERSONA_ID}/signos_vitales`));
+  const pulso = () => ({ tipo: 'pulso', valor: 72, unidad: 'lpm', fecha: Timestamp.now(), autorUid: 'marta' });
+
+  // En turno: la franja de ahora (y la siguiente, por si la prueba cruza el cuarto de hora)
+  await agregarComo('marta', 'cuidador_turno', { franjas: [franjaAhora(), franjaAhora(15)] });
+  await assertSucceeds(setDoc(doc(bit(marta())), entradaDe('marta')));
+  await assertSucceeds(setDoc(tomaRef(marta(), 'a'), toma()));
+  await assertSucceeds(setDoc(signo(marta()), pulso()));
+  // La nota de entrega de turno es un tipo válido de la bitácora
+  await assertSucceeds(setDoc(doc(bit(marta())), entradaDe('marta', 'entrega')));
+
+  // Fuera de turno: todo menos la hora actual
+  const cerca = [franjaAhora(-15), franjaAhora(), franjaAhora(15)];
+  await agregarComo('marta', 'cuidador_turno', { franjas: TODA_LA_SEMANA.filter((f) => !cerca.includes(f)) });
+  await assertSucceeds(getDoc(tomaRef(marta(), 'a'))); // sigue leyendo
+  await assertFails(setDoc(doc(bit(marta())), entradaDe('marta')));
+  await assertFails(setDoc(tomaRef(marta(), 'b'), toma()));
+  await assertFails(updateDoc(tomaRef(marta(), 'a'), { nota: 'corrección' })); // ni corrige lo suyo
+  await assertFails(deleteDoc(tomaRef(marta(), 'a')));
+  await assertFails(setDoc(signo(marta()), pulso()));
+
+  // Sin turnos: no registra
+  await agregarComo('marta', 'cuidador_turno', { franjas: [] });
+  await assertFails(setDoc(doc(bit(marta())), entradaDe('marta')));
+  // El responsable siempre registra
+  await assertSucceeds(setDoc(doc(bit(ana())), entradaDe('ana')));
+});
+
+test('turno: las franjas y el permiso solo los pone el responsable, con valores válidos', async () => {
+  await anaCreaPersona();
+  await agregarComo('marta', 'cuidador_turno', { franjas: [] });
+  await agregarComo('luis', 'familiar', { puedeRegistrar: false });
+  const m = (db, uid) => doc(db, `personas_cuidadas/${PERSONA_ID}/miembros/${uid}`);
+  // Nadie se pone turno ni permiso a sí mismo
+  await assertFails(updateDoc(m(marta(), 'marta'), { franjas: TODA_LA_SEMANA }));
+  await assertFails(updateDoc(m(luis(), 'luis'), { puedeRegistrar: true }));
+  // El responsable sí, con datos válidos
+  await assertSucceeds(
+    updateDoc(m(ana(), 'marta'), { turnos: [{ dias: [1], desde: '08:00', hasta: '16:00' }], franjas: [128, 129] }),
+  );
+  await assertSucceeds(updateDoc(m(ana(), 'luis'), { puedeRegistrar: true }));
+  await assertFails(updateDoc(m(ana(), 'luis'), { puedeRegistrar: 'sí' }));
+  await assertFails(updateDoc(m(ana(), 'marta'), { franjas: 'todas' }));
+  await assertFails(updateDoc(m(ana(), 'marta'), { franjas: Array.from({ length: 673 }, (_, i) => i) }));
+});
+
+test('permiso: el familiar registra solo si el responsable se lo permite; el médico nunca, aunque tenga permiso', async () => {
+  await anaCreaPersona();
+  const bit = (db) => doc(collection(db, `personas_cuidadas/${PERSONA_ID}/entradas_bitacora`));
+  await agregarComo('luis', 'familiar', { puedeRegistrar: false });
+  await assertSucceeds(getDoc(doc(luis(), `personas_cuidadas/${PERSONA_ID}`)));
+  await assertFails(setDoc(bit(luis()), entradaDe('luis')));
+  await agregarComo('luis', 'familiar', { puedeRegistrar: true });
+  await assertSucceeds(setDoc(bit(luis()), entradaDe('luis')));
+  // El médico con "permiso" o franjas sigue escribiendo solo indicaciones
+  await agregarComo('pedro', 'medico', { puedeRegistrar: true, franjas: TODA_LA_SEMANA });
+  await assertFails(setDoc(bit(pedro()), entradaDe('pedro')));
+  await assertSucceeds(setDoc(bit(pedro()), entradaDe('pedro', 'indicacion')));
 });

@@ -240,16 +240,21 @@ UI de los emuladores: <http://localhost:4000> (ahí ves los usuarios y documento
 necesidad y uno terminado) con sus tomas, 6 tareas de rutina con registros y notas, 1 a 3 entradas
 de bitácora por día, glucosa y presión diarias, peso semanal, citas pasadas y próximas, y un equipo
 con turnos. Es idempotente (ids deterministas) y sus documentos llevan `semilla: true` para que las
-Cloud Functions no manden un aviso por cada uno. Cuentas (la contraseña no se guarda en el
-repositorio: se pasa en `RELEVO_DEMO_PASSWORD`; los correos son alias de la cuenta de la app, así
-que cualquier aviso llega a su bandeja):
+Cloud Functions no manden un aviso por cada uno.
 
-| Cuenta | Correo | Rol |
+`scripts/semilla-demo.mjs` (04/11/2026) arma el equipo de la demostración con turnos que cubren
+las 24 h de los 7 días (Equipo: "Siempre hay alguien de guardia"). La contraseña no se guarda en el
+repositorio: se pasa en `RELEVO_DEMO_PASSWORD`. Los correos son cuentas de Gmail reales (sin "+"),
+así que a cada una le llegan sus avisos y su código de verificación; con `--real` la semilla pide en
+la terminal el código de cada cuenta (en los emuladores se verifica sola).
+
+| Cuenta | Correo | Rol y turno |
 |---|---|---|
-| Rosa Martínez (familiar) | `relevo740+rosa@gmail.com` | Responsable |
-| Marta Ruiz (enfermera) | `relevo740+marta@gmail.com` | Enfermera, turno L-V 08:00–16:00 |
-| Carlos Martínez (familiar) | `relevo740+carlos@gmail.com` | Familiar, turno L-V 16:00–22:00 y fines de semana |
-| Dr. Javier Soto (médico) | `relevo740+doctor@gmail.com` | Médico (solo lectura) |
+| Rosa Martínez (familiar) | `relevo740rosa@gmail.com` | Responsable (registra siempre) |
+| Marta Ruiz (enfermera) | `relevo740marta@gmail.com` | Enfermera: L-V 07:00–15:00, sábado 07:00–19:00 |
+| Laura Gómez (enfermera) | `relevo740laura@gmail.com` | Enfermera: L-V 15:00–23:00, domingo 07:00–19:00 |
+| Carlos Martínez (familiar) | `relevo740carlos@gmail.com` | Familiar con permiso de registrar: L-V 23:00–07:00, S y D 19:00–07:00 |
+| Dr. Javier Soto (médico) | `relevo740doctor@gmail.com` | Médico (lee todo y escribe indicaciones) |
 
 ### Datos de prueba
 
@@ -414,6 +419,27 @@ decisión: en la web se avisa por correo.
 ---
 
 ## 10. Funcionalidades implementadas (historial, lo más reciente primero)
+
+### Correo verificado, registro por turno y perfiles guardados — 04/11/2026
+- **Código de verificación por correo**: al registrarse llega un código de 6 dígitos
+  (`enviarCodigoCorreo`); vence en 10 min, se reenvía una vez por minuto (hasta 10 al día) y 5 intentos
+  fallidos lo inutilizan. Se guarda solo su hash en `verificaciones_correo/{uid}` (sin acceso desde la
+  app). Al acertar (`verificarCodigoCorreo`), Auth marca `emailVerified`. Pantalla `/verificar-correo`
+  y `authGuard` la exigen; las rules piden `email_verified` en el token para todo salvo el propio perfil
+  (las sesiones abiertas antes del cambio siguen entrando: `auth_time` anterior al corte).
+- **Registra quien está en turno** (`core/utils/registro-turno.ts`, `estadoRegistro`): el responsable
+  siempre; el enfermero/a solo en su turno y hasta 30 min después (sin turnos no registra); el familiar
+  solo con permiso del responsable (*Equipo → ⋯ → Permitir registrar*, `puedeRegistrar`); el médico,
+  solo indicaciones. Las rules lo exigen con `registraAhora()`: el responsable guarda con los turnos sus
+  `franjas` de 15 min (`franjasDeTurnos`) y las rules comparan la franja de la hora del centro de México.
+- **Fin de turno**: 30 min antes, Hoy muestra "Tu turno está próximo a acabar", con *Dejar nota* (entrada
+  de bitácora tipo `entrega`, que sale en la Entrega de turno de quien sigue) y el recordatorio de
+  **cerrar sesión**. Fuera de turno, un aviso explica por qué no hay botones y cuándo es el próximo turno.
+- **Perfiles guardados** en la entrada (`core/utils/perfiles-guardados.ts`): en el teléfono de la familia
+  se elige el perfil y solo se escribe la contraseña. Se guardan nombre y correo en `localStorage`,
+  nunca la contraseña; cada perfil se puede quitar.
+- Pruebas: reglas 42/42, servidor 62/62, unitarias 119/119, recorridos `recorrido-roles` 19/19,
+  `turnos` 72/72, `turno-registro` 13/13 y `multipaciente` 14/14 contra los emuladores.
 
 ### Roles por persona cuidada (multipaciente) — 04/11/2026
 - El rol ya no sale del tipo de cuenta: se tiene **por persona**. Marta (cuenta de enfermera) puede
@@ -1105,11 +1131,13 @@ flotante de cada pantalla.
   `NoDefaultCurrentDirectoryInExePath` cmd no encuentra el archivo aunque esté en la carpeta.
 
 ### Pruebas
-- `npm run test:rules` — 38 pruebas de Security Rules contra el emulador.
-- `npm run test:functions` — 57 pruebas de la lógica de notificaciones, del asistente y del semáforo compartido (mensajes, destinatarios,
+- `npm run test:rules` — 42 pruebas de Security Rules contra el emulador.
+- `npm run test:functions` — 62 pruebas de la lógica de notificaciones, del asistente y del semáforo compartido (mensajes, destinatarios,
   turnos de guardia, alertas, dosis vencidas, avisos previos, duración de tratamientos, días de la
   semana, zona horaria, inventario bajo y su aviso). Corren con Node solo, sin emulador ni Java.
-- `npx ng test --watch=false --browsers=ChromeHeadless` — 95 pruebas unitarias de la app (Karma).
+- `npx ng test --watch=false --browsers=ChromeHeadless` — 119 pruebas unitarias de la app (Karma).
+- `node tests/evidencias/turno-registro.mjs` — registro por turno, nota de entrega, tolerancia, permiso
+  del familiar y perfiles guardados (13 pasos, contra los emuladores).
 - `node tests/evidencias/recorrido-roles.mjs` — recorrido de 19 pasos con los cuatro roles contra los
   emuladores; `node tests/evidencias/multipaciente.mjs` — una persona con rol distinto en cada
   persona cuidada (14 pasos); `node tests/evidencias/turnos.mjs` — turnos opción por opción

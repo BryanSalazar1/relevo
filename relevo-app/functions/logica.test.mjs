@@ -1194,3 +1194,77 @@ test('datosSemaforo: solo lo mínimo del plan del día, sin ficha, inventario, n
     assert.ok(!texto.includes(prohibido), prohibido);
   }
 });
+
+// ---------------------------------------------------------------------------
+// Verificación del correo con código
+// ---------------------------------------------------------------------------
+import {
+  CODIGO_CORREO,
+  correoCodigo,
+  hashCodigo,
+  limpiarCodigo,
+  mensajeCodigo,
+  nuevoCodigo,
+  puedeEnviarCodigo,
+  revisarCodigo,
+} from './logica.js';
+
+test('código de correo: 6 dígitos con ceros a la izquierda y limpieza de lo escrito', () => {
+  assert.equal(nuevoCodigo(() => 42), '000042');
+  assert.equal(nuevoCodigo((max) => max - 1), '999999');
+  assert.equal(limpiarCodigo(' 482 913 '), '482913');
+  assert.equal(limpiarCodigo('48291'), null);
+  assert.equal(limpiarCodigo('48291a'), null);
+  assert.equal(limpiarCodigo(null), null);
+});
+
+test('código de correo: el hash depende del usuario y no contiene el código', () => {
+  const h = hashCodigo('ana', '123456');
+  assert.match(h, /^[0-9a-f]{64}$/);
+  assert.notEqual(h, hashCodigo('luis', '123456'));
+  assert.ok(!h.includes('123456'));
+});
+
+test('código de correo: reenvío una vez por minuto y hasta 10 al día', () => {
+  const t0 = 1_000_000_000;
+  const primero = puedeEnviarCodigo(null, t0);
+  assert.deepEqual(primero, { permitido: true, envios: 1, primerEnvio: t0 });
+  const espera = puedeEnviarCodigo({ enviadoEn: t0, envios: 1, primerEnvio: t0 }, t0 + 20_000);
+  assert.equal(espera.permitido, false);
+  assert.equal(espera.motivo, 'espera');
+  assert.equal(espera.esperaSeg, 40);
+  assert.equal(puedeEnviarCodigo({ enviadoEn: t0, envios: 1, primerEnvio: t0 }, t0 + 60_000).envios, 2);
+  const limite = puedeEnviarCodigo({ enviadoEn: t0, envios: CODIGO_CORREO.maxEnviosDia, primerEnvio: t0 }, t0 + 120_000);
+  assert.equal(limite.permitido, false);
+  assert.equal(limite.motivo, 'limite');
+  // Pasadas 24 h el conteo vuelve a empezar
+  const otroDia = puedeEnviarCodigo({ enviadoEn: t0, envios: 10, primerEnvio: t0 }, t0 + 25 * 3_600_000);
+  assert.equal(otroDia.permitido, true);
+  assert.equal(otroDia.envios, 1);
+});
+
+test('código de correo: correcto, incorrecto con intentos, agotado, vencido y sin código', () => {
+  const t0 = 1_000_000_000;
+  const guardado = { hash: hashCodigo('ana', '111111'), intentos: 0, expiraEn: t0 + 600_000 };
+  assert.equal(revisarCodigo(guardado, hashCodigo('ana', '111111'), t0).resultado, 'ok');
+  const mal = revisarCodigo(guardado, hashCodigo('ana', '222222'), t0);
+  assert.deepEqual(mal, { resultado: 'incorrecto', intentos: 1, restantes: 4 });
+  assert.equal(mensajeCodigo(mal), 'El código no es correcto. Te quedan 4 intentos.');
+  const ultimo = revisarCodigo({ ...guardado, intentos: 4 }, hashCodigo('ana', '222222'), t0);
+  assert.equal(ultimo.resultado, 'agotado');
+  // Agotado: ni el código correcto sirve
+  assert.equal(revisarCodigo({ ...guardado, intentos: 5 }, hashCodigo('ana', '111111'), t0).resultado, 'agotado');
+  assert.equal(revisarCodigo(guardado, hashCodigo('ana', '111111'), t0 + 600_001).resultado, 'vencido');
+  assert.equal(revisarCodigo(null, 'x', t0).resultado, 'sin_codigo');
+  // El código de otra cuenta no sirve
+  assert.equal(revisarCodigo(guardado, hashCodigo('luis', '111111'), t0).resultado, 'incorrecto');
+});
+
+test('código de correo: el correo trae el código, la vigencia y escapa el nombre', () => {
+  const c = correoCodigo({ codigo: '482913', nombre: '<Rosa>' });
+  assert.match(c.asunto, /482913/);
+  assert.match(c.texto, /482913/);
+  assert.match(c.texto, /10 minutos/);
+  assert.match(c.html, /&lt;Rosa&gt;/);
+  assert.ok(!c.html.includes('<Rosa>'));
+});

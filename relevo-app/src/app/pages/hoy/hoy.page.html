@@ -46,6 +46,45 @@
         </div>
       </ion-card>
     }
+    @if (avisoRegistro(); as aviso) {
+      <ion-card class="sin-registro" data-prueba="sin-registro">
+        <div class="cuerpo">
+          <ion-icon name="lock-closed-outline" aria-hidden="true" />
+          <p>{{ aviso }}</p>
+        </div>
+      </ion-card>
+    }
+    @if (ofrecerNota()) {
+      <ion-card class="fin-turno" data-prueba="fin-turno">
+        <div class="cuerpo">
+          <p class="titulo">
+            @if (registro().enTolerancia) {
+              Tu turno terminó a las {{ registro().finTurno | date: 'HH:mm' }}
+            } @else {
+              Tu turno está próximo a acabar
+            }
+          </p>
+          <p>
+            ¿Quieres dejar una nota para quien sigue? La verá en su Entrega de turno.
+            @if (registro().registraHasta; as hasta) {
+              Puedes registrar hasta las {{ hasta | date: 'HH:mm' }}.
+            }
+          </p>
+          <p class="cerrar-aviso">
+            <ion-icon name="log-out-outline" aria-hidden="true" />
+            Al terminar, recuerda cerrar tu sesión, sobre todo si el teléfono es de la familia.
+          </p>
+          <div class="acciones">
+            <ion-button size="small" (click)="dejarNota()">
+              <ion-icon slot="start" name="create-outline" />
+              Dejar nota
+            </ion-button>
+            <ion-button size="small" fill="outline" (click)="cerrarSesion()">Cerrar sesión</ion-button>
+            <ion-button size="small" fill="clear" color="medium" (click)="descartarNota()">Ahora no</ion-button>
+          </div>
+        </div>
+      </ion-card>
+    }
     @if (esHoy() && entrega(); as novedades) {
       <ion-card class="entrega">
         <div class="cabecera">

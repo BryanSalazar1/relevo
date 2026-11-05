@@ -129,7 +129,8 @@ export type TipoNovedad =
   | 'incidente'
   | 'signo'
   | 'nota'
-  | 'indicacion';
+  | 'indicacion'
+  | 'entrega';
 
 export interface Novedad {
   tipo: TipoNovedad;
@@ -185,7 +186,8 @@ const recortar = (texto: string, max = 90) => {
 /**
  * Lo relevante de la ventana, de lo más reciente a lo más antiguo: dosis no tomadas o vencidas sin
  * registro, tareas no hechas o vencidas, síntomas e incidentes, signos fuera de rango y la última
- * nota escrita por otra persona. Las indicaciones del médico van siempre primero.
+ * nota escrita por otra persona. Las indicaciones del médico van siempre primero y, después, las notas
+ * de entrega que dejó quien terminó su turno.
  */
 export function novedadesEntrega({ desde, ahora, filas, entradas, signos, miUid }: DatosEntrega): Novedad[] {
   const lista: Novedad[] = [];
@@ -235,6 +237,19 @@ export function novedadesEntrega({ desde, ahora, filas, entradas, signos, miUid 
       });
       continue;
     }
+    if (e.tipo === 'entrega') {
+      // La nota que dejó quien terminó su turno (las propias no: ya las conoce)
+      if (e.autorUid === miUid) continue;
+      lista.push({
+        tipo: 'entrega',
+        hora,
+        texto: `Nota de entrega: ${recortar(e.texto, 160)}`,
+        quien: e.autorNombre,
+        icono: 'swap-horizontal-outline',
+        color: 'secondary',
+      });
+      continue;
+    }
     if (e.tipo !== 'sintoma' && e.tipo !== 'incidente') continue;
     const clase =
       e.tipo === 'sintoma' ? 'Síntoma' : e.caida ? (e.lesion ? 'Caída con lesión' : 'Caída') : 'Incidente';
@@ -277,11 +292,9 @@ export function novedadesEntrega({ desde, ahora, filas, entradas, signos, miUid 
     });
   }
 
-  return lista.sort(
-    (a, b) =>
-      Number(b.tipo === 'indicacion') - Number(a.tipo === 'indicacion') ||
-      b.hora.getTime() - a.hora.getTime(),
-  );
+  // Primero las indicaciones del médico, luego las notas de entrega del turno anterior
+  const prioridad = (n: Novedad) => (n.tipo === 'indicacion' ? 2 : n.tipo === 'entrega' ? 1 : 0);
+  return lista.sort((a, b) => prioridad(b) - prioridad(a) || b.hora.getTime() - a.hora.getTime());
 }
 
 /** "desde ayer 22:00", "desde hoy 06:00" o "desde el 10 oct 16:00", para el subtítulo de la tarjeta. */

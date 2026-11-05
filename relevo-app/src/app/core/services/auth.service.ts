@@ -8,6 +8,7 @@ import {
   createUserWithEmailAndPassword,
   deleteUser,
   reauthenticateWithCredential,
+  reload,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
@@ -29,6 +30,7 @@ import {
   updateDoc,
   where,
 } from '@angular/fire/firestore';
+import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, catchError, of, switchMap } from 'rxjs';
 import { CONTRASENA_MIN, TipoUsuario, Usuario } from '../models';
 import { NotificacionesService } from './notificaciones.service';
@@ -38,6 +40,7 @@ export class AuthService {
   private readonly auth = inject(Auth);
   private readonly db = inject(Firestore);
   private readonly notificaciones = inject(NotificacionesService);
+  private readonly fns = inject(Functions);
 
   /** Emite el usuario actual (o null) cada vez que cambia la sesión. */
   readonly user$ = authState(this.auth);
@@ -100,6 +103,49 @@ export class AuthService {
       // Al registrarse se acepta el aviso de privacidad (/privacidad); queda cuándo
       aceptoPrivacidadEn: serverTimestamp(),
     });
+  }
+
+  /**
+   * ¿El correo de la sesión está verificado? Si Auth aún no lo sabe, lo pregunta al servidor (reload);
+   * si ya está verificado pero el token no lo dice (cuentas marcadas por el servidor, o recién
+   * verificadas), renueva el token: las rules leen email_verified del token.
+   */
+  async asegurarVerificado(user: User): Promise<boolean> {
+    if (!user.emailVerified) {
+      try {
+        await reload(user);
+      } catch {
+        // sin conexión: se queda como estaba
+      }
+    }
+    if (!user.emailVerified) return false;
+    try {
+      const token = await user.getIdTokenResult();
+      if (token.claims['email_verified'] !== true) await user.getIdToken(true);
+    } catch {
+      // sin conexión: el token se renueva solo al volver la red
+    }
+    return true;
+  }
+
+  /** Pide un código de 6 dígitos al correo de la sesión (Cloud Function enviarCodigoCorreo). */
+  async enviarCodigo(): Promise<{ verificado?: boolean; email?: string; vigenciaMin?: number; reenvioSeg?: number }> {
+    const llamar = httpsCallable<void, { verificado?: boolean; email?: string; vigenciaMin?: number; reenvioSeg?: number }>(
+      this.fns,
+      'enviarCodigoCorreo',
+    );
+    return (await llamar()).data;
+  }
+
+  /** Revisa el código; si es correcto la cuenta queda verificada y se renueva el token. */
+  async verificarCodigo(codigo: string): Promise<void> {
+    const llamar = httpsCallable<{ codigo: string }, { verificado: boolean }>(this.fns, 'verificarCodigoCorreo');
+    await llamar({ codigo });
+    const user = this.auth.currentUser;
+    if (user) {
+      await reload(user);
+      await user.getIdToken(true);
+    }
   }
 
   /** Correo con enlace para crear una contraseña nueva (Firebase responde igual exista o no la cuenta). */

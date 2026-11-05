@@ -13,6 +13,7 @@ import {
 } from '@angular/fire/firestore';
 import { Observable, catchError, map, of, switchMap } from 'rxjs';
 import { Miembro, PreferenciasAvisos, Rol, ROLES, Turno } from '../models';
+import { franjasDeTurnos } from '../utils/registro-turno';
 import { AuthService } from './auth.service';
 
 const ORDEN_ROL: Record<Rol, number> = Object.fromEntries(
@@ -52,8 +53,12 @@ export class MiembrosService {
   }
 
   /** Cambia el rol de un miembro con esta persona (solo el responsable; las rules validan el rol). */
-  async cambiarRol(personaId: string, uid: string, rol: Rol): Promise<void> {
-    await updateDoc(doc(this.db, `personas_cuidadas/${personaId}/miembros/${uid}`), { rol });
+  async cambiarRol(personaId: string, uid: string, rol: Rol, turnos?: Turno[] | null): Promise<void> {
+    // Las franjas (lo que las rules revisan para el enfermero/a) se recalculan de sus turnos
+    await updateDoc(doc(this.db, `personas_cuidadas/${personaId}/miembros/${uid}`), {
+      rol,
+      franjas: franjasDeTurnos(turnos),
+    });
   }
 
   /** Mi documento de miembro en esa persona (turnos y preferencias de avisos), en tiempo real. */
@@ -72,7 +77,19 @@ export class MiembrosService {
 
   /** Guardias de un miembro (solo el responsable; las rules exigen que uid y rol no cambien). */
   async actualizarTurnos(personaId: string, uid: string, turnos: Turno[]): Promise<void> {
-    await updateDoc(doc(this.db, `personas_cuidadas/${personaId}/miembros/${uid}`), { turnos });
+    // Con los turnos van sus franjas de 15 min (+30 de tolerancia): con ellas las rules deciden si
+    // el enfermero/a puede registrar en este momento
+    await updateDoc(doc(this.db, `personas_cuidadas/${personaId}/miembros/${uid}`), {
+      turnos,
+      franjas: franjasDeTurnos(turnos),
+    });
+  }
+
+  /** Familiar: el responsable le permite (o ya no) registrar tomas, tareas, bitácora y signos. */
+  async permitirRegistrar(personaId: string, uid: string, permitir: boolean): Promise<void> {
+    await updateDoc(doc(this.db, `personas_cuidadas/${personaId}/miembros/${uid}`), {
+      puedeRegistrar: permitir,
+    });
   }
 
   /** Mis preferencias de avisos en esa persona (cada quien las suyas; las rules solo permiten estos campos). */

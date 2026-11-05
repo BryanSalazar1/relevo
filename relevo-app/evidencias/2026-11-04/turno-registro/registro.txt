@@ -1,0 +1,27 @@
+✔ perfil guardado: al entrar queda Marta en este dispositivo (sin la contraseña)
+   turno de Marta: 21:00–01:00
+✔ a mitad del turno: registra y no le pide la nota todavía
+   turno de Marta: 19:00–23:20
+   Tu turno está próximo a acabar ¿Quieres dejar una nota para quien sigue? La verá en su Entrega de turno. Puedes registrar hasta las 23:50. Al terminar, recuerda cerrar tu sesión, sobre todo si el teléfono es de la familia. Dejar nota Cerrar sesión Ahora no
+✔ 20 min antes del fin: "Tu turno está próximo a acabar", nota y recordatorio de cerrar sesión
+✔ deja la nota para quien sigue y el aviso ya no vuelve en este turno
+   Entrega de turno · 23:00 · Marta López Durmió poco; ya cenó. Falta el baño de la noche. (1102)
+✔ la nota queda en la bitácora como "Entrega de turno" firmada por Marta
+   turno de Marta: 19:00–22:50
+   Tu turno terminó a las 22:50 ¿Quieres dejar una nota para quien sigue? La verá en su Entrega de turno. Puedes registrar hasta las 23:20. Al terminar, recuerda cerrar tu sesión, sobre todo si el teléfono es de la familia. Dejar nota Cerrar sesión Ahora no
+✔ en la tolerancia (10 min después del fin) todavía registra y le dice hasta qué hora
+   turno de Marta: 19:00–22:20
+   Tu turno terminó a las 22:20. Puedes ver todo, pero solo registras durante tu turno. Tu próximo turno empieza el miércoles a las 19:00.
+✔ fuera de turno (40 min después): solo ve, sin botones, con su próximo turno
+✔ Equipo (como lo ve Marta): su línea dice que registra solo en su turno
+   turno de Marta: 19:00–23:15
+   Elige tu perfil ML Marta López marta@relevo.test o inicia sesión con tu correo
+✔ "Cerrar sesión" del aviso de fin de turno y vuelta con el perfil guardado
+   Desde tu último turno desde hoy 15:00 23:00 Nota de entrega: Durmió poco; ya cenó. Falta el baño de la noche. (1102) · Marta López 22:46 Nota de entrega: Durmió poco; ya cenó. Falta el baño de la noche. (55943) · Marta López 22:35 Nota de entrega: Durmió poco; ya cenó. Falta el baño de la noche. (46
+✔ la siguiente persona ve la nota en "Desde tu último turno", firmada por Marta
+✔ el responsable le quita a Sofía (familiar) el permiso de registrar
+   Puedes ver todo. Para registrar, el responsable tiene que darte permiso en Equipo.
+✔ Sofía sin permiso: ve todo, sin botones, y el aviso dice que el responsable da el permiso
+✔ al devolverle el permiso, a Sofía le aparecen los botones sin recargar
+errores de consola: ninguno
+FALLOS: 0

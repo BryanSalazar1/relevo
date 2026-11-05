@@ -28,6 +28,7 @@ import {
   updateDoc,
   writeBatch,
 } from 'firebase/firestore';
+import { asegurarVerificada, franjasDeTurnos } from './semilla-utils.mjs';
 
 const PROJECT_ID = 'demo-relevo';
 const PASSWORD = 'relevo123';
@@ -63,7 +64,7 @@ if (REAL) {
   console.log(`>>> Sembrando en el proyecto REAL: ${app.options.projectId}\n`);
 } else {
   connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
-  connectFirestoreEmulator(db, '127.0.0.1', 8080);
+  connectFirestoreEmulator(db, '127.0.0.1', Number(process.env.FIRESTORE_PORT ?? 8080));
 }
 
 const uids = {}; // email -> uid real que asigna el emulador
@@ -83,17 +84,32 @@ const idDe = (ts) => {
 };
 
 async function entrarComo(u) {
+  let user;
   try {
     const cred = await createUserWithEmailAndPassword(auth, u.email, PASSWORD);
     await updateProfile(cred.user, { displayName: u.nombre });
     console.log(`  + creado ${u.email}`);
-    return cred.user;
+    user = cred.user;
   } catch (e) {
     if (e.code !== 'auth/email-already-in-use') throw e;
-    const cred = await signInWithEmailAndPassword(auth, u.email, PASSWORD);
-    return cred.user;
+    user = (await signInWithEmailAndPassword(auth, u.email, PASSWORD)).user;
   }
+  // Las rules exigen el correo verificado (código de 6 dígitos al registrarse)
+  await asegurarVerificada(app, user, { real: REAL, projectId: PROJECT_ID });
+  return user;
 }
+
+/**
+ * Marta (enfermera) de turno las 24 h, para que las pruebas registren a cualquier hora; Sofía
+ * (familiar) con permiso de registrar. Así están los permisos desde el 04/11/2026.
+ */
+const TURNOS_PRUEBA = { marta: [{ dias: [0, 1, 2, 3, 4, 5, 6], desde: '00:00', hasta: '00:00' }] };
+const extraMiembro = (u) =>
+  u.rol === 'cuidador_turno'
+    ? { turnos: TURNOS_PRUEBA[u.uid] ?? [], franjas: franjasDeTurnos(TURNOS_PRUEBA[u.uid]) }
+    : u.rol === 'familiar'
+      ? { puedeRegistrar: true }
+      : {};
 
 async function main() {
   console.log('1) Usuarios y perfiles');
@@ -142,7 +158,7 @@ async function main() {
   b = writeBatch(db);
   for (const u of USUARIOS.filter((x) => x.uid !== 'ana')) {
     const uid = uids[u.email];
-    b.set(doc(personaRef, 'miembros', uid), { uid, rol: u.rol, nombre: u.nombre, agregadoEn: serverTimestamp() });
+    b.set(doc(personaRef, 'miembros', uid), { uid, rol: u.rol, nombre: u.nombre, agregadoEn: serverTimestamp(), ...extraMiembro(u) });
   }
   b.update(personaRef, { miembrosUids: arrayUnion(marta, sofia, luis) });
   await b.commit();
