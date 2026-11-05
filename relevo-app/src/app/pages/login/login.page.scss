@@ -201,3 +201,78 @@
   margin-top: 8px;
   font-size: 0.8rem;
 }
+
+// Perfiles guardados en este dispositivo: se elige uno y solo se escribe la contraseña
+.perfiles {
+  margin-bottom: 8px;
+  .titulo-perfiles {
+    font-weight: 600;
+    margin: 0 0 8px;
+  }
+  .separador {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 16px 0 12px;
+    color: var(--ion-color-medium);
+    font-size: 0.85rem;
+    &::before,
+    &::after {
+      content: '';
+      flex: 1;
+      border-top: 1px solid var(--ion-color-step-200, #ddd);
+    }
+  }
+}
+
+.perfil {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 6px 10px 12px;
+  margin-bottom: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--ion-color-step-150, #e3e3e3);
+  background: var(--ion-background-color, #fff);
+  cursor: pointer;
+  &:focus-visible {
+    outline: 2px solid var(--ion-color-primary);
+  }
+  &.elegido {
+    cursor: default;
+    margin-bottom: 16px;
+  }
+  .avatar {
+    flex: 0 0 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+    color: #fff;
+    background: var(--ion-color-primary);
+  }
+  .datos {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+  }
+  .nombre {
+    font-weight: 600;
+  }
+  .correo {
+    font-size: 0.85rem;
+    color: var(--ion-color-medium);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+ion-checkbox.recordar {
+  display: block;
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+}

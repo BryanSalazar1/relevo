@@ -20,8 +20,18 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ---------- helpers ----------
-    function autenticado() {
+    // Con sesión (aunque no haya verificado su correo): solo para su propio perfil en usuarios/{uid}
+    function conSesion() {
       return request.auth != null;
+    }
+
+    // Con sesión y correo verificado (código de 6 dígitos al registrarse: enviarCodigoCorreo /
+    // verificarCodigoCorreo). Las sesiones iniciadas antes de la verificación por código
+    // (auth_time anterior al corte) siguen funcionando: esas cuentas se marcaron verificadas.
+    function autenticado() {
+      return request.auth != null
+        && (request.auth.token.get('email_verified', false) == true
+            || request.auth.token.get('auth_time', 9999999999) < 1793850082);
     }
 
     function esMiembro(personaId) {
@@ -41,6 +51,36 @@ service cloud.firestore {
 
     function tieneRol(personaId, roles) {
       return miembroActivo(personaId) && rol(personaId) in roles;
+    }
+
+    // Franja de 15 min de la semana en este momento, en hora del centro de México (UTC-6 todo el año
+    // desde 2022): 0 = domingo 00:00-00:15 ... 671 = sábado 23:45. Igual que franjaDe() en la app.
+    function franjaActual() {
+      let t = request.time - duration.value(6, 'h');
+      return (t.dayOfWeek() % 7) * 96 + t.hours() * 4 + int(t.minutes() / 15.0);
+    }
+
+    // Con el documento de miembro ya leído (`m`): ¿registra en este momento?
+    function registraConMiembro(m) {
+      return m.get('pausado', false) != true
+        && (m.rol == 'cuidador_principal'
+            || (m.rol == 'cuidador_turno' && franjaActual() in m.get('franjas', []))
+            || (m.rol == 'familiar' && m.get('puedeRegistrar', false) == true));
+    }
+
+    // Quién registra AHORA (tomas, tareas, bitácora y signos): el responsable siempre; el enfermero/a
+    // solo en sus franjas (sus turnos + 30 min de tolerancia, que guarda el responsable con los turnos);
+    // el familiar solo si el responsable se lo permite. En pausa, nadie. (estadoRegistro en la app)
+    // Lee el documento de miembro una sola vez (las rules permiten pocas lecturas por petición).
+    function registraAhora(personaId) {
+      let ruta = /databases/$(database)/documents/personas_cuidadas/$(personaId)/miembros/$(request.auth.uid);
+      return autenticado() && exists(ruta) && registraConMiembro(get(ruta).data);
+    }
+
+    // Lo que solo el responsable pone en un miembro: franjas de sus turnos y el permiso del familiar
+    function datosRegistroMiembro(d) {
+      return (!('franjas' in d) || (d.franjas is list && d.franjas.size() <= 672))
+        && (!('puedeRegistrar' in d) || d.puedeRegistrar is bool);
     }
 
     // Pausa: solo enfermeros y familiares (nunca el responsable ni el médico), con fecha y motivo corto
@@ -159,7 +199,7 @@ service cloud.firestore {
 
     // Una entrada de bitácora: tipo conocido y texto con algo escrito (la app limita a 2000 caracteres)
     function entradaValida(d) {
-      return d.tipo in ['sintoma', 'animo', 'comida', 'sueno', 'incidente', 'nota', 'indicacion']
+      return d.tipo in ['sintoma', 'animo', 'comida', 'sueno', 'incidente', 'nota', 'indicacion', 'entrega']
         && d.texto is string && d.texto.size() > 0 && d.texto.size() <= 2000
         // Solo incidentes: si fue una caída y si hubo lesión
         && (!('caida' in d) || d.caida is bool)
@@ -278,16 +318,16 @@ service cloud.firestore {
       // Cada quien lee solo su propio perfil (el correo, los tokens y los equipos no son públicos).
       // Las reglas solo consultan el tipo de cuenta (con get(), que no pasa por aquí) para invitaciones
       // anteriores sin rol; los permisos dependen del rol en cada persona, no del tipo.
-      allow get: if autenticado() && request.auth.uid == userId;
+      allow get: if conSesion() && request.auth.uid == userId;
       allow list: if false;
       // Cada quien crea y edita solo su propio perfil; el tipo de cuenta es obligatorio y,
       // una vez definido, no cambia (las cuentas antiguas sin tipo pueden definirlo una vez)
-      allow create: if autenticado() && request.auth.uid == userId
+      allow create: if conSesion() && request.auth.uid == userId
         && request.resource.data.tipo in ['familiar', 'enfermero', 'medico'];
-      allow update: if autenticado() && request.auth.uid == userId
+      allow update: if conSesion() && request.auth.uid == userId
         && request.resource.data.tipo in ['familiar', 'enfermero', 'medico']
         && (!('tipo' in resource.data) || request.resource.data.tipo == resource.data.tipo);
-      allow delete: if autenticado() && request.auth.uid == userId;
+      allow delete: if conSesion() && request.auth.uid == userId;
     }
 
     // ---------- semaforos_compartidos/{token} ----------
@@ -357,7 +397,8 @@ service cloud.firestore {
         allow create: if preferenciasValidas(request.resource.data) && (
           // el responsable agrega a alguien con cualquier rol (el rol es por persona)
           (tieneRol(personaId, ['cuidador_principal'])
-            && rolValido(request.resource.data.rol))
+            && rolValido(request.resource.data.rol)
+            && datosRegistroMiembro(request.resource.data))
           || (memberId == request.auth.uid
               && request.resource.data.uid == request.auth.uid
               && estaraEnMiembrosUids(personaId)
@@ -374,7 +415,8 @@ service cloud.firestore {
         allow update: if (tieneRol(personaId, ['cuidador_principal'])
             && request.resource.data.uid == resource.data.uid
             && rolValido(request.resource.data.rol)
-            && pausaValida(request.resource.data))
+            && pausaValida(request.resource.data)
+            && datosRegistroMiembro(request.resource.data))
           // ...o cada quien actualiza solo su propio nombre (al editar su perfil) y sus
           // preferencias de avisos (Notificaciones); los turnos y el rol siguen siendo del responsable
           || (memberId == request.auth.uid
@@ -392,18 +434,19 @@ service cloud.firestore {
       // El autor edita/borra lo suyo; el responsable, todo (salvo editar una indicación).
       match /entradas_bitacora/{entradaId} {
         allow read: if esMiembro(personaId);
-        allow create: if tieneRol(personaId, ['cuidador_principal', 'cuidador_turno', 'familiar', 'medico'])
+        // Registran quienes pueden en este momento (turno o permiso); el médico, sus indicaciones
+        allow create: if (registraAhora(personaId) || tieneRol(personaId, ['medico']))
           && request.resource.data.autorUid == request.auth.uid
           && entradaValida(request.resource.data)
           && tipoPermitido(personaId, request.resource.data);
         // El autor corrige lo suyo (sin cambiar de autor); el responsable, todo
         allow update: if (tieneRol(personaId, ['cuidador_principal'])
-            || (miembroActivo(personaId) && resource.data.autorUid == request.auth.uid))
+            || ((registraAhora(personaId) || tieneRol(personaId, ['medico'])) && resource.data.autorUid == request.auth.uid))
           && request.resource.data.autorUid == resource.data.autorUid
           && entradaValida(request.resource.data)
           && tipoPermitido(personaId, request.resource.data);
         allow delete: if tieneRol(personaId, ['cuidador_principal'])
-          || (miembroActivo(personaId) && resource.data.autorUid == request.auth.uid);
+          || ((registraAhora(personaId) || tieneRol(personaId, ['medico'])) && resource.data.autorUid == request.auth.uid);
       }
 
       // consulta/preguntas: las preguntas de la familia para el médico (hoja para la consulta).
@@ -432,7 +475,7 @@ service cloud.firestore {
                       && inventarioValido(request.resource.data)
                       && resurtidoValido(request.resource.data))
                   || medicamentoValido(request.resource.data)))
-          || (tieneRol(personaId, ['cuidador_turno', 'familiar'])
+          || (registraAhora(personaId)
               && soloCambia(['inventario'])
               && inventarioValido(request.resource.data)
               && ajusteDeToma());
@@ -442,7 +485,7 @@ service cloud.firestore {
         // cambiar solo la nota de cualquier toma sin firmarla).
         match /tomas/{tomaId} {
           allow read: if esMiembro(personaId);
-          allow create, update, delete: if tieneRol(personaId, ['cuidador_principal', 'cuidador_turno', 'familiar'])
+          allow create, update, delete: if registraAhora(personaId)
             && ((request.method == 'delete' && puedeQuitar(personaId, resource.data.registradoPor))
                 || (request.method != 'delete'
                     && tomaValida(request.resource.data)
@@ -466,7 +509,7 @@ service cloud.firestore {
 
         match /registros/{registroId} {
           allow read: if esMiembro(personaId);
-          allow create, update, delete: if tieneRol(personaId, ['cuidador_principal', 'cuidador_turno', 'familiar'])
+          allow create, update, delete: if registraAhora(personaId)
             && ((request.method == 'delete' && puedeQuitar(personaId, resource.data.registradoPor))
                 || (request.method != 'delete'
                     && registroValido(request.resource.data)
@@ -498,11 +541,11 @@ service cloud.firestore {
       // Tipos y límites: los de TIPOS_SIGNO en la app.
       match /signos_vitales/{signoId} {
         allow read: if esMiembro(personaId);
-        allow create, update: if tieneRol(personaId, ['cuidador_principal', 'cuidador_turno', 'familiar'])
+        allow create, update: if registraAhora(personaId)
           && request.resource.data.autorUid == request.auth.uid
           && puedeQuitar(personaId, resource == null ? null : resource.data.autorUid)
           && signoValido(request.resource.data);
-        allow delete: if tieneRol(personaId, ['cuidador_principal', 'cuidador_turno', 'familiar'])
+        allow delete: if registraAhora(personaId)
           && puedeQuitar(personaId, resource.data.autorUid);
       }
     }

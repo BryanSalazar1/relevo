@@ -316,3 +316,54 @@ ion-card.en-pausa {
     font-style: italic;
   }
 }
+
+// Fuera de turno o sin permiso de registrar: solo lectura
+ion-card.sin-registro {
+  border-left: 4px solid var(--ion-color-medium);
+  .cuerpo {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 12px 16px;
+    ion-icon {
+      flex: 0 0 auto;
+      font-size: 20px;
+      margin-top: 2px;
+      color: var(--ion-color-medium);
+    }
+    p {
+      margin: 0;
+    }
+  }
+}
+
+// Fin del turno: ofrece dejar la nota de entrega para quien sigue
+ion-card.fin-turno {
+  border-left: 4px solid var(--ion-color-secondary);
+  .cuerpo {
+    padding: 14px 16px 8px;
+  }
+  .titulo {
+    font-weight: 700;
+    color: var(--ion-color-secondary-shade);
+    margin-bottom: 4px;
+  }
+  .cerrar-aviso {
+    display: flex;
+    gap: 6px;
+    align-items: flex-start;
+    margin-top: 6px;
+    font-size: 0.85rem;
+    color: var(--ion-color-medium-shade);
+    ion-icon {
+      flex: 0 0 auto;
+      margin-top: 2px;
+    }
+  }
+  .acciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+  }
+}

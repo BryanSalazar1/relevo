@@ -2,6 +2,7 @@
  * Lógica pura de las notificaciones (sin Firebase) para poder probarla con `node --test`.
  * index.js la usa desde los disparadores de Firestore y del programador.
  */
+import { createHash } from 'node:crypto';
 
 export const TIPO_ENTRADA_ETIQUETA = {
   sintoma: 'Síntoma',
@@ -11,6 +12,7 @@ export const TIPO_ENTRADA_ETIQUETA = {
   incidente: 'Incidente',
   nota: 'Nota',
   indicacion: 'Indicación médica',
+  entrega: 'Nota de entrega de turno',
 };
 
 export const TIPO_TAREA_ETIQUETA = {
@@ -792,3 +794,111 @@ export function datosSemaforo({ persona, medicamentos, tomas, tareas, registros 
     registros: registros.map((r) => ({ tareaId: r.tareaId, id: r.id, hecha: r.hecha === true })),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Verificación del correo con un código de 6 dígitos (enviarCodigoCorreo / verificarCodigoCorreo)
+// ---------------------------------------------------------------------------
+
+/**
+ * Reglas del código: vence a los 10 min, se reenvía como mucho una vez por minuto y hasta 10 veces
+ * en 24 h, y 5 intentos fallidos lo inutilizan (hay que pedir otro). El código no se guarda: solo su
+ * hash SHA-256 junto con el uid, en verificaciones_correo/{uid}, que solo leen las Cloud Functions.
+ */
+export const CODIGO_CORREO = {
+  digitos: 6,
+  vigenciaMin: 10,
+  reenvioSeg: 60,
+  maxEnviosDia: 10,
+  maxIntentos: 5,
+};
+
+/** Código de 6 dígitos con ceros a la izquierda; `aleatorio(max)` = crypto.randomInt. */
+export function nuevoCodigo(aleatorio) {
+  const max = 10 ** CODIGO_CORREO.digitos;
+  return String(aleatorio(max)).padStart(CODIGO_CORREO.digitos, '0');
+}
+
+/** Hash del código ligado al usuario (el mismo código no sirve para otra cuenta). */
+export function hashCodigo(uid, codigo) {
+  return createHash('sha256').update(`${uid}:${codigo}`).digest('hex');
+}
+
+/** Solo dígitos, exactamente 6 (se aceptan espacios que el usuario pegue). */
+export function limpiarCodigo(texto) {
+  const limpio = String(texto ?? '').replace(/\s+/g, '');
+  return /^[0-9]{6}$/.test(limpio) ? limpio : null;
+}
+
+/**
+ * ¿Se puede enviar (o reenviar) un código ahora? `previo` = lo guardado ({ enviadoEn, envios,
+ * primerEnvio } en milisegundos) o null. Devuelve si se permite, cuántos segundos esperar si no, y
+ * el conteo de envíos a guardar.
+ */
+export function puedeEnviarCodigo(previo, ahora) {
+  const dia = 24 * 3_600_000;
+  const enVentana = previo && Number.isFinite(previo.primerEnvio) && ahora - previo.primerEnvio < dia;
+  const envios = enVentana && Number.isFinite(previo.envios) ? previo.envios : 0;
+  const primerEnvio = enVentana ? previo.primerEnvio : ahora;
+  if (previo && Number.isFinite(previo.enviadoEn)) {
+    const espera = Math.ceil((previo.enviadoEn + CODIGO_CORREO.reenvioSeg * 1000 - ahora) / 1000);
+    if (espera > 0) return { permitido: false, motivo: 'espera', esperaSeg: espera };
+  }
+  if (envios >= CODIGO_CORREO.maxEnviosDia) {
+    return { permitido: false, motivo: 'limite', esperaSeg: Math.ceil((primerEnvio + dia - ahora) / 1000) };
+  }
+  return { permitido: true, envios: envios + 1, primerEnvio };
+}
+
+/**
+ * Revisa el código escrito contra lo guardado ({ hash, expiraEn (ms), intentos }).
+ * resultado: 'ok' | 'incorrecto' | 'vencido' | 'agotado' | 'sin_codigo'; `intentos` = lo que hay que
+ * guardar si no fue ok, `restantes` = intentos que quedan.
+ */
+export function revisarCodigo(guardado, hashEscrito, ahora) {
+  if (!guardado || typeof guardado.hash !== 'string') return { resultado: 'sin_codigo', restantes: 0 };
+  const intentos = Number.isFinite(guardado.intentos) ? guardado.intentos : 0;
+  if (intentos >= CODIGO_CORREO.maxIntentos) return { resultado: 'agotado', intentos, restantes: 0 };
+  if (!Number.isFinite(guardado.expiraEn) || ahora > guardado.expiraEn) {
+    return { resultado: 'vencido', intentos, restantes: 0 };
+  }
+  if (hashEscrito === guardado.hash) return { resultado: 'ok', intentos, restantes: 0 };
+  const nuevos = intentos + 1;
+  const restantes = CODIGO_CORREO.maxIntentos - nuevos;
+  return { resultado: restantes > 0 ? 'incorrecto' : 'agotado', intentos: nuevos, restantes };
+}
+
+/** Mensaje para el usuario según el resultado de revisarCodigo. */
+export function mensajeCodigo({ resultado, restantes }) {
+  switch (resultado) {
+    case 'incorrecto':
+      return `El código no es correcto. Te ${restantes === 1 ? 'queda 1 intento' : `quedan ${restantes} intentos`}.`;
+    case 'agotado':
+      return 'Se agotaron los intentos de este código. Pide uno nuevo.';
+    case 'vencido':
+      return 'El código venció. Pide uno nuevo.';
+    case 'sin_codigo':
+      return 'No hay un código vigente. Pide uno nuevo.';
+    default:
+      return '';
+  }
+}
+
+/** Asunto, texto y HTML del correo con el código. */
+export function correoCodigo({ codigo, nombre }) {
+  const saludo = nombre ? `Hola, ${nombre}:` : 'Hola:';
+  const vigencia = `Vence en ${CODIGO_CORREO.vigenciaMin} minutos.`;
+  const aviso = 'Si tú no creaste una cuenta en Relevo, ignora este correo.';
+  return {
+    asunto: `Relevo · Tu código de verificación: ${codigo}`,
+    texto: `${saludo}\n\nTu código para verificar tu correo en Relevo es: ${codigo}\n\n${vigencia}\n\n${aviso}`,
+    html: `<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:auto;color:#1f2933">
+    <h2 style="color:#0b8577;margin:0 0 16px">Relevo</h2>
+    <p style="margin:0 0 12px">${escaparHtml(saludo)}</p>
+    <p style="margin:0 0 12px">Tu código para verificar tu correo es:</p>
+    <p style="font-size:32px;letter-spacing:8px;font-weight:bold;margin:8px 0 16px">${codigo}</p>
+    <p style="margin:0 0 12px">${vigencia}</p>
+    <p style="margin:24px 0 0;font-size:12px;color:#777">${aviso}</p>
+  </div>`,
+  };
+}
+

@@ -19,6 +19,7 @@ import {
   IonSpinner,
   IonTitle,
   IonToolbar,
+  AlertController,
   ToastController,
 } from '@ionic/angular';
 import { combineLatest, map, of, switchMap } from 'rxjs';
@@ -46,6 +47,7 @@ import {
 import { MiembrosService } from '../../core/services/miembros.service';
 import { SignosService } from '../../core/services/signos.service';
 import { TareasService } from '../../core/services/tareas.service';
+import { textoSinRegistro } from '../../core/utils/registro-turno';
 import {
   DIAS_ATRAS_MAX,
   FilaDia,
@@ -170,6 +172,7 @@ export class HoyPage {
   private readonly eventosSvc = inject(EventosService);
   private readonly editarCita = inject(EditarCitaService);
   private readonly toast = inject(ToastController);
+  private readonly alertas = inject(AlertController);
   private readonly router = inject(Router);
   private readonly opcionesSemaforo = inject(OpcionesSemaforoService);
 
@@ -177,6 +180,22 @@ export class HoyPage {
   readonly persona = this.ctx.persona;
   readonly rol = this.ctx.rol;
   readonly enPausa = this.ctx.enPausa;
+  /** Si puede registrar ahora (turno del enfermero/a, permiso del familiar) */
+  readonly registro = this.ctx.registro;
+  /** Aviso cuando no puede registrar por su turno o por permiso (la pausa y el médico tienen el suyo) */
+  readonly avisoRegistro = computed(() => {
+    const e = this.registro();
+    if (e.puede || e.motivo === 'pausa' || e.motivo === 'medico') return '';
+    return textoSinRegistro(e, this.ctx.ahora());
+  });
+  /** Turno (fin) para el que ya se dejó o se descartó la nota de entrega en este dispositivo */
+  private readonly notaAtendida = signal<string | null>(null);
+  /** Al final de su turno (30 min antes y en la tolerancia) se le ofrece dejar una nota a quien sigue */
+  readonly ofrecerNota = computed(() => {
+    const e = this.registro();
+    if (!this.esHoy() || this.rol() !== 'cuidador_turno' || !e.puede || !e.porAcabar || !e.finTurno) return false;
+    return this.notaAtendida() !== this.claveNota(e.finTurno);
+  });
 
   /** Día que se muestra (por defecto hoy) */
   readonly dia = signal<Date>(inicioDeDia(new Date()));
@@ -341,20 +360,102 @@ export class HoyPage {
     return !!r && !this.enPausa() && PUEDE_EDITAR_CITAS.includes(r);
   });
 
+  /** Registran según su rol y, además, solo en su turno (enfermero/a) o con permiso (familiar) */
   readonly puedeRegistrarTomas = computed(() => {
     const r = this.rol();
-    return !!r && !this.enPausa() && PUEDE_REGISTRAR_TOMAS.includes(r);
+    return !!r && this.ctx.puedeRegistrar() && PUEDE_REGISTRAR_TOMAS.includes(r);
   });
   readonly puedeRegistrarTareas = computed(() => {
     const r = this.rol();
-    return !!r && !this.enPausa() && PUEDE_REGISTRAR_TAREAS.includes(r);
+    return !!r && this.ctx.puedeRegistrar() && PUEDE_REGISTRAR_TAREAS.includes(r);
   });
   /** El responsable: resurte y edita el plan */
   readonly puedeEditar = computed(() => {
     const r = this.rol();
     return !!r && PUEDE_EDITAR_MEDICAMENTOS.includes(r);
   });
+  private claveNota(fin: Date): string {
+    return `${this.ctx.personaId() ?? ''}|${fin.toISOString()}`;
+  }
+
+  private leerNotaAtendida(): string | null {
+    try {
+      return localStorage.getItem('relevo:nota-entrega');
+    } catch {
+      return null;
+    }
+  }
+
+  /** "Ahora no": no vuelve a ofrecerse en este turno */
+  descartarNota() {
+    const fin = this.registro().finTurno;
+    if (!fin) return;
+    const clave = this.claveNota(fin);
+    this.notaAtendida.set(clave);
+    try {
+      localStorage.setItem('relevo:nota-entrega', clave);
+    } catch {
+      // sin almacenamiento: solo se oculta en esta visita
+    }
+  }
+
+  /** Fin del turno: cerrar sesión (en un teléfono compartido, que el siguiente no registre a su nombre) */
+  async cerrarSesion() {
+    const alerta = await this.alertas.create({
+      header: '¿Cerrar sesión?',
+      message: 'Quien siga entrará con su propio perfil. Lo que registraste ya quedó guardado.',
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        { text: 'Cerrar sesión', role: 'confirm' },
+      ],
+    });
+    await alerta.present();
+    const { role } = await alerta.onDidDismiss();
+    if (role === 'confirm') await this.auth.cerrarSesion();
+  }
+
+  /** Nota para quien sigue: queda en la bitácora (tipo entrega) y sale en su Entrega de turno */
+  async dejarNota() {
+    const personaId = this.ctx.personaId();
+    const fin = this.registro().finTurno;
+    if (!personaId || !fin) return;
+    const hora = `${String(fin.getHours()).padStart(2, '0')}:${String(fin.getMinutes()).padStart(2, '0')}`;
+    const alerta = await this.alertas.create({
+      header: 'Nota para quien sigue',
+      message: `Tu turno termina a las ${hora}. Quien entre la verá en su Entrega de turno.`,
+      inputs: [
+        {
+          name: 'texto',
+          type: 'textarea',
+          placeholder: 'Ej. Durmió poco, ya cenó, falta el baño…',
+          attributes: { maxlength: 2000, rows: 4 },
+        },
+      ],
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        { text: 'Guardar nota', role: 'confirm' },
+      ],
+    });
+    await alerta.present();
+    const { role, data } = await alerta.onDidDismiss();
+    const texto = String(data?.values?.texto ?? '').trim();
+    if (role !== 'confirm') return;
+    if (!texto) {
+      await this.avisar('Escribe algo en la nota para guardarla.');
+      return;
+    }
+    try {
+      await this.bitacoraSvc.crear(personaId, { tipo: 'entrega', texto, fecha: new Date() });
+      this.descartarNota();
+      await this.avisar('Nota guardada. Quien siga la verá al entrar.', 'success');
+    } catch (error) {
+      console.error(error);
+      await this.avisar('No se pudo guardar la nota. Inténtalo de nuevo.');
+    }
+  }
+
   constructor() {
+    this.notaAtendida.set(this.leerNotaAtendida());
     const reloj = setInterval(() => this.tic(new Date()), REFRESCO_MS);
     inject(DestroyRef).onDestroy(() => clearInterval(reloj));
   }
@@ -578,6 +679,11 @@ export class HoyPage {
 
   private async aviso(message: string) {
     const t = await this.toast.create({ message, color: 'danger', duration: 2500, position: 'top' });
+    await t.present();
+  }
+
+  private async avisar(message: string, color: 'danger' | 'success' = 'danger') {
+    const t = await this.toast.create({ message, color, duration: 3000, position: 'top' });
     await t.present();
   }
 }

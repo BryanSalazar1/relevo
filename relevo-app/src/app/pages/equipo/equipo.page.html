@@ -149,6 +149,12 @@
                 {{ textoTurnos(m.turnos) }}
               </p>
             }
+            @if (textoRegistro(m); as r) {
+              <p class="registro" [class.alerta]="r.alerta" data-prueba="registro-miembro">
+                <ion-icon [name]="r.alerta ? 'alert-circle-outline' : 'create-outline'" />
+                {{ r.texto }}
+              </p>
+            }
           </ion-label>
           @if (esPrincipal() && m.rol !== 'medico') {
             <ion-button slot="end" fill="outline" size="small" (click)="editarTurnos(m); $event.stopPropagation()">

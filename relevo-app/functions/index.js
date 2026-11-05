@@ -27,12 +27,17 @@
  *     estaba en 0, el "se acabó" sale desde notificarToma, porque esas tomas no cambian el medicamento.
  *   - limpiarUsuarioEliminado: al borrar una cuenta en Auth, borra su perfil y lo quita de cada equipo.
  *   - resumirReporte (invocable): resumen narrativo de un periodo para el reporte PDF, con el mismo contexto.
+ *   - enviarCodigoCorreo / verificarCodigoCorreo (invocables): verificación del correo al registrarse con
+ *     un código de 6 dígitos (vence en 10 min, 5 intentos); al acertar marca la cuenta como verificada
+ *     en Auth (emailVerified), que las rules exigen para leer y escribir datos.
  *   - preguntarAsistente (invocable): el asistente de IA; recibe el contexto que arma la app y llama a Gemini
  *     con la clave del servidor. Exige sesión iniciada y ser miembro de la persona; no depende de App Check.
  *
  * Parámetros en functions/.env (ver .env.example). Requiere plan Blaze (Cloud Functions).
  */
+import { randomInt } from 'node:crypto';
 import { initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
 import * as logger from 'firebase-functions/logger';
@@ -76,6 +81,14 @@ import {
   LIMITE_IA_DIARIO,
   datosSemaforo,
   peticionSemaforo,
+  CODIGO_CORREO,
+  correoCodigo,
+  hashCodigo,
+  limpiarCodigo,
+  mensajeCodigo,
+  nuevoCodigo,
+  puedeEnviarCodigo,
+  revisarCodigo,
 } from './logica.js';
 
 initializeApp();
@@ -974,3 +987,115 @@ async function generarConGemini({ uid, personaId, contents, systemInstruction })
     throw new HttpsError('internal', 'No se pudo obtener respuesta del modelo.');
   }
 }
+
+// ---------------------------------------------------------------------------
+// Verificación del correo con un código (al registrarse)
+// ---------------------------------------------------------------------------
+
+const enEmulador = () => process.env.FUNCTIONS_EMULATOR === 'true';
+const milisDe = (t) => (t && typeof t.toMillis === 'function' ? t.toMillis() : null);
+
+/**
+ * Genera un código de 6 dígitos, guarda solo su hash en verificaciones_correo/{uid} (sin regla que
+ * la abra: la app no la lee) y lo manda al correo de la cuenta. En el emulador, sin correo
+ * configurado, el código queda además en `codigoEmulador` para las pruebas automáticas.
+ */
+export const enviarCodigoCorreo = onCall({ cors: true, ...opciones }, async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Inicia sesión para verificar tu correo.');
+  const usuario = await getAuth().getUser(uid);
+  if (usuario.emailVerified) return { verificado: true };
+  if (!usuario.email) throw new HttpsError('failed-precondition', 'Tu cuenta no tiene correo.');
+
+  const ref = db().doc(`verificaciones_correo/${uid}`);
+  const snap = await ref.get();
+  const previo = snap.exists ? snap.data() : null;
+  const ahora = Date.now();
+  const permiso = puedeEnviarCodigo(
+    previo && {
+      enviadoEn: milisDe(previo.enviadoEn),
+      envios: previo.envios,
+      primerEnvio: milisDe(previo.primerEnvio),
+    },
+    ahora,
+  );
+  if (!permiso.permitido) {
+    const mensaje =
+      permiso.motivo === 'espera'
+        ? `Espera ${permiso.esperaSeg} s para pedir otro código.`
+        : 'Pediste demasiados códigos hoy. Inténtalo mañana.';
+    throw new HttpsError('resource-exhausted', mensaje, { esperaSeg: permiso.esperaSeg });
+  }
+
+  const correoListo = !!CORREO_USUARIO.value() && !!contrasenaCorreo();
+  if (!correoListo && !enEmulador()) {
+    logger.error('Correo no configurado: no se puede enviar el código de verificación');
+    throw new HttpsError('unavailable', 'No pudimos enviar el correo. Inténtalo más tarde.');
+  }
+
+  const codigo = nuevoCodigo(randomInt);
+  await ref.set({
+    hash: hashCodigo(uid, codigo),
+    expiraEn: Timestamp.fromMillis(ahora + CODIGO_CORREO.vigenciaMin * 60_000),
+    intentos: 0,
+    enviadoEn: Timestamp.fromMillis(ahora),
+    envios: permiso.envios,
+    primerEnvio: Timestamp.fromMillis(permiso.primerEnvio),
+    email: usuario.email,
+    ...(enEmulador() ? { codigoEmulador: codigo } : {}),
+  });
+
+  if (correoListo) {
+    const correo = correoCodigo({ codigo, nombre: usuario.displayName ?? '' });
+    try {
+      await obtenerTransporte().sendMail({
+        from: `"Relevo" <${CORREO_USUARIO.value()}>`,
+        to: usuario.email,
+        subject: correo.asunto,
+        text: correo.texto,
+        html: correo.html,
+      });
+    } catch (error) {
+      logger.error('No se pudo enviar el código de verificación', { uid, error: String(error) });
+      // Sin correo no hay código que escribir: se permite pedir otro de inmediato
+      await ref.update({ enviadoEn: FieldValue.delete() });
+      throw new HttpsError('unavailable', 'No pudimos enviar el correo. Revisa tu correo e inténtalo de nuevo.');
+    }
+  } else {
+    logger.info('Código de verificación (solo emulador, correo no configurado)', { uid, codigo });
+  }
+  return { enviado: true, email: usuario.email, vigenciaMin: CODIGO_CORREO.vigenciaMin, reenvioSeg: CODIGO_CORREO.reenvioSeg };
+});
+
+/** Revisa el código escrito; si es correcto marca el correo como verificado en Auth. */
+export const verificarCodigoCorreo = onCall({ cors: true }, async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Inicia sesión para verificar tu correo.');
+  const codigo = limpiarCodigo(req.data?.codigo);
+  if (!codigo) throw new HttpsError('invalid-argument', 'Escribe los 6 dígitos del código.');
+  const usuario = await getAuth().getUser(uid);
+  if (usuario.emailVerified) return { verificado: true };
+
+  const ref = db().doc(`verificaciones_correo/${uid}`);
+  const revision = await db().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const d = snap.exists ? snap.data() : null;
+    const r = revisarCodigo(
+      d && { hash: d.hash, intentos: d.intentos, expiraEn: milisDe(d.expiraEn) },
+      hashCodigo(uid, codigo),
+      Date.now(),
+    );
+    if (r.resultado === 'ok') tx.delete(ref);
+    else if (snap.exists && r.intentos !== d.intentos) tx.update(ref, { intentos: r.intentos });
+    return r;
+  });
+  if (revision.resultado !== 'ok') {
+    throw new HttpsError('failed-precondition', mensajeCodigo(revision), {
+      resultado: revision.resultado,
+      restantes: revision.restantes,
+    });
+  }
+  await getAuth().updateUser(uid, { emailVerified: true });
+  logger.info('Correo verificado', { uid });
+  return { verificado: true };
+});

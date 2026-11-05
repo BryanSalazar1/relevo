@@ -177,6 +177,25 @@ describe('entrega de turno', () => {
       expect(lista[5].quien).toBe('Marta');
     });
 
+    it('la nota de entrega del turno anterior sale después de la indicación del médico, y la propia no', () => {
+      const lista = novedadesEntrega({
+        desde: a('06:00'),
+        ahora: a('16:30'),
+        filas: [],
+        entradas: [
+          entrada('incidente', '15:00', 'marta', 'Se tropezó, sin golpe'),
+          entrada('entrega', '15:45', 'marta', 'Durmió poco; ya cenó; falta el baño'),
+          entrada('entrega', '15:50', 'yo', 'mi propia nota'),
+          entrada('indicacion', '09:00', 'medico', 'Medir presión dos veces al día'),
+        ],
+        signos: [],
+        miUid: 'yo',
+      });
+      expect(lista.map((n) => n.tipo)).toEqual(['indicacion', 'entrega', 'incidente']);
+      expect(lista[1].texto).toBe('Nota de entrega: Durmió poco; ya cenó; falta el baño');
+      expect(lista[1].quien).toBe('Marta');
+    });
+
     it('una "no tomada" de la mañana registrada por la noche entra por la hora en que se registró', () => {
       const filas = filasDelDia(
         [dosis('08:00', { toma: { horaProgramada: Timestamp.fromDate(a('08:00')), horaReal: null, tomado: false, registradoPor: 'u', registradoEn: Timestamp.fromDate(a('20:55')) } })],

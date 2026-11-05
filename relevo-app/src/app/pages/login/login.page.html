@@ -42,6 +42,33 @@
       <ion-text color="medium"><p>Bitácora compartida de cuidado</p></ion-text>
     </div>
 
+    @if (modo() === 'login' && perfiles().length > 0 && !elegido()) {
+      <section class="perfiles" data-prueba="perfiles">
+        <p class="titulo-perfiles">Elige tu perfil</p>
+        @for (p of perfiles(); track p.email) {
+          <div class="perfil" role="button" tabindex="0" (click)="elegirPerfil(p)" (keydown.enter)="elegirPerfil(p)">
+            <span class="avatar" aria-hidden="true">{{ inicialesPerfil(p) }}</span>
+            <span class="datos">
+              <span class="nombre">{{ p.nombre }}</span>
+              <span class="correo">{{ p.email }}</span>
+            </span>
+            <ion-button
+              fill="clear"
+              color="medium"
+              size="small"
+              class="quitar"
+              (click)="olvidar(p, $event)"
+              [attr.aria-label]="'Quitar el perfil de ' + p.nombre + ' de este dispositivo'"
+              title="Quitar de este dispositivo"
+            >
+              <ion-icon slot="icon-only" name="close-outline" />
+            </ion-button>
+          </div>
+        }
+        <p class="separador"><span>o inicia sesión con tu correo</span></p>
+      </section>
+    }
+
     <form (ngSubmit)="enviar()">
       @if (modo() === 'registro') {
         <ion-input
@@ -69,6 +96,16 @@
         </div>
       }
 
+      @if (elegido(); as p) {
+        <div class="perfil elegido" data-prueba="perfil-elegido">
+          <span class="avatar" aria-hidden="true">{{ inicialesPerfil(p) }}</span>
+          <span class="datos">
+            <span class="nombre">Hola, {{ p.nombre }}</span>
+            <span class="correo">{{ p.email }}</span>
+          </span>
+          <ion-button fill="clear" size="small" (click)="otraCuenta()">Cambiar</ion-button>
+        </div>
+      } @else {
       <ion-input
         type="email"
         label="Correo"
@@ -80,6 +117,7 @@
         [(ngModel)]="email"
         class="ion-margin-bottom"
       />
+      }
 
       <ion-input
         type="password"
@@ -96,6 +134,10 @@
       >
         <ion-input-password-toggle slot="end" />
       </ion-input>
+
+      <ion-checkbox name="recordar" labelPlacement="end" class="recordar" [(ngModel)]="recordar">
+        Recordar mi perfil en este dispositivo
+      </ion-checkbox>
 
       @if (modo() === 'registro') {
         <div class="privacidad">

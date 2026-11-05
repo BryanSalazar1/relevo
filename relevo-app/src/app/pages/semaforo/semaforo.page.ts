@@ -158,7 +158,7 @@ export class SemaforoPage {
   /** Puede marcar el pendiente según su rol (tomas y tareas tienen permisos distintos). */
   puedeMarcar(p: FilaDia): boolean {
     const r = this.rol();
-    if (!r || this.ctx.enPausa()) return false;
+    if (!r || !this.ctx.puedeRegistrar()) return false;
     return (p.tipo === 'toma' ? PUEDE_REGISTRAR_TOMAS : PUEDE_REGISTRAR_TAREAS).includes(r);
   }
 

@@ -168,6 +168,14 @@ export interface Miembro {
    */
   turnos?: Turno[];
   /**
+   * Franjas de 15 min de la semana en que puede registrar (sus turnos + la tolerancia), calculadas
+   * con franjasDeTurnos al guardar los turnos. Las rules las usan para el enfermero/a; la app usa
+   * los turnos (estadoRegistro).
+   */
+  franjas?: number[];
+  /** Familiar: el responsable le permite registrar (tomas, tareas, bitácora y signos). Sin valor = no */
+  puedeRegistrar?: boolean;
+  /**
    * Versión anterior de las preferencias: `false` equivalía a no recibir avisos del equipo.
    * Hoy manda `avisos`; esto solo se lee cuando `avisos` no existe.
    */
@@ -275,7 +283,9 @@ export type TipoEntrada =
   | 'sueno'
   | 'incidente'
   | 'nota'
-  | 'indicacion';
+  | 'indicacion'
+  // Nota que deja el enfermero/a al terminar su turno para quien sigue (sale en su Entrega de turno)
+  | 'entrega';
 
 export interface TipoEntradaInfo {
   valor: TipoEntrada;
@@ -297,6 +307,7 @@ export const TIPOS_ENTRADA_TODOS: TipoEntradaInfo[] = [
   { valor: 'nota', etiqueta: 'Nota', icono: 'chatbox-ellipses-outline', color: 'medium' },
   // Solo la escribe el médico (PUEDE_ESCRIBIR_INDICACION); se destaca en Hoy y en la Entrega de turno
   { valor: 'indicacion', etiqueta: 'Indicación médica', icono: 'document-text-outline', color: 'primary' },
+  { valor: 'entrega', etiqueta: 'Entrega de turno', icono: 'swap-horizontal-outline', color: 'secondary' },
 ];
 
 /** Tipos vigentes: por los que se filtra la bitácora (qué puede escribir cada rol: tiposEntradaPara). */
@@ -305,7 +316,8 @@ export const TIPOS_ENTRADA: TipoEntradaInfo[] = TIPOS_ENTRADA_TODOS.filter((t) =
 /** Tipos que puede elegir cada rol al escribir: el médico solo indicaciones; los demás, todo menos eso. */
 export function tiposEntradaPara(rol: Rol | null | undefined): TipoEntradaInfo[] {
   const indicacion = !!rol && PUEDE_ESCRIBIR_INDICACION.includes(rol);
-  return TIPOS_ENTRADA.filter((t) => (t.valor === 'indicacion') === indicacion);
+  // La nota de entrega se escribe desde el aviso de fin de turno, no desde el formulario
+  return TIPOS_ENTRADA.filter((t) => t.valor !== 'entrega' && (t.valor === 'indicacion') === indicacion);
 }
 
 export const TIPO_ENTRADA_INFO: Record<TipoEntrada, TipoEntradaInfo> = Object.fromEntries(

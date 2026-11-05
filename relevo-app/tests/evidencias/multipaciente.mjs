@@ -9,7 +9,7 @@ import { chromium } from 'playwright';
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 const OUT = process.argv[2] || 'capturas-multipaciente';
-const BASE = 'http://localhost:4300';
+const BASE = process.env.RELEVO_BASE || 'http://localhost:4300';
 const PASS = 'relevo123';
 mkdirSync(OUT, { recursive: true });
 let fallos = 0;
@@ -121,13 +121,26 @@ try {
     await L.waitForTimeout(2500);
   });
 
-  await paso('Con la mamá de Marta, Luis ve las pestañas de la familia (Hoy, Plan) y puede registrar', async () => {
+  await paso('Con la mamá de Marta, Luis ve las pestañas de la familia; registra solo cuando Marta (responsable) se lo permite', async () => {
     const tabs = await pestanas(L);
     espera(tabs.some((t) => /Hoy/.test(t)) && !tabs.some((t) => /Seguimiento/.test(t)), `pestañas: ${tabs}`);
     await L.goto(`${BASE}/personas/${mamaId}/bitacora`);
     await L.waitForSelector('app-bitacora', { timeout: 30000 });
     await L.waitForTimeout(2000);
-    espera((await L.locator('app-bitacora').getByRole('button', { name: 'Nuevo registro' }).count()) === 1, 'no puede escribir en la bitácora');
+    const nuevo = () => L.locator('app-bitacora').getByRole('button', { name: 'Nuevo registro' }).count();
+    espera((await nuevo()) === 0, 'el familiar registra sin permiso');
+    // Marta, responsable de su mamá, le da permiso desde Equipo
+    await M.goto(`${BASE}/personas/${mamaId}/equipo`);
+    const fila = M.locator('app-equipo ion-item', { hasText: 'Luis', has: M.getByRole('button', { name: 'Opciones' }) }).first();
+    await fila.waitFor({ timeout: 30000 });
+    espera(/requiere tu permiso/.test(limpio(await fila.innerText())), 'Equipo no dice que necesita permiso');
+    await fila.getByRole('button', { name: 'Opciones', exact: true }).last().click();
+    await M.click('ion-action-sheet button:has-text("Permitir registrar")');
+    await M.waitForTimeout(2000);
+    espera(/Puede registrar/.test(limpio(await fila.innerText())), 'Equipo no dice que ya puede registrar');
+    await foto(M, 'm2b_equipo_permiso_familiar');
+    await L.waitForTimeout(2000);
+    espera((await nuevo()) === 1, 'con permiso no puede escribir en la bitácora');
   });
 
   await paso('Inicio de Luis: Carmen como Médico, la mamá de Marta como Familiar', async () => {

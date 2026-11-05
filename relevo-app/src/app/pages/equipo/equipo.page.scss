@@ -53,7 +53,8 @@ ion-card-content .descripcion {
   margin-bottom: 10px;
 }
 
-ion-item .turnos {
+ion-item .turnos,
+ion-item .registro {
   font-size: 0.8rem;
   color: var(--ion-color-medium);
   margin-top: 4px;
@@ -62,6 +63,10 @@ ion-item .turnos {
     vertical-align: -2px;
     margin-right: 2px;
   }
+}
+
+ion-item .registro.alerta {
+  color: var(--ion-color-warning-shade);
 }
 
 .ayuda-turnos {

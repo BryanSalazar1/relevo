@@ -157,13 +157,15 @@ export class BitacoraPage {
   /** Quien escribe registros, y el médico (solo indicaciones médicas; el formulario lo acota) */
   readonly puedeEscribir = computed(() => {
     const r = this.rol();
-    if (this.enPausa()) return false;
-    return !!r && (PUEDE_ESCRIBIR_BITACORA.includes(r) || PUEDE_ESCRIBIR_INDICACION.includes(r));
+    if (!r || this.enPausa()) return false;
+    if (PUEDE_ESCRIBIR_INDICACION.includes(r)) return true;
+    // Enfermero/a solo en su turno; familiar con permiso del responsable
+    return PUEDE_ESCRIBIR_BITACORA.includes(r) && this.ctx.puedeRegistrar();
   });
   /** Quienes marcan tareas también registran signos sueltos (mismos roles en firestore.rules) */
   readonly puedeRegistrarSignos = computed(() => {
     const r = this.rol();
-    return !!r && !this.enPausa() && PUEDE_REGISTRAR_TAREAS.includes(r);
+    return !!r && this.ctx.puedeRegistrar() && PUEDE_REGISTRAR_TAREAS.includes(r);
   });
   readonly infoSigno = INFO_SIGNO_BITACORA;
 
@@ -215,7 +217,8 @@ export class BitacoraPage {
   /** El autor edita lo suyo; el responsable, todo menos las indicaciones del médico (igual en firestore.rules). */
   puedeEditar(e: EntradaBitacora): boolean {
     if (this.enPausa()) return false;
-    if (e.autorUid === this.auth.uid) return true;
+    // Lo propio: la indicación el médico; lo demás, solo mientras puede registrar (en su turno)
+    if (e.autorUid === this.auth.uid) return e.tipo === 'indicacion' || this.ctx.puedeRegistrar();
     return this.rol() === 'cuidador_principal' && e.tipo !== 'indicacion';
   }
 

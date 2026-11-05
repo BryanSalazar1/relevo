@@ -5,6 +5,7 @@ import { mkdirSync } from 'node:fs';
 import { chromium } from 'playwright';
 const BASE = process.argv[2] || 'http://localhost:4300';
 const OUT = process.argv[3] || 'capturas-evidencias';
+import { verificarCorreo } from './emulador.mjs';
 mkdirSync(OUT, { recursive: true });
 const PASS = 'relevo123';
 const P = 'persona-demo';
@@ -308,10 +309,14 @@ try {
     await page.click('text=¿No tienes cuenta? Regístrate');
     await page.fill('ion-input[name="nombre"] input', 'Pedro Prueba');
     await page.click('ion-segment-button:has-text("Enfermer")');
-    await page.fill('ion-input[name="email"] input', `pedro.${Date.now()}@relevo.test`);
+    const correoNuevo = `pedro.${Date.now()}@relevo.test`;
+    await page.fill('ion-input[name="email"] input', correoNuevo);
     await page.fill('ion-input[name="password"] input', PASS);
-    await page.locator('ion-checkbox').first().click();
+    await page.locator('ion-checkbox[name="privacidad"]').click();
     await page.click('ion-button[type="submit"]');
+    // Sin verificar el correo no entra: escribe el código de 6 dígitos que llegó
+    await foto(page, 'n00_verificar_correo');
+    await verificarCorreo(page, correoNuevo);
     await page.waitForURL(/\/home/, { timeout: 40000 });
     espera(codigo.length === 8, 'no hay código');
     await page.goto(`${BASE}/unirse/${codigo}`, { waitUntil: 'domcontentloaded' });
@@ -320,6 +325,10 @@ try {
     await page.click('ion-button:has-text("Unirme")');
     await page.waitForURL(/\/personas\/persona-demo\/hoy/, { timeout: 30000 });
     await page.waitForSelector('app-hoy ion-list.agenda ion-item', { timeout: 30000 });
+    // Enfermero/a sin turnos asignados: ve todo, pero no registra hasta que el responsable le ponga turnos
+    await page.waitForSelector('app-hoy ion-card.sin-registro', { timeout: 20000 });
+    espera(/turnos asignados/.test(await page.locator('app-hoy ion-card.sin-registro').innerText()), 'no avisa que no tiene turnos');
+    espera((await page.locator('app-hoy ion-list.agenda ion-button:has-text("Tomada")').count()) === 0, 'puede marcar sin turnos');
     await foto(page, 'n01_hoy_nuevo');
   });
   await ctx.close();

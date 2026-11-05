@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, noAuthGuard } from './core/guards/auth.guard';
+import { authGuard, noAuthGuard, verificarGuard } from './core/guards/auth.guard';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'home', pathMatch: 'full' },
@@ -7,6 +7,12 @@ export const routes: Routes = [
     path: 'login',
     canActivate: [noAuthGuard],
     loadComponent: () => import('./pages/login/login.page').then((m) => m.LoginPage),
+  },
+  {
+    // Código de 6 dígitos que llega al correo al registrarse (sin verificar no se entra)
+    path: 'verificar-correo',
+    canActivate: [verificarGuard],
+    loadComponent: () => import('./pages/verificar/verificar.page').then((m) => m.VerificarPage),
   },
   {
     // Aviso de privacidad: pública, se acepta al registrarse y se relee desde Mi perfil
