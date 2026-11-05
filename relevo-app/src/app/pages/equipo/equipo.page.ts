@@ -186,6 +186,23 @@ export class EquipoPage {
         untracked(() => void this.crearCodigoPermanente(rol));
       }
     });
+    // Enfermeros con turnos guardados antes del 04/11/2026 no tienen `franjas` (lo que revisan las
+    // rules para dejarlos registrar): al abrir Equipo, el responsable se las calcula una vez
+    const completadas = new Set<string>();
+    effect(() => {
+      const personaId = this.ctx.personaId();
+      if (!this.esPrincipal() || !personaId) return;
+      for (const m of this.miembros() ?? []) {
+        if (m.rol !== 'cuidador_turno' || !m.turnos?.length || m.franjas || completadas.has(m.uid)) continue;
+        completadas.add(m.uid);
+        untracked(
+          () =>
+            void this.miembrosSvc
+              .actualizarTurnos(personaId, m.uid, m.turnos!)
+              .catch((e) => console.warn('No se pudieron completar las franjas de turno', m.uid, e)),
+        );
+      }
+    });
     // Imagen del QR para el código actual
     effect(() => {
       const inv = this.invitacionActual();
